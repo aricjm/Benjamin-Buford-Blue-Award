@@ -1,21 +1,20 @@
 {
-  "name": "bbaward-backend",
-  "version": "1.0.0",
-  "main": "server.js",
+  "name": "cfb-bets-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "init-db": "node init_db.js"
   },
   "dependencies": {
-    "body-parser": "^1.20.2",
+    "better-sqlite3": "^8.4.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "googleapis": "^121.0.0",
-    "node-fetch": "^2.6.12",
-    "uuid": "^9.0.0"
+    "express": "^4.18.4",
+    "node-cron": "^3.0.0"
   },
-  "engines": {
-    "node": ">=18"
+  "devDependencies": {
+    "nodemon": "^3.0.3"
   }
 }

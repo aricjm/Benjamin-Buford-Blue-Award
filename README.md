@@ -1,34 +1,92 @@
-<<<<<<< HEAD
-# BenjaminBufordBlueAward
-=======
-# BenjaminBufordBlueAward (BBBAward)
+# College Football Bet Tracker
 
-This repository contains a full-stack app to track college football picks for Aric, Nick, and Cisco using a Google Sheet as the database.
+A full stack college football betting tracker for you, Nick, and Cisco. This app stores weekly picks, mandatory televised games, optional games, and automatically updates scores and bet results using The Odds API.
 
-## Features
-- Submit weekly picks (5 mandatory televised games + optional games).
-- Track picks per week, season, and all-time.
-- Automatic result calculation using point spreads.
-- Admin page to override scores and mark games final.
-- Google Sheet as the single source of truth.
+## Stack
+- Backend: Node.js + Express
+- Database: SQLite for local/dev
+- Frontend: React + Vite
+- Scheduler: node-cron
+- External API: The Odds API
 
-## Repo layout
-- `backend/` — Node/Express API that reads/writes the Google Sheet.
-- `frontend/` — React single-page app for submitting picks and admin overrides.
+---
 
-## Quick start (local)
+## Project structure
+- `backend/` — Express API, SQLite data layer, game sync logic
+- `frontend/` — React + Vite UI
 
-### 1) Create Google service account and share the sheet
-1. Create a Google Cloud project and a service account.
-2. Create and download a JSON key file and place it at `backend/service-account.json`.
-3. Share your Google Sheet `Benjamin Buford Blue` with the service account email (Editor).
-   - Sheet ID: `16oSWKgLnYY50gcFmSCaBiILd97IYme0BQYLyUAgpqeM`
+---
 
-### 2) Backend
-```bash
-cd backend
-cp .env.example .env
-# edit .env to point to your service-account.json and set SYNC_SECRET
-npm install
-npm start
->>>>>>> 94c2749 (Init commit - BBBAward)
+## Local setup step-by-step
+
+### 1) Start the backend
+
+1. Open a terminal and go to the backend folder:
+   ```powershell
+   cd c:\ProgramData\Development\Benjamin-Buford-Blue-Award\backend
+   ```
+2. Install backend dependencies:
+   ```powershell
+   npm install
+   ```
+3. Initialize the SQLite database:
+   ```powershell
+   npm run init-db
+   ```
+4. Start the backend server:
+   ```powershell
+   npm start
+   ```
+
+The backend will run on `http://localhost:4000`.
+
+### 2) Start the frontend
+
+1. Open a second terminal and go to the frontend folder:
+   ```powershell
+   cd c:\ProgramData\Development\Benjamin-Buford-Blue-Award\frontend
+   ```
+2. Install frontend dependencies:
+   ```powershell
+   npm install
+   ```
+3. Start the frontend dev server:
+   ```powershell
+   npm run dev
+   ```
+
+The app will open in your browser at `http://localhost:5173`.
+
+---
+
+## How to use
+
+- Select which player is picking: `You`, `Nick`, or `Cisco`
+- Choose a season and a week from the dropdowns
+- The app shows 5 mandatory televised games first
+- Pick one side for each mandatory game
+- Optionally pick other games as extra
+- Use the manual game form to add a game not returned by The Odds API
+- Save your picks and they will appear in the weekly summary
+
+---
+
+## New features
+
+- Season selector for multiple college football seasons
+- Weekly summary, season summary, and all-time summary pages
+- Manual game entry for any game not in The Odds API
+
+---
+
+## Notes
+
+- The backend uses SQLite by default in `backend/data/bets.db`
+- The scheduler syncs odds and scores hourly
+- If you want to use a different API key, set `ODDS_API_KEY` in your environment
+
+---
+
+## If you want PostgreSQL later
+
+You can replace SQLite with Postgres in `backend/db.js` and update the database connection logic to use `pg` instead of `better-sqlite3`.
