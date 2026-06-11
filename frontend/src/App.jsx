@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
+import logo from "./resources/images/benjamin_buford_blue_award_emblem_8.png";
 
+// Import the new icon components
+import ChevronLeftIcon from "./resources/icons/ChevronLeftIcon";
+import ChevronRightIcon from "./resources/icons/ChevronRightIcon";
+import FootballIcon from "./resources/icons/FootballIcon";
+import StatsIcon from "./resources/icons/StatsIcon";
+import LeaderboardIcon from "./resources/icons/LeaderboardIcon";
+import AddIcon from "./resources/icons/AddIcon";
+import AdminIcon from "./resources/icons/AdminIcon";
+import ComponentsIcon from "./resources/icons/ComponentsIcon";
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 
 const formatSpread = (game, team) => {
@@ -68,6 +78,7 @@ function App() {
   const [players, setPlayers] = useState([]);
   const [seasons, setSeasons] = useState([]);
   const [weeks, setWeeks] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState('You');
   const [selectedWeek, setSelectedWeek] = useState(null);
@@ -95,6 +106,14 @@ function App() {
   const [editingPickData, setEditingPickData] = useState({});
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved === 'true';
+  });
+  const [playerStats, setPlayerStats] = useState(null);
+  const [selectedConference, setSelectedConference] = useState('');
+  const [statsTimeRange, setStatsTimeRange] = useState('All-Time');
+  const [conferenceStats, setConferenceStats] = useState(null);
   const [lastSynced, setLastSynced] = useState(() => {
     const saved = localStorage.getItem('lastSyncTime');
     return saved ? new Date(saved) : null;
@@ -109,14 +128,18 @@ function App() {
     async function loadMeta() {
       setLoading(true);
       try {
-        const [playersRes, seasonsRes] = await Promise.all([
+        // const [playersRes, seasonsRes] = await Promise.all([
+        const [playersRes, seasonsRes, teamsRes] = await Promise.all([
           fetch('/api/players'),
-          fetch('/api/seasons')
+          fetch('/api/seasons'),
+          fetch('/api/teams')
         ]);
         const playersJson = await playersRes.json();
         const seasonsJson = await seasonsRes.json();
+        const teamsJson = await teamsRes.json();
         setPlayers(playersJson);
         setSeasons(seasonsJson);
+        setTeams(teamsJson);
         const initialSeason = seasonsJson.length ? seasonsJson[0] : DEFAULT_SEASON;
         setSelectedSeason(initialSeason);
         if (playersJson.length) {
@@ -163,10 +186,42 @@ function App() {
     loadSeasonData();
   }, [selectedSeason]);
 
+  const loadStats = async (player) => {
+    if (!player) return;
+    try {
+      const res = await fetch(`/api/stats/${player}`);
+      const data = await res.json();
+      setPlayerStats(data);
+    } catch (error) {
+      console.error('Failed to load stats', error);
+    }
+  };
+
+  const loadConferenceStats = async () => {
+    if (!selectedPlayer || !selectedConference) {
+      setConferenceStats(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/stats/${selectedPlayer}/conference?conference=${selectedConference}&range=${statsTimeRange}&week=${selectedWeek}&season=${selectedSeason}`);
+      const data = await res.json();
+      setConferenceStats(data);
+    } catch (error) { console.error(error); }
+  };
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    loadStats(selectedPlayer);
+  }, [selectedPlayer]);
+
   useEffect(() => {
     if (selectedWeek === null || !selectedSeason) return;
     loadWeek(selectedWeek, selectedSeason, selectedPlayer);
   }, [selectedWeek, selectedSeason, selectedPlayer]);
+
+  useEffect(() => {
+    loadConferenceStats();
+  }, [selectedWeek, selectedSeason, selectedPlayer, selectedConference, statsTimeRange]);
 
   const loadWeek = async (week, season, player) => {
     setLoading(true);
@@ -201,6 +256,8 @@ function App() {
     }
   };
 
+  const conferenceList = Array.from(new Set(teams.map(t => t.conference))).sort();
+
   const isGameLocked = (game) => {
     return new Date(game.commence_time) < new Date();
   };
@@ -227,6 +284,7 @@ function App() {
   const isPicksPage = activePage === 'picks';
   const isButtonsPage = activePage === 'buttons';
   const isAdminPage = activePage === 'admin';
+  const isStatsPage = activePage === 'stats';
 
   const handlePickChange = (game, team) => {
     setPicks((prev) => {
@@ -306,6 +364,7 @@ function App() {
         setSummary(data.summary || []);
         setSaveResult({ success: true, message: 'Picks saved successfully.' });
         // build a friendly summary using current games data
+        loadStats(selectedPlayer);
         const saved = (data.saved || []).map((p) => {
           const g = games.find((gg) => gg.id === p.game_id) || {};
           return {
@@ -452,6 +511,7 @@ function App() {
           if (activePage === 'admin') {
             await loadAdminData();
           }
+          loadStats(selectedPlayer);
         }
       } else {
         setMessage(data.error || 'Failed to sync scores.');
@@ -500,10 +560,10 @@ function App() {
     <div className="app-shell">
       <header className="page-header">
         <div>
-          <h1>Benjamin Buford Blue Award</h1>
-          <p>Weekly picks, outcomes, and mandatory televised games for Aric, Nick, and Cisco.</p>
+          <h1 className="image-title">
+            <img src={logo} alt="Benjamin Buford Blue Award" />
+          </h1>
         </div>
-
         <button
           className="menu-toggle"
           onClick={() => setMenuOpen((open) => !open)}
@@ -600,43 +660,82 @@ function App() {
           </>
         )}
 
-      <div className={`app-layout ${menuOpen ? 'menu-open' : ''}`}>
-        <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
-          <nav>
+      <div className={`app-layout ${menuOpen ? 'menu-open' : ''} ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <aside className={`sidebar ${menuOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+          <button 
+            onClick={() => {
+              const next = !isSidebarCollapsed;
+              setIsSidebarCollapsed(next);
+              localStorage.setItem('sidebarCollapsed', next);
+            }}
+            style={{ 
+              background: 'rgba(255,255,255,0.06)', 
+              border: 'none', 
+              color: '#f5f5f5', // Changed to white for better visibility against dark background
+              cursor: 'pointer', 
+              width: '100%', 
+              fontSize: '1.2rem', 
+              padding: '10px 0',
+              borderRadius: '12px',
+              marginBottom: '12px'
+            }}
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </button>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <button
               className={activePage === 'picks' ? 'active' : ''}
               onClick={() => handlePageChange('picks')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "Picks" : ""}
             >
-              Picks
+              {isSidebarCollapsed ? <FootballIcon /> : 'Picks'}
             </button>
             <button
-              className={activePage === 'manual' ? 'active' : ''}
-              onClick={() => handlePageChange('manual')}
+              className={activePage === 'stats' ? 'active' : ''}
+              onClick={() => handlePageChange('stats')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "My Stats" : ""}
             >
-              Add Manual Game
+              {isSidebarCollapsed ? <StatsIcon /> : 'My Stats'}
             </button>
             <button
               className={activePage === 'summary' ? 'active' : ''}
               onClick={() => handlePageChange('summary')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "Leaderboards" : ""}
             >
-              Leaderboards
+              {isSidebarCollapsed ? <LeaderboardIcon /> : 'Leaderboards'}
+            </button>
+            <button
+              className={activePage === 'manual' ? 'active' : ''}
+              onClick={() => handlePageChange('manual')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "Add Manual Game" : ""}
+            >
+              {isSidebarCollapsed ? <AddIcon /> : 'Add Game Manually'}
             </button>
             <button
               className={activePage === 'admin' ? 'active' : ''}
               onClick={() => handlePageChange('admin')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "Admin" : ""}
             >
-              Admin
+              {isSidebarCollapsed ? <AdminIcon /> : 'Admin'}
             </button>
             <button
               className={activePage === 'buttons' ? 'active' : ''}
               onClick={() => handlePageChange('buttons')}
+              style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+              title={isSidebarCollapsed ? "Buttons" : ""}
             >
-              Buttons
+              {isSidebarCollapsed ? <ComponentsIcon /> : 'Buttons'}
             </button>
           </nav>
         </aside>
 
-        <main className="main-content">
+        <main className="main-content" style={{ paddingTop: '10px' }}>
           <section className="controls">
             <label>
               Season:
@@ -672,6 +771,204 @@ function App() {
 
           {message && <div className="message">{message}</div>}
           {loading && <div className="loading">Loading...</div>}
+
+          {isStatsPage && playerStats && (
+            <section className="panel stats-panel">
+              <h2>{selectedPlayer}'s All-Time Stats</h2>
+              <div className="manual-grid" style={{ marginTop: '20px' }}>
+                <div className="control-card">
+                  <h3>Record</h3>
+                  <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0' }}>
+                    {playerStats.record.wins || 0} - {playerStats.record.losses || 0} - {playerStats.record.pushes || 0}
+                  </p>
+                  <p className="switch-label">
+                    Win %: {playerStats.record.wins + playerStats.record.losses > 0 
+                      ? ((playerStats.record.wins / (playerStats.record.wins + playerStats.record.losses)) * 100).toFixed(1) + '%' 
+                      : 'N/A'}
+                  </p>
+                </div>
+                <div className="control-card">
+                  <h3>{playerStats.currentWinStreak > 0 ? 'Current Win Streak' : playerStats.currentLossStreak > 0 ? 'Current Loss Streak' : 'Current Streak'}</h3>
+                  <p style={{ fontSize: '2.5em', fontWeight: 'bold', margin: '5px 0', color: playerStats.currentWinStreak > 0 ? '#4caf50' : playerStats.currentLossStreak > 0 ? '#f44336' : '#888' }}>
+                    {playerStats.currentWinStreak > 0 ? playerStats.currentWinStreak : playerStats.currentLossStreak}
+                  </p>
+                  <p className="switch-label">
+                    {playerStats.currentWinStreak > 0 ? 'Consecutive wins' : playerStats.currentLossStreak > 0 ? 'Consecutive losses' : 'No active streak'}
+                  </p>
+                </div>
+                <div className="control-card">
+                  <h3>Longest Win Streak</h3>
+                  <p style={{ fontSize: '2.5em', fontWeight: 'bold', margin: '5px 0', color: '#ffcc00' }}>{playerStats.longestWinStreak || 0}</p>
+                  <p className="switch-label">Your all-time best</p>
+                </div>
+                <div className="control-card">
+                  <h3>Longest Loss Streak</h3>
+                  <p style={{ fontSize: '2.5em', fontWeight: 'bold', margin: '5px 0', color: '#f44336' }}>{playerStats.longestLossStreak || 0}</p>
+                  <p className="switch-label">Your all-time low</p>
+                </div>
+                <div className="control-card">
+                  <h3>Favorite Conference</h3>
+                  <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0' }}>{playerStats.favConf?.conference || 'None'}</p>
+                  <p className="switch-label">{playerStats.favConf?.count || 0} picks made</p>
+                </div>
+                <div className="control-card">
+                  <h3>Best Conference</h3>
+                  <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0', color: '#4caf50' }}>{playerStats.bestConf?.conference || 'None'}</p>
+                  <p className="switch-label">{playerStats.bestConf?.count || 0} wins here</p>
+                </div>
+                <div className="control-card">
+                  <h3>Worst Conference</h3>
+                  <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0', color: '#ff9800' }}>{playerStats.worstConf?.conference || 'None'}</p>
+                  <p className="switch-label">{playerStats.worstConf?.count || 0} losses here</p>
+                </div>
+                <div className="control-card">
+                  <h3>Reliable Ally</h3>
+                  <p style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '10px 0', color: '#4caf50' }}>{playerStats.topWinSchool?.school || 'None'}</p>
+                  <p className="switch-label">Most wins generated for you ({playerStats.topWinSchool?.count || 0})</p>
+                </div>
+                <div className="control-card">
+                  <h3>Arch-Nemesis</h3>
+                  <p style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '10px 0', color: '#f44336' }}>{playerStats.topLossSchool?.school || 'None'}</p>
+                  <p className="switch-label">Most losses caused for you ({playerStats.topLossSchool?.count || 0})</p>
+                </div>
+                <div className="control-card">
+                  <h3>Most Bets For</h3>
+                  <p style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '10px 0' }}>{playerStats.mostBetsFor?.school || 'None'}</p>
+                  <p className="switch-label">{playerStats.mostBetsFor?.count || 0} total picks</p>
+                </div>
+                <div className="control-card">
+                  <h3>Most Bets Against</h3>
+                  <p style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '10px 0' }}>{playerStats.mostBetsAgainst?.school || 'None'}</p>
+                  <p className="switch-label">{playerStats.mostBetsAgainst?.count || 0} total fades</p>
+                </div>
+              </div>
+              <div style={{ marginTop: '40px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                <h3>Conference Deep-Dive</h3>
+                <div className="controls" style={{ padding: 0, marginTop: '10px' }}>
+                  <label>
+                    Conference:
+                    <select value={selectedConference} onChange={(e) => setSelectedConference(e.target.value)}>
+                      <option value="">-- Select Conference --</option>
+                      {conferenceList.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Time Range:
+                    <select value={statsTimeRange} onChange={(e) => setStatsTimeRange(e.target.value)}>
+                      <option value="All-Time">All-Time</option>
+                      <option value="Season">Current Season</option>
+                      <option value="Week">Current Week</option>
+                    </select>
+                  </label>
+                </div>
+
+                {conferenceStats && (
+                  <>
+                    <div className="manual-grid" style={{ marginTop: '20px' }}>
+                      <div className="control-card">
+                        <h3>Best Team</h3>
+                        <p style={{ fontWeight: 'bold', color: '#4caf50' }}>{conferenceStats.bestTeam?.school || 'None'}</p>
+                        <p className="switch-label">{conferenceStats.bestTeam?.wins || 0} wins for you</p>
+                      </div>
+                      <div className="control-card">
+                        <h3>Worst Team</h3>
+                        <p style={{ fontWeight: 'bold', color: '#f44336' }}>{conferenceStats.worstTeam?.school || 'None'}</p>
+                        <p className="switch-label">{conferenceStats.worstTeam?.losses || 0} losses for you</p>
+                      </div>
+                      <div className="control-card">
+                        <h3>Most Bets For</h3>
+                        <p style={{ fontWeight: 'bold' }}>{conferenceStats.mostBetsFor?.school || 'None'}</p>
+                        <p className="switch-label">{conferenceStats.mostBetsFor?.count || 0} picks</p>
+                      </div>
+                      <div className="control-card">
+                        <h3>Most Bets Against</h3>
+                        <p style={{ fontWeight: 'bold' }}>{conferenceStats.mostBetsAgainst?.school || 'None'}</p>
+                        <p className="switch-label">{conferenceStats.mostBetsAgainst?.count || 0} fades</p>
+                      </div>
+                    </div>
+
+                    <div className="panel" style={{ marginTop: '20px', background: 'rgba(0,0,0,0.2)' }}>
+                      <h4>School Records in {selectedConference}</h4>
+                      <table style={{ width: '100%', marginTop: '10px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left' }}>School</th>
+                            <th>Record</th>
+                            <th>Win %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {conferenceStats.schoolRecords.map(r => (
+                            <tr key={r.school}>
+                              <td>{r.school}</td>
+                              <td style={{ textAlign: 'center' }}>{r.wins} - {r.losses} - {r.pushes}</td>
+                              <td style={{ textAlign: 'center' }}>{r.total > 0 ? ((r.wins / r.total) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {playerStats.trend && playerStats.trend.length > 0 && (
+                <div style={{ marginTop: '40px', padding: '20px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                  <h3>Weekly Performance Trend</h3>
+                  <div style={{ position: 'relative', height: '180px', marginTop: '10px' }}>
+                    <svg 
+                      viewBox="0 0 100 100" 
+                      preserveAspectRatio="none" 
+                      style={{ position: 'absolute', top: '20px', left: '10px', width: 'calc(100% - 20px)', height: '120px', pointerEvents: 'none', zIndex: 10 }}
+                    >
+                      <polyline
+                        fill="none"
+                        stroke="#2196f3"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        points={playerStats.trend.map((w, i) => {
+                          const total = w.wins + w.losses;
+                          const pct = total > 0 ? (w.wins / total) : 0;
+                          const x = ((i + 0.5) / playerStats.trend.length) * 100;
+                          const y = 100 - (pct * 100);
+                          return `${x},${y}`;
+                        }).join(' ')}
+                      />
+                      {playerStats.trend.map((w, i) => {
+                        const total = w.wins + w.losses;
+                        const pct = total > 0 ? (w.wins / total) : 0;
+                        const x = ((i + 0.5) / playerStats.trend.length) * 100;
+                        const y = 100 - (pct * 100);
+                        return <circle key={i} cx={x} cy={y} r="1.5" fill="#2196f3" />;
+                      })}
+                    </svg>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '100%', padding: '20px 10px' }}>
+                      {playerStats.trend.map((w, i) => {
+                        const max = Math.max(...playerStats.trend.map(x => x.wins + x.losses), 1);
+                        return (
+                          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '120px', width: '100%', justifyContent: 'center' }}>
+                              <div style={{ width: '15px', height: `${(w.wins / max) * 100}%`, backgroundColor: '#4caf50', opacity: 0.8, borderRadius: '3px 3px 0 0' }} title={`${w.wins} Wins`}></div>
+                              <div style={{ width: '15px', height: `${(w.losses / max) * 100}%`, backgroundColor: '#f44336', opacity: 0.8, borderRadius: '3px 3px 0 0' }} title={`${w.losses} Losses`}></div>
+                            </div>
+                            <span style={{ fontSize: '0.75em', color: '#888', textAlign: 'center' }}>W{w.week}<br/>{w.season.slice(2)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '20px', fontSize: '0.8em' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '10px', height: '10px', backgroundColor: '#4caf50' }}></div> Wins</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '10px', height: '10px', backgroundColor: '#f44336' }}></div> Losses</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '2px', backgroundColor: '#2196f3' }}></div> Win %</span>
+                  </div>
+                </div>
+              )}
+
+              
+            </section>
+          )}
 
           {isPicksPage && (
             <>
@@ -798,19 +1095,27 @@ function App() {
               <div className="manual-grid">
                 <label>
                   Home team
-                  <input
+                  <select
                     value={manualGame.home_team}
                     onChange={(e) => handleManualGameChange('home_team', e.target.value)}
-                    placeholder="Home team"
-                  />
+                  >
+                    <option value="">-- Select Home Team --</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.school}>{t.school} {t.nickname}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Away team
-                  <input
+                  <select
                     value={manualGame.away_team}
                     onChange={(e) => handleManualGameChange('away_team', e.target.value)}
-                    placeholder="Away team"
-                  />
+                  >
+                    <option value="">-- Select Away Team --</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.school}>{t.school} {t.nickname}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Commence time

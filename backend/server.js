@@ -28,6 +28,15 @@ app.get('/api/players', (req, res) => {
   }
 });
 
+app.get('/api/teams', (req, res) => {
+  try {
+    const teams = db.getTeams();
+    res.json(teams);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/seasons', (req, res) => {
   try {
     const seasons = db.getSeasons();
@@ -214,6 +223,25 @@ app.get('/api/season/:season/summary', (req, res) => {
   }
 });
 
+app.get('/api/stats/:player', (req, res) => {
+  try {
+    const stats = db.getPlayerStats(req.params.player);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/conference', (req, res) => {
+  try {
+    const { conference, range, week, season } = req.query;
+    const stats = db.getConferenceStats(req.params.player, conference, range, Number(week), season);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/summary/alltime', (req, res) => {
   try {
     const summary = db.getAllTimeSummary();
@@ -227,6 +255,7 @@ app.get('/api/summary/alltime', (req, res) => {
   try {
     await db.init();
     await db.seedPlayers();
+    await db.seedTeams();
     await db.seedWeeks();
     db.seedTestData();
     scheduler.start(db);

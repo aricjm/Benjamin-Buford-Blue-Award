@@ -82,6 +82,15 @@ function init() {
     )`
   ).run();
 
+  db.prepare(
+    `CREATE TABLE IF NOT EXISTS teams (
+      id INTEGER PRIMARY KEY,
+      school TEXT NOT NULL UNIQUE,
+      nickname TEXT,
+      conference TEXT
+    )`
+  ).run();
+
   migrateWeeksTable();
 
   db.prepare(
@@ -156,6 +165,152 @@ function seedPlayers() {
   return count;
 }
 
+function seedTeams() {
+  const teams = [
+    { school: 'Boston College', nickname: 'Eagles', conference: 'ACC' },
+    { school: 'California', nickname: 'Golden Bears', conference: 'ACC' },
+    { school: 'Clemson', nickname: 'Tigers', conference: 'ACC' },
+    { school: 'Duke', nickname: 'Blue Devils', conference: 'ACC' },
+    { school: 'Florida State', nickname: 'Seminoles', conference: 'ACC' },
+    { school: 'Georgia Tech', nickname: 'Yellow Jackets', conference: 'ACC' },
+    { school: 'Louisville', nickname: 'Cardinals', conference: 'ACC' },
+    { school: 'Miami (FL)', nickname: 'Hurricanes', conference: 'ACC' },
+    { school: 'NC State', nickname: 'Wolfpack', conference: 'ACC' },
+    { school: 'North Carolina', nickname: 'Tar Heels', conference: 'ACC' },
+    { school: 'Pittsburgh', nickname: 'Panthers', conference: 'ACC' },
+    { school: 'SMU', nickname: 'Mustangs', conference: 'ACC' },
+    { school: 'Stanford', nickname: 'Cardinal', conference: 'ACC' },
+    { school: 'Syracuse', nickname: 'Orange', conference: 'ACC' },
+    { school: 'Virginia', nickname: 'Cavaliers', conference: 'ACC' },
+    { school: 'Virginia Tech', nickname: 'Hokies', conference: 'ACC' },
+    { school: 'Wake Forest', nickname: 'Demon Deacons', conference: 'ACC' },
+    { school: 'Army', nickname: 'Black Knights', conference: 'American' },
+    { school: 'Charlotte', nickname: '49ers', conference: 'American' },
+    { school: 'East Carolina', nickname: 'Pirates', conference: 'American' },
+    { school: 'Florida Atlantic', nickname: 'Owls', conference: 'American' },
+    { school: 'Memphis', nickname: 'Tigers', conference: 'American' },
+    { school: 'Navy', nickname: 'Midshipmen', conference: 'American' },
+    { school: 'North Texas', nickname: 'Mean Green', conference: 'American' },
+    { school: 'Rice', nickname: 'Owls', conference: 'American' },
+    { school: 'South Florida', nickname: 'Bulls', conference: 'American' },
+    { school: 'Temple', nickname: 'Owls', conference: 'American' },
+    { school: 'Tulane', nickname: 'Green Wave', conference: 'American' },
+    { school: 'Tulsa', nickname: 'Golden Hurricane', conference: 'American' },
+    { school: 'UAB', nickname: 'Blazers', conference: 'American' },
+    { school: 'UTSA', nickname: 'Roadrunners', conference: 'American' },
+    { school: 'Arizona', nickname: 'Wildcats', conference: 'Big 12' },
+    { school: 'Arizona State', nickname: 'Sun Devils', conference: 'Big 12' },
+    { school: 'Baylor', nickname: 'Bears', conference: 'Big 12' },
+    { school: 'BYU', nickname: 'Cougars', conference: 'Big 12' },
+    { school: 'Cincinnati', nickname: 'Bearcats', conference: 'Big 12' },
+    { school: 'Colorado', nickname: 'Buffaloes', conference: 'Big 12' },
+    { school: 'Houston', nickname: 'Cougars', conference: 'Big 12' },
+    { school: 'Iowa State', nickname: 'Cyclones', conference: 'Big 12' },
+    { school: 'Kansas', nickname: 'Jayhawks', conference: 'Big 12' },
+    { school: 'Kansas State', nickname: 'Wildcats', conference: 'Big 12' },
+    { school: 'Oklahoma State', nickname: 'Cowboys', conference: 'Big 12' },
+    { school: 'TCU', nickname: 'Horned Frogs', conference: 'Big 12' },
+    { school: 'Texas Tech', nickname: 'Red Raiders', conference: 'Big 12' },
+    { school: 'UCF', nickname: 'Knights', conference: 'Big 12' },
+    { school: 'Utah', nickname: 'Utes', conference: 'Big 12' },
+    { school: 'West Virginia', nickname: 'Mountaineers', conference: 'Big 12' },
+    { school: 'Illinois', nickname: 'Fighting Illini', conference: 'Big Ten' },
+    { school: 'Indiana', nickname: 'Hoosiers', conference: 'Big Ten' },
+    { school: 'Iowa', nickname: 'Hawkeyes', conference: 'Big Ten' },
+    { school: 'Maryland', nickname: 'Terrapins', conference: 'Big Ten' },
+    { school: 'Michigan', nickname: 'Wolverines', conference: 'Big Ten' },
+    { school: 'Michigan State', nickname: 'Spartans', conference: 'Big Ten' },
+    { school: 'Minnesota', nickname: 'Golden Gophers', conference: 'Big Ten' },
+    { school: 'Nebraska', nickname: 'Cornhuskers', conference: 'Big Ten' },
+    { school: 'Northwestern', nickname: 'Wildcats', conference: 'Big Ten' },
+    { school: 'Ohio State', nickname: 'Buckeyes', conference: 'Big Ten' },
+    { school: 'Oregon', nickname: 'Ducks', conference: 'Big Ten' },
+    { school: 'Penn State', nickname: 'Nittany Lions', conference: 'Big Ten' },
+    { school: 'Purdue', nickname: 'Boilermakers', conference: 'Big Ten' },
+    { school: 'Rutgers', nickname: 'Scarlet Knights', conference: 'Big Ten' },
+    { school: 'UCLA', nickname: 'Bruins', conference: 'Big Ten' },
+    { school: 'USC', nickname: 'Trojans', conference: 'Big Ten' },
+    { school: 'Washington', nickname: 'Huskies', conference: 'Big Ten' },
+    { school: 'Wisconsin', nickname: 'Badgers', conference: 'Big Ten' },
+    { school: 'Delaware', nickname: "Fightin' Blue Hens", conference: 'CUSA' },
+    { school: 'FIU', nickname: 'Panthers', conference: 'CUSA' },
+    { school: 'Jacksonville State', nickname: 'Gamecocks', conference: 'CUSA' },
+    { school: 'Kennesaw State', nickname: 'Owls', conference: 'CUSA' },
+    { school: 'Liberty', nickname: 'Flames', conference: 'CUSA' },
+    { school: 'Louisiana Tech', nickname: 'Bulldogs', conference: 'CUSA' },
+    { school: 'Middle Tennessee', nickname: 'Blue Raiders', conference: 'CUSA' },
+    { school: 'Missouri State', nickname: 'Bears', conference: 'CUSA' },
+    { school: 'New Mexico State', nickname: 'Aggies', conference: 'CUSA' },
+    { school: 'Sam Houston', nickname: 'Bearkats', conference: 'CUSA' },
+    { school: 'Western Kentucky', nickname: 'Hilltoppers', conference: 'CUSA' },
+    { school: 'Akron', nickname: 'Zips', conference: 'MAC' },
+    { school: 'Ball State', nickname: 'Cardinals', conference: 'MAC' },
+    { school: 'Bowling Green', nickname: 'Falcons', conference: 'MAC' },
+    { school: 'Buffalo', nickname: 'Bulls', conference: 'MAC' },
+    { school: 'Central Michigan', nickname: 'Chippewas', conference: 'MAC' },
+    { school: 'Eastern Michigan', nickname: 'Eagles', conference: 'MAC' },
+    { school: 'Kent State', nickname: 'Golden Flashes', conference: 'MAC' },
+    { school: 'Miami (OH)', nickname: 'RedHawks', conference: 'MAC' },
+    { school: 'Northern Illinois', nickname: 'Huskies', conference: 'MAC' },
+    { school: 'Ohio', nickname: 'Bobcats', conference: 'MAC' },
+    { school: 'Sacramento State', nickname: 'Hornets', conference: 'MAC' },
+    { school: 'Toledo', nickname: 'Rockets', conference: 'MAC' },
+    { school: 'UMass', nickname: 'Minutemen', conference: 'MAC' },
+    { school: 'Western Michigan', nickname: 'Broncos', conference: 'MAC' },
+    { school: 'Air Force', nickname: 'Falcons', conference: 'Mountain West' },
+    { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West' },
+    { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West' },
+    { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West' },
+    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West' },
+    { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West' },
+    { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West' },
+    { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West' },
+    { school: 'San Jose State', nickname: 'Spartans', conference: 'Mountain West' },
+    { school: 'UNLV', nickname: 'Rebels', conference: 'Mountain West' },
+    { school: 'Utah State', nickname: 'Aggies', conference: 'Mountain West' },
+    { school: 'Wyoming', nickname: 'Cowboys', conference: 'Mountain West' },
+    { school: 'Alabama', nickname: 'Crimson Tide', conference: 'SEC' },
+    { school: 'Arkansas', nickname: 'Razorbacks', conference: 'SEC' },
+    { school: 'Auburn', nickname: 'Tigers', conference: 'SEC' },
+    { school: 'Florida', nickname: 'Gators', conference: 'SEC' },
+    { school: 'Georgia', nickname: 'Bulldogs', conference: 'SEC' },
+    { school: 'Kentucky', nickname: 'Wildcats', conference: 'SEC' },
+    { school: 'LSU', nickname: 'Tigers', conference: 'SEC' },
+    { school: 'Mississippi State', nickname: 'Bulldogs', conference: 'SEC' },
+    { school: 'Missouri', nickname: 'Tigers', conference: 'SEC' },
+    { school: 'Oklahoma', nickname: 'Sooners', conference: 'SEC' },
+    { school: 'Ole Miss', nickname: 'Rebels', conference: 'SEC' },
+    { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC' },
+    { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC' },
+    { school: 'Texas', nickname: 'Longhorns', conference: 'SEC' },
+    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC' },
+    { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC' },
+    { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt' },
+    { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt' },
+    { school: 'Coastal Carolina', nickname: 'Chanticleers', conference: 'Sun Belt' },
+    { school: 'Georgia Southern', nickname: 'Eagles', conference: 'Sun Belt' },
+    { school: 'Georgia State', nickname: 'Panthers', conference: 'Sun Belt' },
+    { school: 'James Madison', nickname: 'Dukes', conference: 'Sun Belt' },
+    { school: 'Louisiana', nickname: "Ragin' Cajuns", conference: 'Sun Belt' },
+    { school: 'Marshall', nickname: 'Thundering Herd', conference: 'Sun Belt' },
+    { school: 'Old Dominion', nickname: 'Monarchs', conference: 'Sun Belt' },
+    { school: 'South Alabama', nickname: 'Jaguars', conference: 'Sun Belt' },
+    { school: 'Southern Miss', nickname: 'Golden Eagles', conference: 'Sun Belt' },
+    { school: 'Texas State', nickname: 'Bobcats', conference: 'Sun Belt' },
+    { school: 'Troy', nickname: 'Trojans', conference: 'Sun Belt' },
+    { school: 'ULM', nickname: 'Warhawks', conference: 'Sun Belt' },
+    { school: 'Notre Dame', nickname: 'Fighting Irish', conference: 'Independent' },
+    { school: 'UConn', nickname: 'Huskies', conference: 'Independent' }
+  ];
+  const insert = db.prepare('INSERT OR IGNORE INTO teams (school, nickname, conference) VALUES (?, ?, ?)');
+  const transaction = db.transaction((data) => {
+    for (const team of data) {
+      insert.run(team.school, team.nickname, team.conference);
+    }
+  });
+  transaction(teams);
+}
+
 function seedWeeks() {
   const weeks = buildSeasonWeeks();
   const insert = db.prepare(
@@ -169,6 +324,10 @@ function seedWeeks() {
 
 function getPlayers() {
   return db.prepare('SELECT id, name FROM players ORDER BY id').all();
+}
+
+function getTeams() {
+  return db.prepare('SELECT id, school, nickname, conference FROM teams ORDER BY school ASC').all();
 }
 
 function getSeasons() {
@@ -599,6 +758,237 @@ function seedTestData() {
   console.log(`[db] Week 0 test data seeded for season ${season}.`);
 }
 
+function getPlayerStats(player) {
+  // Conference most betted for
+  const favConf = db.prepare(`
+    SELECT t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ?
+    GROUP BY t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // Conference with most wins
+  const bestConf = db.prepare(`
+    SELECT t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND p.result = 'win'
+    GROUP BY t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // Conference with most losses
+  const worstConf = db.prepare(`
+    SELECT t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND p.result = 'loss'
+    GROUP BY t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // Week-over-week trend (Last 10 weeks of activity)
+  const trend = db.prepare(`
+    SELECT g.season, p.week, 
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = ?
+    GROUP BY g.season, p.week
+    ORDER BY g.season DESC, p.week DESC
+    LIMIT 10
+  `).all(player).reverse();
+
+  // School that wins the most for you
+  const topWinSchool = db.prepare(`
+    SELECT selection_team as school, COUNT(*) as count
+    FROM picks
+    WHERE player = ? AND result = 'win'
+    GROUP BY selection_team
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // School that loses the most for you
+  const topLossSchool = db.prepare(`
+    SELECT selection_team as school, COUNT(*) as count
+    FROM picks
+    WHERE player = ? AND result = 'loss'
+    GROUP BY selection_team
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // Overall record
+  const record = db.prepare(`
+    SELECT 
+      SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+      SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+      SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) as pushes,
+      SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END) as pending,
+      COUNT(*) as total
+    FROM picks
+    WHERE player = ?
+  `).get(player);
+
+  // School most betted for
+  const mostBetsFor = db.prepare(`
+    SELECT selection_team as school, COUNT(*) as count
+    FROM picks
+    WHERE player = ?
+    GROUP BY selection_team
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // School most betted against
+  const mostBetsAgainst = db.prepare(`
+    SELECT 
+      CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
+      COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = ?
+    GROUP BY school
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(player);
+
+  // Current and Longest Streaks
+  const recentResults = db.prepare(`
+    SELECT p.result
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = ? AND p.result IN ('win', 'loss', 'push')
+    ORDER BY g.commence_time ASC, g.id ASC -- Order chronologically for longest streak calculation
+  `).all(player);
+
+  // Calculate current streaks (from most recent pick backwards)
+  let currentWinStreak = 0;
+  let currentLossStreak = 0;
+  let winStreakActive = true;
+  let lossStreakActive = true;
+  const reversedResults = [...recentResults].reverse(); // For current streak, iterate backwards
+  for (const r of reversedResults) {
+    if (winStreakActive) {
+      if (r.result === 'win') currentWinStreak++;
+      else if (r.result === 'loss') winStreakActive = false;
+    }
+    if (lossStreakActive) {
+      if (r.result === 'loss') currentLossStreak++;
+      else if (r.result === 'win') lossStreakActive = false;
+    }
+    if (!winStreakActive && !lossStreakActive) break; // Both current streaks broken
+  }
+
+  // Calculate longest ever streaks (from oldest pick forwards)
+  let longestWinStreak = 0;
+  let longestLossStreak = 0;
+  let tempWinStreak = 0;
+  let tempLossStreak = 0;
+
+  for (const r of recentResults) { // Already chronological
+    if (r.result === 'win') {
+      tempWinStreak++;
+      tempLossStreak = 0; // Reset loss streak on a win
+      if (tempWinStreak > longestWinStreak) longestWinStreak = tempWinStreak;
+    } else if (r.result === 'loss') {
+      tempLossStreak++;
+      tempWinStreak = 0; // Reset win streak on a loss
+      if (tempLossStreak > longestLossStreak) longestLossStreak = tempLossStreak;
+    }
+  }
+
+  return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak };
+}
+
+function getConferenceStats(player, conference, timeRange, week, season) {
+  let timeFilter = '';
+  const params = [player, conference];
+
+  if (timeRange === 'Week') {
+    timeFilter = 'AND p.week = ? AND g.season = ?';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND g.season = ?';
+    params.push(season);
+  }
+
+  const bestTeam = db.prepare(`
+    SELECT p.selection_team as school, COUNT(*) as wins
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND t.conference = ? AND p.result = 'win' ${timeFilter}
+    GROUP BY p.selection_team
+    ORDER BY wins DESC
+    LIMIT 1
+  `).get(...params);
+
+  const worstTeam = db.prepare(`
+    SELECT p.selection_team as school, COUNT(*) as losses
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND t.conference = ? AND p.result = 'loss' ${timeFilter}
+    GROUP BY p.selection_team
+    ORDER BY losses DESC
+    LIMIT 1
+  `).get(...params);
+
+  const mostBetsFor = db.prepare(`
+    SELECT p.selection_team as school, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+    GROUP BY p.selection_team
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(...params);
+
+  const mostBetsAgainst = db.prepare(`
+    SELECT 
+      CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
+      COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END) = t.school
+    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+    GROUP BY school
+    ORDER BY count DESC
+    LIMIT 1
+  `).get(...params);
+
+  const schoolRecordsParams = [player];
+  if (timeRange === 'Week') schoolRecordsParams.push(week, season);
+  else if (timeRange === 'Season') schoolRecordsParams.push(season);
+  schoolRecordsParams.push(conference);
+
+  const schoolRecords = db.prepare(`
+    SELECT 
+      t.school,
+      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'win' THEN 1 ELSE 0 END) as wins,
+      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'push' THEN 1 ELSE 0 END) as pushes,
+      COUNT(g.id) as total
+    FROM teams t
+    LEFT JOIN picks p ON t.school = p.selection_team AND p.player = ?
+    LEFT JOIN games g ON p.game_id = g.id ${timeFilter}
+    WHERE t.conference = ?
+    GROUP BY t.school
+    ORDER BY wins DESC, total DESC
+  `).all(...schoolRecordsParams);
+
+  return { bestTeam, worstTeam, mostBetsFor, mostBetsAgainst, schoolRecords };
+}
+
 function updateGameLine(gameId, updates) {
   const { spread_home, spread_away, home_price, away_price } = updates;
   const updateStmt = db.prepare(
@@ -631,8 +1021,10 @@ function updatePick(pickId, updates) {
 module.exports = {
   init,
   seedPlayers,
+  seedTeams,
   seedWeeks,
   getPlayers,
+  getTeams,
   getSeasons,
   getWeeks,
   getWeekGames,
@@ -642,6 +1034,8 @@ module.exports = {
   saveManualGame,
   updateScoresFromSeason,
   deletePicksForPlayerWeek,
+  getConferenceStats,
+  getPlayerStats,
   seedTestData,
   savePick,
   updateGameLine,
