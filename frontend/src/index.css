@@ -417,9 +417,9 @@ select {
   position: relative;
   width: 330px;
   display: inline-flex;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffffff;
   padding: 4px;
   margin-bottom: 10px;
 }
@@ -429,7 +429,7 @@ select {
   flex: 1;
   border: none;
   background: transparent;
-  color: #f5f5f5;
+  color: #333333;
   padding: 12px 0;
   cursor: pointer;
   z-index: 1;
@@ -458,9 +458,9 @@ select {
   display: inline-flex;
   width: 100%;
   max-width: 540px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffffff;
   padding: 4px;
   margin-bottom: 10px;
 }
@@ -470,7 +470,8 @@ select {
   flex: 1;
   border: none;
   background: transparent;
-  color: #f5f5f5;
+  font-weight: bold;
+  color: #333333;
   padding: 12px 10px;
   cursor: pointer;
   z-index: 1;
@@ -524,7 +525,7 @@ select {
   position: relative;
   width: 44px;
   height: 24px;
-  background: #333;
+  background: #ffffff;
   border-radius: 999px;
   cursor: pointer;
   transition: background 150ms ease;
@@ -537,7 +538,7 @@ select {
   left: 3px;
   width: 18px;
   height: 18px;
-  background: white;
+  background: #333333;
   border-radius: 50%;
   transition: transform 150ms ease;
 }

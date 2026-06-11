@@ -87,9 +87,12 @@ function init() {
       id INTEGER PRIMARY KEY,
       school TEXT NOT NULL UNIQUE,
       nickname TEXT,
-      conference TEXT
+      conference TEXT,
+      logo TEXT
     )`
   ).run();
+
+  addColumnIfMissing('teams', 'logo', 'TEXT');
 
   migrateWeeksTable();
 
@@ -166,146 +169,165 @@ function seedPlayers() {
 }
 
 function seedTeams() {
+  const toLogo = (school) => {
+    // Convention: "Miami (FL)" -> miami-fl.png, "Texas A&M" -> texas-am.png
+    const name = school.toLowerCase()
+      .replace(/\(fl\)/g, 'fl')
+      .replace(/\(oh\)/g, 'oh')
+      .replace(/[^a-z0-9 ]/g, '') // remove special chars like & or '
+      .trim()
+      .replace(/\s+/g, '-');      // replace spaces with hyphens
+    return `/logos/${name}.png`;
+  };
   const teams = [
-    { school: 'Boston College', nickname: 'Eagles', conference: 'ACC' },
-    { school: 'California', nickname: 'Golden Bears', conference: 'ACC' },
-    { school: 'Clemson', nickname: 'Tigers', conference: 'ACC' },
-    { school: 'Duke', nickname: 'Blue Devils', conference: 'ACC' },
-    { school: 'Florida State', nickname: 'Seminoles', conference: 'ACC' },
-    { school: 'Georgia Tech', nickname: 'Yellow Jackets', conference: 'ACC' },
-    { school: 'Louisville', nickname: 'Cardinals', conference: 'ACC' },
-    { school: 'Miami (FL)', nickname: 'Hurricanes', conference: 'ACC' },
-    { school: 'NC State', nickname: 'Wolfpack', conference: 'ACC' },
-    { school: 'North Carolina', nickname: 'Tar Heels', conference: 'ACC' },
-    { school: 'Pittsburgh', nickname: 'Panthers', conference: 'ACC' },
-    { school: 'SMU', nickname: 'Mustangs', conference: 'ACC' },
-    { school: 'Stanford', nickname: 'Cardinal', conference: 'ACC' },
-    { school: 'Syracuse', nickname: 'Orange', conference: 'ACC' },
-    { school: 'Virginia', nickname: 'Cavaliers', conference: 'ACC' },
-    { school: 'Virginia Tech', nickname: 'Hokies', conference: 'ACC' },
-    { school: 'Wake Forest', nickname: 'Demon Deacons', conference: 'ACC' },
-    { school: 'Army', nickname: 'Black Knights', conference: 'American' },
-    { school: 'Charlotte', nickname: '49ers', conference: 'American' },
-    { school: 'East Carolina', nickname: 'Pirates', conference: 'American' },
-    { school: 'Florida Atlantic', nickname: 'Owls', conference: 'American' },
-    { school: 'Memphis', nickname: 'Tigers', conference: 'American' },
-    { school: 'Navy', nickname: 'Midshipmen', conference: 'American' },
-    { school: 'North Texas', nickname: 'Mean Green', conference: 'American' },
-    { school: 'Rice', nickname: 'Owls', conference: 'American' },
-    { school: 'South Florida', nickname: 'Bulls', conference: 'American' },
-    { school: 'Temple', nickname: 'Owls', conference: 'American' },
-    { school: 'Tulane', nickname: 'Green Wave', conference: 'American' },
-    { school: 'Tulsa', nickname: 'Golden Hurricane', conference: 'American' },
-    { school: 'UAB', nickname: 'Blazers', conference: 'American' },
-    { school: 'UTSA', nickname: 'Roadrunners', conference: 'American' },
-    { school: 'Arizona', nickname: 'Wildcats', conference: 'Big 12' },
-    { school: 'Arizona State', nickname: 'Sun Devils', conference: 'Big 12' },
-    { school: 'Baylor', nickname: 'Bears', conference: 'Big 12' },
-    { school: 'BYU', nickname: 'Cougars', conference: 'Big 12' },
-    { school: 'Cincinnati', nickname: 'Bearcats', conference: 'Big 12' },
-    { school: 'Colorado', nickname: 'Buffaloes', conference: 'Big 12' },
-    { school: 'Houston', nickname: 'Cougars', conference: 'Big 12' },
-    { school: 'Iowa State', nickname: 'Cyclones', conference: 'Big 12' },
-    { school: 'Kansas', nickname: 'Jayhawks', conference: 'Big 12' },
-    { school: 'Kansas State', nickname: 'Wildcats', conference: 'Big 12' },
-    { school: 'Oklahoma State', nickname: 'Cowboys', conference: 'Big 12' },
-    { school: 'TCU', nickname: 'Horned Frogs', conference: 'Big 12' },
-    { school: 'Texas Tech', nickname: 'Red Raiders', conference: 'Big 12' },
-    { school: 'UCF', nickname: 'Knights', conference: 'Big 12' },
-    { school: 'Utah', nickname: 'Utes', conference: 'Big 12' },
-    { school: 'West Virginia', nickname: 'Mountaineers', conference: 'Big 12' },
-    { school: 'Illinois', nickname: 'Fighting Illini', conference: 'Big Ten' },
-    { school: 'Indiana', nickname: 'Hoosiers', conference: 'Big Ten' },
-    { school: 'Iowa', nickname: 'Hawkeyes', conference: 'Big Ten' },
-    { school: 'Maryland', nickname: 'Terrapins', conference: 'Big Ten' },
-    { school: 'Michigan', nickname: 'Wolverines', conference: 'Big Ten' },
-    { school: 'Michigan State', nickname: 'Spartans', conference: 'Big Ten' },
-    { school: 'Minnesota', nickname: 'Golden Gophers', conference: 'Big Ten' },
-    { school: 'Nebraska', nickname: 'Cornhuskers', conference: 'Big Ten' },
-    { school: 'Northwestern', nickname: 'Wildcats', conference: 'Big Ten' },
-    { school: 'Ohio State', nickname: 'Buckeyes', conference: 'Big Ten' },
-    { school: 'Oregon', nickname: 'Ducks', conference: 'Big Ten' },
-    { school: 'Penn State', nickname: 'Nittany Lions', conference: 'Big Ten' },
-    { school: 'Purdue', nickname: 'Boilermakers', conference: 'Big Ten' },
-    { school: 'Rutgers', nickname: 'Scarlet Knights', conference: 'Big Ten' },
-    { school: 'UCLA', nickname: 'Bruins', conference: 'Big Ten' },
-    { school: 'USC', nickname: 'Trojans', conference: 'Big Ten' },
-    { school: 'Washington', nickname: 'Huskies', conference: 'Big Ten' },
-    { school: 'Wisconsin', nickname: 'Badgers', conference: 'Big Ten' },
-    { school: 'Delaware', nickname: "Fightin' Blue Hens", conference: 'CUSA' },
-    { school: 'FIU', nickname: 'Panthers', conference: 'CUSA' },
-    { school: 'Jacksonville State', nickname: 'Gamecocks', conference: 'CUSA' },
-    { school: 'Kennesaw State', nickname: 'Owls', conference: 'CUSA' },
-    { school: 'Liberty', nickname: 'Flames', conference: 'CUSA' },
-    { school: 'Louisiana Tech', nickname: 'Bulldogs', conference: 'CUSA' },
-    { school: 'Middle Tennessee', nickname: 'Blue Raiders', conference: 'CUSA' },
-    { school: 'Missouri State', nickname: 'Bears', conference: 'CUSA' },
-    { school: 'New Mexico State', nickname: 'Aggies', conference: 'CUSA' },
-    { school: 'Sam Houston', nickname: 'Bearkats', conference: 'CUSA' },
-    { school: 'Western Kentucky', nickname: 'Hilltoppers', conference: 'CUSA' },
-    { school: 'Akron', nickname: 'Zips', conference: 'MAC' },
-    { school: 'Ball State', nickname: 'Cardinals', conference: 'MAC' },
-    { school: 'Bowling Green', nickname: 'Falcons', conference: 'MAC' },
-    { school: 'Buffalo', nickname: 'Bulls', conference: 'MAC' },
-    { school: 'Central Michigan', nickname: 'Chippewas', conference: 'MAC' },
-    { school: 'Eastern Michigan', nickname: 'Eagles', conference: 'MAC' },
-    { school: 'Kent State', nickname: 'Golden Flashes', conference: 'MAC' },
-    { school: 'Miami (OH)', nickname: 'RedHawks', conference: 'MAC' },
-    { school: 'Northern Illinois', nickname: 'Huskies', conference: 'MAC' },
-    { school: 'Ohio', nickname: 'Bobcats', conference: 'MAC' },
-    { school: 'Sacramento State', nickname: 'Hornets', conference: 'MAC' },
-    { school: 'Toledo', nickname: 'Rockets', conference: 'MAC' },
-    { school: 'UMass', nickname: 'Minutemen', conference: 'MAC' },
-    { school: 'Western Michigan', nickname: 'Broncos', conference: 'MAC' },
-    { school: 'Air Force', nickname: 'Falcons', conference: 'Mountain West' },
-    { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West' },
-    { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West' },
-    { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West' },
-    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West' },
-    { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West' },
-    { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West' },
-    { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West' },
-    { school: 'San Jose State', nickname: 'Spartans', conference: 'Mountain West' },
-    { school: 'UNLV', nickname: 'Rebels', conference: 'Mountain West' },
-    { school: 'Utah State', nickname: 'Aggies', conference: 'Mountain West' },
-    { school: 'Wyoming', nickname: 'Cowboys', conference: 'Mountain West' },
-    { school: 'Alabama', nickname: 'Crimson Tide', conference: 'SEC' },
-    { school: 'Arkansas', nickname: 'Razorbacks', conference: 'SEC' },
-    { school: 'Auburn', nickname: 'Tigers', conference: 'SEC' },
-    { school: 'Florida', nickname: 'Gators', conference: 'SEC' },
-    { school: 'Georgia', nickname: 'Bulldogs', conference: 'SEC' },
-    { school: 'Kentucky', nickname: 'Wildcats', conference: 'SEC' },
-    { school: 'LSU', nickname: 'Tigers', conference: 'SEC' },
-    { school: 'Mississippi State', nickname: 'Bulldogs', conference: 'SEC' },
-    { school: 'Missouri', nickname: 'Tigers', conference: 'SEC' },
-    { school: 'Oklahoma', nickname: 'Sooners', conference: 'SEC' },
-    { school: 'Ole Miss', nickname: 'Rebels', conference: 'SEC' },
-    { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC' },
-    { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC' },
-    { school: 'Texas', nickname: 'Longhorns', conference: 'SEC' },
-    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC' },
-    { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC' },
-    { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt' },
-    { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt' },
-    { school: 'Coastal Carolina', nickname: 'Chanticleers', conference: 'Sun Belt' },
-    { school: 'Georgia Southern', nickname: 'Eagles', conference: 'Sun Belt' },
-    { school: 'Georgia State', nickname: 'Panthers', conference: 'Sun Belt' },
-    { school: 'James Madison', nickname: 'Dukes', conference: 'Sun Belt' },
-    { school: 'Louisiana', nickname: "Ragin' Cajuns", conference: 'Sun Belt' },
-    { school: 'Marshall', nickname: 'Thundering Herd', conference: 'Sun Belt' },
-    { school: 'Old Dominion', nickname: 'Monarchs', conference: 'Sun Belt' },
-    { school: 'South Alabama', nickname: 'Jaguars', conference: 'Sun Belt' },
-    { school: 'Southern Miss', nickname: 'Golden Eagles', conference: 'Sun Belt' },
-    { school: 'Texas State', nickname: 'Bobcats', conference: 'Sun Belt' },
-    { school: 'Troy', nickname: 'Trojans', conference: 'Sun Belt' },
-    { school: 'ULM', nickname: 'Warhawks', conference: 'Sun Belt' },
-    { school: 'Notre Dame', nickname: 'Fighting Irish', conference: 'Independent' },
-    { school: 'UConn', nickname: 'Huskies', conference: 'Independent' }
+    { school: 'Boston College', nickname: 'Eagles', conference: 'ACC', logo: toLogo('Boston College') },
+    { school: 'California', nickname: 'Golden Bears', conference: 'ACC', logo: toLogo('California') },
+    { school: 'Clemson', nickname: 'Tigers', conference: 'ACC', logo: toLogo('Clemson') },
+    { school: 'Duke', nickname: 'Blue Devils', conference: 'ACC', logo: toLogo('Duke') },
+    { school: 'Florida State', nickname: 'Seminoles', conference: 'ACC', logo: toLogo('Florida State') },
+    { school: 'Georgia Tech', nickname: 'Yellow Jackets', conference: 'ACC', logo: toLogo('Georgia Tech') },
+    { school: 'Louisville', nickname: 'Cardinals', conference: 'ACC', logo: toLogo('Louisville') },
+    { school: 'Miami (FL)', nickname: 'Hurricanes', conference: 'ACC', logo: toLogo('Miami FL') },
+    { school: 'NC State', nickname: 'Wolfpack', conference: 'ACC', logo: toLogo('NC State') },
+    { school: 'North Carolina', nickname: 'Tar Heels', conference: 'ACC', logo: toLogo('North Carolina') },
+    { school: 'Pittsburgh', nickname: 'Panthers', conference: 'ACC', logo: toLogo('Pittsburgh') },
+    { school: 'SMU', nickname: 'Mustangs', conference: 'ACC', logo: toLogo('SMU') },
+    { school: 'Stanford', nickname: 'Cardinal', conference: 'ACC', logo: toLogo('Stanford') },
+    { school: 'Syracuse', nickname: 'Orange', conference: 'ACC', logo: toLogo('Syracuse') },
+    { school: 'Virginia', nickname: 'Cavaliers', conference: 'ACC', logo: toLogo('Virginia') },
+    { school: 'Virginia Tech', nickname: 'Hokies', conference: 'ACC', logo: toLogo('Virginia Tech') },
+    { school: 'Wake Forest', nickname: 'Demon Deacons', conference: 'ACC', logo: toLogo('Wake Forest') },
+    { school: 'Army', nickname: 'Black Knights', conference: 'American', logo: toLogo('Army') },
+    { school: 'Charlotte', nickname: '49ers', conference: 'American', logo: toLogo('Charlotte') },
+    { school: 'East Carolina', nickname: 'Pirates', conference: 'American', logo: toLogo('East Carolina') },
+    { school: 'Florida Atlantic', nickname: 'Owls', conference: 'American', logo: toLogo('Florida Atlantic') },
+    { school: 'Memphis', nickname: 'Tigers', conference: 'American', logo: toLogo('Memphis') },
+    { school: 'Navy', nickname: 'Midshipmen', conference: 'American', logo: toLogo('Navy') },
+    { school: 'North Texas', nickname: 'Mean Green', conference: 'American', logo: toLogo('North Texas') },
+    { school: 'Rice', nickname: 'Owls', conference: 'American', logo: toLogo('Rice') },
+    { school: 'South Florida', nickname: 'Bulls', conference: 'American', logo: toLogo('South Florida') },
+    { school: 'Temple', nickname: 'Owls', conference: 'American', logo: toLogo('Temple') },
+    { school: 'Tulane', nickname: 'Green Wave', conference: 'American', logo: toLogo('Tulane') },
+    { school: 'Tulsa', nickname: 'Golden Hurricane', conference: 'American', logo: toLogo('Tulsa') },
+    { school: 'UAB', nickname: 'Blazers', conference: 'American', logo: toLogo('UAB') },
+    { school: 'UTSA', nickname: 'Roadrunners', conference: 'American', logo: toLogo('UTSA') },
+    { school: 'Arizona', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Arizona') },
+    { school: 'Arizona State', nickname: 'Sun Devils', conference: 'Big 12', logo: toLogo('Arizona State') },
+    { school: 'Baylor', nickname: 'Bears', conference: 'Big 12', logo: toLogo('Baylor') },
+    { school: 'BYU', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('BYU') },
+    { school: 'Cincinnati', nickname: 'Bearcats', conference: 'Big 12', logo: toLogo('Cincinnati') },
+    { school: 'Colorado', nickname: 'Buffaloes', conference: 'Big 12', logo: toLogo('Colorado') },
+    { school: 'Houston', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('Houston') },
+    { school: 'Iowa State', nickname: 'Cyclones', conference: 'Big 12', logo: toLogo('Iowa State') },
+    { school: 'Kansas', nickname: 'Jayhawks', conference: 'Big 12', logo: toLogo('Kansas') },
+    { school: 'Kansas State', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Kansas State') },
+    { school: 'Oklahoma State', nickname: 'Cowboys', conference: 'Big 12', logo: toLogo('Oklahoma State') },
+    { school: 'TCU', nickname: 'Horned Frogs', conference: 'Big 12', logo: toLogo('TCU') },
+    { school: 'Texas Tech', nickname: 'Red Raiders', conference: 'Big 12', logo: toLogo('Texas Tech') },
+    { school: 'UCF', nickname: 'Knights', conference: 'Big 12', logo: toLogo('UCF') },
+    { school: 'Utah', nickname: 'Utes', conference: 'Big 12', logo: toLogo('Utah') },
+    { school: 'West Virginia', nickname: 'Mountaineers', conference: 'Big 12', logo: toLogo('West Virginia') },
+    { school: 'Illinois', nickname: 'Fighting Illini', conference: 'Big Ten', logo: toLogo('Illinois') },
+    { school: 'Indiana', nickname: 'Hoosiers', conference: 'Big Ten', logo: toLogo('Indiana') },
+    { school: 'Iowa', nickname: 'Hawkeyes', conference: 'Big Ten', logo: toLogo('Iowa') },
+    { school: 'Maryland', nickname: 'Terrapins', conference: 'Big Ten', logo: toLogo('Maryland') },
+    { school: 'Michigan', nickname: 'Wolverines', conference: 'Big Ten', logo: toLogo('Michigan') },
+    { school: 'Michigan State', nickname: 'Spartans', conference: 'Big Ten', logo: toLogo('Michigan State') },
+    { school: 'Minnesota', nickname: 'Golden Gophers', conference: 'Big Ten', logo: toLogo('Minnesota') },
+    { school: 'Nebraska', nickname: 'Cornhuskers', conference: 'Big Ten', logo: toLogo('Nebraska') },
+    { school: 'Northwestern', nickname: 'Wildcats', conference: 'Big Ten', logo: toLogo('Northwestern') },
+    { school: 'Ohio State', nickname: 'Buckeyes', conference: 'Big Ten', logo: toLogo('Ohio State') },
+    { school: 'Oregon', nickname: 'Ducks', conference: 'Big Ten', logo: toLogo('Oregon') },
+    { school: 'Penn State', nickname: 'Nittany Lions', conference: 'Big Ten', logo: toLogo('Penn State') },
+    { school: 'Purdue', nickname: 'Boilermakers', conference: 'Big Ten', logo: toLogo('Purdue') },
+    { school: 'Rutgers', nickname: 'Scarlet Knights', conference: 'Big Ten', logo: toLogo('Rutgers') },
+    { school: 'UCLA', nickname: 'Bruins', conference: 'Big Ten', logo: toLogo('UCLA') },
+    { school: 'USC', nickname: 'Trojans', conference: 'Big Ten', logo: toLogo('USC') },
+    { school: 'Washington', nickname: 'Huskies', conference: 'Big Ten', logo: toLogo('Washington') },
+    { school: 'Wisconsin', nickname: 'Badgers', conference: 'Big Ten', logo: toLogo('Wisconsin') },
+    { school: 'Delaware', nickname: "Fightin' Blue Hens", conference: 'CUSA', logo: toLogo('Delaware') },
+    { school: 'FIU', nickname: 'Panthers', conference: 'CUSA', logo: toLogo('FIU') },
+    { school: 'Jacksonville State', nickname: 'Gamecocks', conference: 'CUSA', logo: toLogo('Jacksonville State') },
+    { school: 'Kennesaw State', nickname: 'Owls', conference: 'CUSA', logo: toLogo('Kennesaw State') },
+    { school: 'Liberty', nickname: 'Flames', conference: 'CUSA', logo: toLogo('Liberty') },
+    { school: 'Louisiana Tech', nickname: 'Bulldogs', conference: 'CUSA', logo: toLogo('Louisiana Tech') },
+    { school: 'Middle Tennessee', nickname: 'Blue Raiders', conference: 'CUSA', logo: toLogo('Middle Tennessee') },
+    { school: 'Missouri State', nickname: 'Bears', conference: 'CUSA', logo: toLogo('Missouri State') },
+    { school: 'New Mexico State', nickname: 'Aggies', conference: 'CUSA', logo: toLogo('New Mexico State') },
+    { school: 'Sam Houston', nickname: 'Bearkats', conference: 'CUSA', logo: toLogo('Sam Houston') },
+    { school: 'Western Kentucky', nickname: 'Hilltoppers', conference: 'CUSA', logo: toLogo('Western Kentucky') },
+    { school: 'Akron', nickname: 'Zips', conference: 'MAC', logo: toLogo('Akron') },
+    { school: 'Ball State', nickname: 'Cardinals', conference: 'MAC', logo: toLogo('Ball State') },
+    { school: 'Bowling Green', nickname: 'Falcons', conference: 'MAC', logo: toLogo('Bowling Green') },
+    { school: 'Buffalo', nickname: 'Bulls', conference: 'MAC', logo: toLogo('Buffalo') },
+    { school: 'Central Michigan', nickname: 'Chippewas', conference: 'MAC', logo: toLogo('Central Michigan') },
+    { school: 'Eastern Michigan', nickname: 'Eagles', conference: 'MAC', logo: toLogo('Eastern Michigan') },
+    { school: 'Kent State', nickname: 'Golden Flashes', conference: 'MAC', logo: toLogo('Kent State') },
+    { school: 'Miami (OH)', nickname: 'RedHawks', conference: 'MAC', logo: toLogo('Miami OH') },
+    { school: 'Northern Illinois', nickname: 'Huskies', conference: 'MAC', logo: toLogo('Northern Illinois') },
+    { school: 'Ohio', nickname: 'Bobcats', conference: 'MAC', logo: toLogo('Ohio') },
+    { school: 'Sacramento State', nickname: 'Hornets', conference: 'MAC', logo: toLogo('Sacramento State') },
+    { school: 'Toledo', nickname: 'Rockets', conference: 'MAC', logo: toLogo('Toledo') },
+    { school: 'UMass', nickname: 'Minutemen', conference: 'MAC', logo: toLogo('UMass') },
+    { school: 'Western Michigan', nickname: 'Broncos', conference: 'MAC', logo: toLogo('Western Michigan') },
+    { school: 'Air Force', nickname: 'Falcons', conference: 'Mountain West', logo: toLogo('Air Force') },
+    { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West', logo: toLogo('Boise State') },
+    { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West', logo: toLogo('Colorado State') },
+    { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West', logo: toLogo('Fresno State') },
+    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West', logo: toLogo('Hawaii') },
+    { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West', logo: toLogo('Nevada') },
+    { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West', logo: toLogo('New Mexico') },
+    { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West', logo: toLogo('San Diego State') },
+    { school: 'San Jose State', nickname: 'Spartans', conference: 'Mountain West', logo: toLogo('San Jose State') },
+    { school: 'UNLV', nickname: 'Rebels', conference: 'Mountain West', logo: toLogo('UNLV') },
+    { school: 'Utah State', nickname: 'Aggies', conference: 'Mountain West', logo: toLogo('Utah State') },
+    { school: 'Wyoming', nickname: 'Cowboys', conference: 'Mountain West', logo: toLogo('Wyoming') },
+    { school: 'Alabama', nickname: 'Crimson Tide', conference: 'SEC', logo: toLogo('Alabama') },
+    { school: 'Arkansas', nickname: 'Razorbacks', conference: 'SEC', logo: toLogo('Arkansas') },
+    { school: 'Auburn', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Auburn') },
+    { school: 'Florida', nickname: 'Gators', conference: 'SEC', logo: toLogo('Florida') },
+    { school: 'Georgia', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Georgia') },
+    { school: 'Kentucky', nickname: 'Wildcats', conference: 'SEC', logo: toLogo('Kentucky') },
+    { school: 'LSU', nickname: 'Tigers', conference: 'SEC', logo: toLogo('LSU') },
+    { school: 'Mississippi State', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Mississippi State') },
+    { school: 'Missouri', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Missouri') },
+    { school: 'Oklahoma', nickname: 'Sooners', conference: 'SEC', logo: toLogo('Oklahoma') },
+    { school: 'Ole Miss', nickname: 'Rebels', conference: 'SEC', logo: toLogo('Ole Miss') },
+    { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC', logo: toLogo('South Carolina') },
+    { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC', logo: toLogo('Tennessee') },
+    { school: 'Texas', nickname: 'Longhorns', conference: 'SEC', logo: toLogo('Texas') },
+    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC', logo: toLogo('Texas AM') },
+    { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC', logo: toLogo('Vanderbilt') },
+    { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt', logo: toLogo('Appalachian State') },
+    { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt', logo: toLogo('Arkansas State') },
+    { school: 'Coastal Carolina', nickname: 'Chanticleers', conference: 'Sun Belt', logo: toLogo('Coastal Carolina') },
+    { school: 'Georgia Southern', nickname: 'Eagles', conference: 'Sun Belt', logo: toLogo('Georgia Southern') },
+    { school: 'Georgia State', nickname: 'Panthers', conference: 'Sun Belt', logo: toLogo('Georgia State') },
+    { school: 'James Madison', nickname: 'Dukes', conference: 'Sun Belt', logo: toLogo('James Madison') },
+    { school: 'Louisiana', nickname: "Ragin' Cajuns", conference: 'Sun Belt', logo: toLogo('Louisiana') },
+    { school: 'Marshall', nickname: 'Thundering Herd', conference: 'Sun Belt', logo: toLogo('Marshall') },
+    { school: 'Old Dominion', nickname: 'Monarchs', conference: 'Sun Belt', logo: toLogo('Old Dominion') },
+    { school: 'South Alabama', nickname: 'Jaguars', conference: 'Sun Belt', logo: toLogo('South Alabama') },
+    { school: 'Southern Miss', nickname: 'Golden Eagles', conference: 'Sun Belt', logo: toLogo('Southern Miss') },
+    { school: 'Texas State', nickname: 'Bobcats', conference: 'Sun Belt', logo: toLogo('Texas State') },
+    { school: 'Troy', nickname: 'Trojans', conference: 'Sun Belt', logo: toLogo('Troy') },
+    { school: 'ULM', nickname: 'Warhawks', conference: 'Sun Belt', logo: toLogo('ULM') },
+    { school: 'Notre Dame', nickname: 'Fighting Irish', conference: 'Independent', logo: toLogo('Notre Dame') },
+    { school: 'UConn', nickname: 'Huskies', conference: 'Independent', logo: toLogo('UConn') }
   ];
-  const insert = db.prepare('INSERT OR IGNORE INTO teams (school, nickname, conference) VALUES (?, ?, ?)');
+
+  const insert = db.prepare(`
+    INSERT INTO teams (school, nickname, conference, logo) 
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(school) DO UPDATE SET
+      logo = excluded.logo,
+      nickname = excluded.nickname,
+      conference = excluded.conference
+  `);
+
   const transaction = db.transaction((data) => {
     for (const team of data) {
-      insert.run(team.school, team.nickname, team.conference);
+      insert.run(team.school, team.nickname, team.conference, team.logo);
     }
   });
   transaction(teams);
@@ -327,7 +349,7 @@ function getPlayers() {
 }
 
 function getTeams() {
-  return db.prepare('SELECT id, school, nickname, conference FROM teams ORDER BY school ASC').all();
+  return db.prepare('SELECT id, school, nickname, conference, logo FROM teams ORDER BY school ASC').all();
 }
 
 function getSeasons() {
@@ -348,13 +370,19 @@ function getWeeks(season) {
 function getWeekGames(week, season) {
   if (season) {
     return db
-      .prepare('SELECT * FROM games WHERE week = ? AND season = ? ORDER BY commence_time ASC, id ASC')
+      .prepare(`
+        SELECT g.*, ht.logo as home_logo, at.logo as away_logo 
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
+        LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+        WHERE g.week = ? AND g.season = ? 
+        ORDER BY g.commence_time ASC, g.id ASC
+      `)
       .all(week, season);
   }
 
-  return db
-    .prepare('SELECT * FROM games WHERE week = ? ORDER BY commence_time ASC, id ASC')
-    .all(week);
+  // Fallback for missing season param
+  return [];
 }
 
 function getPicksByWeek(week, season) {
@@ -807,20 +835,22 @@ function getPlayerStats(player) {
 
   // School that wins the most for you
   const topWinSchool = db.prepare(`
-    SELECT selection_team as school, COUNT(*) as count
-    FROM picks
-    WHERE player = ? AND result = 'win'
-    GROUP BY selection_team
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND p.result = 'win'
+    GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
   `).get(player);
 
   // School that loses the most for you
   const topLossSchool = db.prepare(`
-    SELECT selection_team as school, COUNT(*) as count
-    FROM picks
-    WHERE player = ? AND result = 'loss'
-    GROUP BY selection_team
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND p.result = 'loss'
+    GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
   `).get(player);
@@ -839,10 +869,11 @@ function getPlayerStats(player) {
 
   // School most betted for
   const mostBetsFor = db.prepare(`
-    SELECT selection_team as school, COUNT(*) as count
-    FROM picks
-    WHERE player = ?
-    GROUP BY selection_team
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ?
+    GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
   `).get(player);
@@ -851,9 +882,11 @@ function getPlayerStats(player) {
   const mostBetsAgainst = db.prepare(`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
+      t.logo,
       COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
+    LEFT JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
     WHERE p.player = ?
     GROUP BY school
     ORDER BY count DESC
@@ -921,34 +954,34 @@ function getConferenceStats(player, conference, timeRange, week, season) {
   }
 
   const bestTeam = db.prepare(`
-    SELECT p.selection_team as school, COUNT(*) as wins
+    SELECT p.selection_team as school, t.logo, COUNT(*) as wins
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? AND p.result = 'win' ${timeFilter}
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY wins DESC
     LIMIT 1
   `).get(...params);
 
   const worstTeam = db.prepare(`
-    SELECT p.selection_team as school, COUNT(*) as losses
+    SELECT p.selection_team as school, t.logo, COUNT(*) as losses
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? AND p.result = 'loss' ${timeFilter}
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY losses DESC
     LIMIT 1
   `).get(...params);
 
   const mostBetsFor = db.prepare(`
-    SELECT p.selection_team as school, COUNT(*) as count
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? ${timeFilter}
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY count DESC
     LIMIT 1
   `).get(...params);
@@ -956,6 +989,7 @@ function getConferenceStats(player, conference, timeRange, week, season) {
   const mostBetsAgainst = db.prepare(`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
+      t.logo,
       COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
@@ -974,6 +1008,7 @@ function getConferenceStats(player, conference, timeRange, week, season) {
   const schoolRecords = db.prepare(`
     SELECT 
       t.school,
+      t.logo,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'win' THEN 1 ELSE 0 END) as wins,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'loss' THEN 1 ELSE 0 END) as losses,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'push' THEN 1 ELSE 0 END) as pushes,
