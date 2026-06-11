@@ -16,6 +16,41 @@ const formatResultLabel = (result) => {
   return 'Pending';
 };
 
+const CountdownTimer = ({ commenceTime }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const start = new Date(commenceTime);
+      const diff = start - now;
+
+      if (diff <= 0) {
+        setTimeLeft('Started');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / 1000 / 60) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      let parts = [];
+      if (days > 0) parts.push(`${days}d`);
+      if (hours > 0 || days > 0) parts.push(`${hours}h`);
+      parts.push(`${minutes}m`);
+      parts.push(`${seconds}s`);
+      setTimeLeft(parts.join(' '));
+    };
+
+    calculateTimeLeft();
+    const timer = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(timer);
+  }, [commenceTime]);
+
+  return <span className="countdown-timer" style={{ marginLeft: '10px', fontSize: '0.85em', color: '#ffcc00', fontWeight: 'bold' }}>({timeLeft})</span>;
+};
+
 const emptyManualGame = {
   home_team: '',
   away_team: '',
@@ -48,12 +83,22 @@ function App() {
   const [activePage, setActivePage] = useState('picks');
   const [selectedMeal, setSelectedMeal] = useState(null);
   const [playerModalOpen, setPlayerModalOpen] = useState(true);
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [showSaveResult, setShowSaveResult] = useState(false);
+  const [saveResult, setSaveResult] = useState({ success: false, message: '' });
+  const [savedPicksList, setSavedPicksList] = useState([]);
   const [adminGames, setAdminGames] = useState([]);
   const [adminPicks, setAdminPicks] = useState([]);
   const [editingGameId, setEditingGameId] = useState(null);
   const [editingGameData, setEditingGameData] = useState({});
   const [editingPickId, setEditingPickId] = useState(null);
   const [editingPickData, setEditingPickData] = useState({});
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [lastSynced, setLastSynced] = useState(() => {
+    const saved = localStorage.getItem('lastSyncTime');
+    return saved ? new Date(saved) : null;
+  });
 
   const handlePageChange = (page) => {
     setActivePage(page);
@@ -119,12 +164,11 @@ function App() {
   }, [selectedSeason]);
 
   useEffect(() => {
-    if (!selectedWeek || !selectedSeason) return;
-    setPicks({});
-    loadWeek(selectedWeek, selectedSeason);
-  }, [selectedWeek, selectedSeason]);
+    if (selectedWeek === null || !selectedSeason) return;
+    loadWeek(selectedWeek, selectedSeason, selectedPlayer);
+  }, [selectedWeek, selectedSeason, selectedPlayer]);
 
-  const loadWeek = async (week, season) => {
+  const loadWeek = async (week, season, player) => {
     setLoading(true);
     setMessage('Loading week data...');
     try {
@@ -132,12 +176,37 @@ function App() {
       const data = await res.json();
       setGames(data.games || []);
       setSummary(data.summary || []);
+
+      const picksObj = {};
+      if (data.picks && player) {
+        data.picks.forEach((p) => {
+          if (p.player === player) {
+            picksObj[p.game_id] = {
+              gameId: p.game_id,
+              selectionTeam: p.selection_team,
+              selectionSide: p.selection_side,
+              spread: p.spread,
+              isMandatory: !!p.is_mandatory
+            };
+          }
+        });
+      }
+      setPicks(picksObj);
+
       setMessage('');
     } catch (error) {
       setMessage('Unable to load week data.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const isGameLocked = (game) => {
+    return new Date(game.commence_time) < new Date();
+  };
+
+  const isGameLive = (game) => {
+    return isGameLocked(game) && !game.completed;
   };
 
   const weekOptions = weeks.reduce((acc, week) => {
@@ -180,24 +249,49 @@ function App() {
     });
   };
 
-  const handleSubmit = async () => {
-    if (!selectedWeek || !selectedSeason) {
+  // validate and open confirmation modal
+  const handleSubmit = () => {
+    if (selectedWeek === null || !selectedSeason) {
       setMessage('Choose a season and week first.');
+      setAlertMessage('Choose a season and week first.');
+      setShowAlertModal(true);
       return;
     }
-    const mandatoryPickIds = mandatoryGames.map((game) => game.id);
-    const missing = mandatoryPickIds.filter((id) => !picks[id]);
-    if (missing.length) {
-      setMessage('Please make a selection for all 5 mandatory televised games first.');
+
+    const mandatoryGamesToPick = mandatoryGames.filter(game => !isGameLocked(game));
+    const mandatoryGamesAlreadyLockedWithoutPick = mandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
+
+    if (mandatoryGamesAlreadyLockedWithoutPick.length > 0) {
+      setMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
+      setAlertMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
+      setShowAlertModal(true);
+      return;
+    }
+
+    const missingMandatoryPicks = mandatoryGamesToPick.filter(game => !picks[game.id]);
+    if (missingMandatoryPicks.length > 0) {
+      setMessage('Please make a selection for all mandatory televised games.');
+      setAlertMessage('Please make a selection for all mandatory televised games.');
+      setShowAlertModal(true);
       return;
     }
 
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam);
     if (!playerPicks.length) {
       setMessage('Choose at least one game before saving picks.');
+      setAlertMessage('Choose at least one game before saving picks.');
+      setShowAlertModal(true);
       return;
     }
 
+    // open confirmation modal
+    setShowConfirmSave(true);
+  };
+
+  // perform the actual save after confirmation
+  const performSave = async () => {
+    setShowConfirmSave(false);
+    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam);
     setLoading(true);
     setMessage('Saving picks...');
     try {
@@ -210,11 +304,31 @@ function App() {
       if (response.ok) {
         setMessage('Picks saved!');
         setSummary(data.summary || []);
+        setSaveResult({ success: true, message: 'Picks saved successfully.' });
+        // build a friendly summary using current games data
+        const saved = (data.saved || []).map((p) => {
+          const g = games.find((gg) => gg.id === p.game_id) || {};
+          return {
+            player: p.player,
+            selection_team: p.selection_team,
+            spread: p.spread,
+            away_team: g.away_team,
+            home_team: g.home_team
+          };
+        });
+        setSavedPicksList(saved);
+        setShowSaveResult(true);
       } else {
         setMessage(data.error || 'Failed to save picks.');
+        setSaveResult({ success: false, message: data.error || 'Failed to save picks.' });
+        setSavedPicksList([]);
+        setShowSaveResult(true);
       }
     } catch (error) {
       setMessage('Unable to save picks.');
+      setSaveResult({ success: false, message: 'Unable to save picks.' });
+      setSavedPicksList([]);
+      setShowSaveResult(true);
     } finally {
       setLoading(false);
     }
@@ -228,8 +342,9 @@ function App() {
   };
 
   const handleAddManualGame = async () => {
-    if (!manualGame.home_team || !manualGame.away_team || !manualGame.commence_time || !selectedWeek || !selectedSeason) {
-      setMessage('Home team, away team, commence time, season, and week are required.');
+    if (!manualGame.home_team || !manualGame.away_team || !manualGame.commence_time || selectedWeek === null || !selectedSeason) {
+      setAlertMessage('Home team, away team, commence time, season, and week are required.');
+      setShowAlertModal(true);
       return;
     }
 
@@ -269,7 +384,7 @@ function App() {
   };
 
   const loadAdminData = async () => {
-    if (!selectedWeek || !selectedSeason) return;
+    if (selectedWeek === null || !selectedSeason) return;
     setLoading(true);
     try {
       const [gamesRes, picksRes] = await Promise.all([
@@ -290,6 +405,8 @@ function App() {
   const handleUpdateGameLine = async (gameId) => {
     if (!editingGameData.spread_home && editingGameData.spread_home !== 0 && !editingGameData.spread_away && editingGameData.spread_away !== 0) {
       setMessage('At least one spread must be provided.');
+      setAlertMessage('At least one spread must be provided.');
+      setShowAlertModal(true);
       return;
     }
     setLoading(true);
@@ -319,9 +436,38 @@ function App() {
     }
   };
 
+  const handleSyncScores = async () => {
+    setLoading(true);
+    setMessage('Syncing scores and odds from API...');
+    try {
+      const response = await fetch('/api/sync-all', { method: 'POST' });
+      const data = await response.json();
+      if (response.ok) {
+        const now = new Date();
+        setLastSynced(now);
+        localStorage.setItem('lastSyncTime', now.toISOString());
+        setMessage(`Sync complete: ${data.savedCount} games and ${data.updatedCount} scores updated.`);
+        if (selectedWeek && selectedSeason) {
+          await loadWeek(selectedWeek, selectedSeason, selectedPlayer);
+          if (activePage === 'admin') {
+            await loadAdminData();
+          }
+        }
+      } else {
+        setMessage(data.error || 'Failed to sync scores.');
+      }
+    } catch (error) {
+      setMessage('Unable to sync scores.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdatePick = async (pickId) => {
     if (!editingPickData.selection_team) {
       setMessage('Selection team is required.');
+      setAlertMessage('Selection team is required.');
+      setShowAlertModal(true);
       return;
     }
     setLoading(true);
@@ -367,6 +513,20 @@ function App() {
         </button>
       </header>
 
+      {showAlertModal && (
+        <>
+          <div className="modal-backdrop" />
+          <div className="player-modal">
+            <div className="player-modal-content">
+              <h2>Alert</h2>
+              <p>{alertMessage}</p>
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button className="continue-button" onClick={() => setShowAlertModal(false)}>Okay</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       {menuOpen && <div className="backdrop" onClick={() => setMenuOpen(false)} />}
 
       {playerModalOpen && players.length > 0 && (
@@ -397,6 +557,49 @@ function App() {
         </>
       )}
 
+        {showConfirmSave && (
+          <>
+            <div className="modal-backdrop" />
+            <div className="player-modal">
+              <div className="player-modal-content">
+                <h2>Confirm Save</h2>
+                <p>Are you sure you want to save your picks for week {selectedWeek} as <strong>{selectedPlayer}</strong>?</p>
+                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                  <button className="continue-button" onClick={() => performSave()} disabled={loading}>Yes, save</button>
+                  <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {showSaveResult && (
+          <>
+            <div className="modal-backdrop" />
+            <div className="player-modal">
+              <div className="player-modal-content">
+                <h2>{saveResult.success ? 'Save Successful' : 'Save Failed'}</h2>
+                <p>{saveResult.message}</p>
+                {saveResult.success && savedPicksList.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <h4>Saved Picks</h4>
+                    <ul>
+                      {savedPicksList.map((p, idx) => (
+                        <li key={idx}>
+                          {p.away_team} @ {p.home_team} — <strong>{p.selection_team}</strong> {p.spread ? `(${p.spread})` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                  <button className="continue-button" onClick={() => setShowSaveResult(false)}>Close</button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
       <div className={`app-layout ${menuOpen ? 'menu-open' : ''}`}>
         <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
           <nav>
@@ -416,7 +619,7 @@ function App() {
               className={activePage === 'summary' ? 'active' : ''}
               onClick={() => handlePageChange('summary')}
             >
-              Summaries
+              Leaderboards
             </button>
             <button
               className={activePage === 'admin' ? 'active' : ''}
@@ -477,16 +680,18 @@ function App() {
                   <h2>Mandatory Games</h2>
                   {mandatoryGames.length === 0 && <p>No televised games found yet for this week.</p>}
                   {mandatoryGames.map((game) => (
-                    <div key={game.id} className="game-card">
+                    <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}>
                       <div className="game-header">
-                        <strong>{game.away_team}</strong> @ <strong>{game.home_team}</strong>
+                        {/* <strong>{game.away_team}</strong> @ <strong>{game.home_team}</strong>
                         <span>{new Date(game.commence_time).toLocaleString()}</span>
+                        {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />} */}
                       </div>
                       <div className="game-switch">
                         <button
                           type="button"
                           className={`game-switch-option ${picks[game.id]?.selectionTeam === game.away_team ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, game.away_team)}
+                          disabled={isGameLocked(game)}
                         >
                           {game.away_team}
                           <span className="switch-option-label">{formatSpread(game, game.away_team)}</span>
@@ -495,6 +700,7 @@ function App() {
                           type="button"
                           className={`game-switch-option ${!picks[game.id] ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, null)}
+                          disabled={isGameLocked(game)}
                         >
                           Neither
                         </button>
@@ -502,6 +708,7 @@ function App() {
                           type="button"
                           className={`game-switch-option ${picks[game.id]?.selectionTeam === game.home_team ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, game.home_team)}
+                          disabled={isGameLocked(game)}
                         >
                           {game.home_team}
                           <span className="switch-option-label">{formatSpread(game, game.home_team)}</span>
@@ -511,13 +718,15 @@ function App() {
                           style={{ transform: picks[game.id]?.selectionTeam === game.home_team ? 'translateX(200%)' : picks[game.id]?.selectionTeam === game.away_team ? 'translateX(0)' : 'translateX(100%)' }}
                         />
                       </div>
+                      <span>{new Date(game.commence_time).toLocaleString()}</span>
+                      {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
+                      {isGameLive(game) && <span className="game-status-live">LIVE</span>}
+                      {!isGameLive(game) && isGameLocked(game) && <span className="game-status-locked">LOCKED</span>}
                       {game.completed ? (
                         <div className="game-result">
                           Score: {game.away_team} {game.score_away} — {game.home_team} {game.score_home}
                         </div>
-                      ) : (
-                        <div className="game-result">Status: Upcoming</div>
-                      )}
+                      ) : null}
                     </div>
                   ))}
                 </article>
@@ -526,16 +735,17 @@ function App() {
                   <h2>Optional Games</h2>
                   {optionalGames.length === 0 && <p>No extra games available this week.</p>}
                   {optionalGames.map((game) => (
-                    <div key={game.id} className="game-card">
+                    <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}>
                       <div className="game-header">
-                        <strong>{game.away_team}</strong> @ <strong>{game.home_team}</strong>
-                        <span>{new Date(game.commence_time).toLocaleString()}</span>
+                        {/* <strong>{game.away_team}</strong> @ <strong>{game.home_team}</strong> */}
+                        {/* <span>{new Date(game.commence_time).toLocaleString()}</span> */}
                       </div>
                       <div className="game-switch">
                         <button
                           type="button"
                           className={`game-switch-option ${picks[game.id]?.selectionTeam === game.away_team ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, game.away_team)}
+                          disabled={isGameLocked(game)}
                         >
                           {game.away_team}
                           <span className="switch-option-label">{formatSpread(game, game.away_team)}</span>
@@ -544,6 +754,7 @@ function App() {
                           type="button"
                           className={`game-switch-option ${!picks[game.id] ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, null)}
+                          disabled={isGameLocked(game)}
                         >
                           Neither
                         </button>
@@ -551,6 +762,7 @@ function App() {
                           type="button"
                           className={`game-switch-option ${picks[game.id]?.selectionTeam === game.home_team ? 'active' : ''}`}
                           onClick={() => handlePickChange(game, game.home_team)}
+                          disabled={isGameLocked(game)}
                         >
                           {game.home_team}
                           <span className="switch-option-label">{formatSpread(game, game.home_team)}</span>
@@ -560,6 +772,10 @@ function App() {
                           style={{ transform: picks[game.id]?.selectionTeam === game.home_team ? 'translateX(200%)' : picks[game.id]?.selectionTeam === game.away_team ? 'translateX(0)' : 'translateX(100%)' }}
                         />
                       </div>
+                      <span>{new Date(game.commence_time).toLocaleString()}</span>
+                      {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
+                      {isGameLive(game) && <span className="game-status-live">LIVE</span>}
+                      {!isGameLive(game) && isGameLocked(game) && <span className="game-status-locked">LOCKED</span>}
                       {game.completed ? (
                         <div className="game-result">
                           Score: {game.away_team} {game.score_away} — {game.home_team} {game.score_home}
@@ -571,7 +787,7 @@ function App() {
               </section>
 
               <div className="actions">
-                <button disabled={loading || !selectedWeek} onClick={handleSubmit}>Save Picks</button>
+                <button disabled={loading || selectedWeek === null} onClick={handleSubmit}>Save Picks</button>
               </div>
             </>
           )}
@@ -654,7 +870,7 @@ function App() {
                 </label>
               </div>
               <div className="actions manual-actions">
-                <button disabled={loading || !selectedWeek} onClick={handleAddManualGame}>Add Manual Game</button>
+                <button disabled={loading || selectedWeek === null} onClick={handleAddManualGame}>Add Manual Game</button>
               </div>
             </section>
           )}
@@ -662,7 +878,7 @@ function App() {
           {isSummaryPage && (
             <>
               <section className="panel summary-panel">
-                <h2>Weekly Summary</h2>
+                <h2>Week {selectedWeek} Leaderboard</h2>
                 {summary.length === 0 ? (
                   <p>No picks yet for this week.</p>
                 ) : (
@@ -671,6 +887,7 @@ function App() {
                       <tr>
                         <th>Player</th>
                         <th>Wins</th>
+                        <th>Win %</th>
                         <th>Losses</th>
                         <th>Pushes</th>
                         <th>Pending</th>
@@ -682,6 +899,7 @@ function App() {
                         <tr key={row.player}>
                           <td>{row.player}</td>
                           <td>{row.wins}</td>
+                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
                           <td>{row.losses}</td>
                           <td>{row.pushes}</td>
                           <td>{row.pending}</td>
@@ -694,7 +912,7 @@ function App() {
               </section>
 
               <section className="panel summary-panel">
-                <h2>Season Summary ({selectedSeason})</h2>
+                <h2>{selectedSeason} Season Leaderboard</h2>
                 {seasonSummary.length === 0 ? (
                   <p>No picks for this season yet.</p>
                 ) : (
@@ -703,6 +921,7 @@ function App() {
                       <tr>
                         <th>Player</th>
                         <th>Wins</th>
+                        <th>Win %</th>
                         <th>Losses</th>
                         <th>Pushes</th>
                         <th>Pending</th>
@@ -714,6 +933,7 @@ function App() {
                         <tr key={row.player}>
                           <td>{row.player}</td>
                           <td>{row.wins}</td>
+                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
                           <td>{row.losses}</td>
                           <td>{row.pushes}</td>
                           <td>{row.pending}</td>
@@ -726,7 +946,7 @@ function App() {
               </section>
 
               <section className="panel summary-panel">
-                <h2>All-Time Summary</h2>
+                <h2>All-Time Leaderboard</h2>
                 {allTimeSummary.length === 0 ? (
                   <p>No picks recorded yet.</p>
                 ) : (
@@ -735,6 +955,7 @@ function App() {
                       <tr>
                         <th>Player</th>
                         <th>Wins</th>
+                        <th>Win %</th>
                         <th>Losses</th>
                         <th>Pushes</th>
                         <th>Pending</th>
@@ -746,6 +967,7 @@ function App() {
                         <tr key={row.player}>
                           <td>{row.player}</td>
                           <td>{row.wins}</td>
+                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
                           <td>{row.losses}</td>
                           <td>{row.pushes}</td>
                           <td>{row.pending}</td>
@@ -871,9 +1093,19 @@ function App() {
             <>
               <section className="panel admin-panel">
                 <h2>Admin: Update Game Lines</h2>
-                <button onClick={loadAdminData} disabled={loading || !selectedWeek}>
-                  Load Games
-                </button>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
+                  <button onClick={loadAdminData} disabled={loading || selectedWeek === null}>
+                    Load Games
+                  </button>
+                  <button onClick={handleSyncScores} disabled={loading}>
+                    Sync Scores & Odds
+                  </button>
+                  {lastSynced && (
+                    <span style={{ fontSize: '0.9em', color: '#888', fontStyle: 'italic', marginLeft: '10px' }}>
+                      Last Synced: {lastSynced.toLocaleString()}
+                    </span>
+                  )}
+                </div>
                 {adminGames.length === 0 ? (
                   <p>No games loaded. Click "Load Games" to fetch games for this week.</p>
                 ) : (

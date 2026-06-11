@@ -73,6 +73,11 @@ app.post('/api/week/:week/picks', (req, res) => {
     if (!player || !Array.isArray(picks)) {
       return res.status(400).json({ error: 'player and picks array are required' });
     }
+
+    // Clear existing picks for this player, week, and season 
+    // to allow for removals (selecting "Neither")
+    db.deletePicksForPlayerWeek(player, week, season);
+
     const saved = [];
     for (const pick of picks) {
       saved.push(db.savePick(week, player, pick));
@@ -223,6 +228,7 @@ app.get('/api/summary/alltime', (req, res) => {
     await db.init();
     await db.seedPlayers();
     await db.seedWeeks();
+    db.seedTestData();
     scheduler.start(db);
     app.listen(PORT, () => {
       console.log(`Backend API listening on http://localhost:${PORT}`);

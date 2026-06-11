@@ -119,6 +119,7 @@ function init() {
       score_away INTEGER,
       completed INTEGER DEFAULT 0,
       updated_at TEXT
+      , FOREIGN KEY (week, season) REFERENCES weeks(week, season)
     )`
   ).run();
 
@@ -371,6 +372,16 @@ function updateScoresFromSeason(scoreGames) {
   return updated;
 }
 
+function deletePicksForPlayerWeek(player, week, season) {
+  const stmt = db.prepare(`
+    DELETE FROM picks 
+    WHERE player = ? 
+    AND week = ? 
+    AND game_id IN (SELECT id FROM games WHERE season = ?)
+  `);
+  return stmt.run(player, week, season);
+}
+
 function updatePickResults(gameId) {
   const game = getGameById(gameId);
   if (!game) return;
@@ -430,7 +441,7 @@ function savePick(week, player, pick) {
     new Date().toISOString(),
     new Date().toISOString()
   );
-  return db.prepare('SELECT * FROM picks WHERE id = ?').get(row.lastInsertRowid);
+  return db.prepare('SELECT * FROM picks WHERE week = ? AND player = ? AND game_id = ?').get(week, player, pick.gameId);
 }
 
 function getWeekSummary(week, season) {
@@ -547,6 +558,47 @@ function getAllTimeSummary() {
   return Object.values(summary);
 }
 
+function seedTestData() {
+  // Hardcode season to match frontend and seedWeeks logic for consistency
+  const season = '2025'; 
+  const weekNum = 0;
+
+  const transaction = db.transaction(() => {
+    // Ensure Week 0 exists in weeks table
+    db.prepare(`
+      INSERT OR REPLACE INTO weeks (week, season, label, starts_on, ends_on)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      weekNum,
+      season,
+      'Week 0 (Test Data)',
+      new Date(Date.now() - 86400000 * 7).toISOString(),
+      new Date(Date.now() + 86400000 * 7).toISOString()
+    );
+
+    // 1. Live Game: Started 1.5 hours ago, not completed.
+    const liveTime = new Date(Date.now() - 5400000).toISOString();
+    db.prepare(`
+      INSERT OR REPLACE INTO games (
+        api_game_id, week, season, commence_time, home_team, away_team, site, 
+        is_televised, is_mandatory, spread_home, spread_away, completed, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, -3.5, 3.5, 0, ?)
+    `).run('test-game-live', weekNum, season, liveTime, 'Live State', 'Live Tech', 'Test Arena', new Date().toISOString());
+
+    // 2. Finished Game: Started yesterday, completed.
+    const finishedTime = new Date(Date.now() - 86400000).toISOString();
+    db.prepare(`
+      INSERT OR REPLACE INTO games (
+        api_game_id, week, season, commence_time, home_team, away_team, site, 
+        is_televised, is_mandatory, spread_home, spread_away, score_home, score_away, completed, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, -7, 7, 45, 17, 1, ?)
+    `).run('test-game-finished', weekNum, season, finishedTime, 'Winner University', 'Loser College', 'Victory Field', new Date().toISOString());
+  });
+
+  transaction();
+  console.log(`[db] Week 0 test data seeded for season ${season}.`);
+}
+
 function updateGameLine(gameId, updates) {
   const { spread_home, spread_away, home_price, away_price } = updates;
   const updateStmt = db.prepare(
@@ -589,6 +641,8 @@ module.exports = {
   saveGamesForSeason,
   saveManualGame,
   updateScoresFromSeason,
+  deletePicksForPlayerWeek,
+  seedTestData,
   savePick,
   updateGameLine,
   updatePick,
