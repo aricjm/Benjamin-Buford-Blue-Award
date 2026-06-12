@@ -429,16 +429,17 @@ select {
   flex: 1;
   border: none;
   background: transparent;
-  color: #333333;
+  color: #000000;
+  font-weight: bold;
   padding: 12px 0;
   cursor: pointer;
   z-index: 1;
   border-radius: 999px;
-  font-size: 0.9rem;
+  font-size: 1.08rem;
 }
 
 .meal-switch-option.active {
-  color: #0b163d;
+  color: #ffffff;
 }
 
 .meal-switch-slider {
@@ -447,7 +448,7 @@ select {
   left: 4px;
   width: calc(33.333% - 4px);
   height: calc(100% - 8px);
-  background: #4d7cff;
+  background: #333333;
   border-radius: 999px;
   transition: transform 180ms ease;
 }
@@ -471,7 +472,7 @@ select {
   border: none;
   background: transparent;
   font-weight: bold;
-  color: #333333;
+  color: #000000;
   padding: 12px 10px;
   cursor: pointer;
   z-index: 1;
@@ -480,11 +481,11 @@ select {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  font-size: 0.9rem;
+  font-size: 1.08rem;
 }
 
 .game-switch-option.active {
-  color: #0b163d;
+  color: #ffffff;
 }
 
 .game-switch-slider {
@@ -493,7 +494,7 @@ select {
   left: 4px;
   width: calc(33.333% - 4px);
   height: calc(100% - 8px);
-  background: #4d7cff;
+  background: #333333;
   border-radius: 999px;
   transition: transform 180ms ease;
 }
@@ -575,6 +576,7 @@ select {
 }
 
 .manual-grid input[type='text'],
+.manual-grid input[type='number'],
 .manual-grid input[type='datetime-local'] {
   border: 1px solid #333;
   border-radius: 10px;

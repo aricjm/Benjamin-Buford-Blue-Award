@@ -6,24 +6,14 @@ import Sidebar from './components/Sidebar';
 import StatsPage from './components/StatsPage';
 import AdminPage from './components/AdminPage';
 import PicksPage from './components/PicksPage';
+import ButtonsPage from './components/ButtonsPage';
+import LeaderboardPage from './components/LeaderboardPage';
+import ManualGamePage from './components/ManualGamePage';
 
 // Import Custom Hook
 import { useBetData } from './hooks/useBetData';
 
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
-
-const emptyManualGame = {
-  home_team: '',
-  away_team: '',
-  commence_time: '',
-  site: 'Manual',
-  spread_home: '',
-  spread_away: '',
-  home_price: '',
-  away_price: '',
-  is_televised: false,
-  is_mandatory: false
-};
 
 function App() {
   // UI Specific State
@@ -33,7 +23,6 @@ function App() {
   const [selectedConference, setSelectedConference] = useState('');
   const [statsTimeRange, setStatsTimeRange] = useState('All-Time');
 
-  const [manualGame, setManualGame] = useState(emptyManualGame);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState('picks');
   const [playerModalOpen, setPlayerModalOpen] = useState(true);
@@ -47,7 +36,6 @@ function App() {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved === 'true';
   });
-  const [selectedMeal, setSelectedMeal] = useState(null);
 
   // Consume the custom hook
   const {
@@ -175,40 +163,6 @@ function App() {
       setSaveResult({ success: false, message: 'Unable to save picks.' });
       setSavedPicksList([]);
       setShowSaveResult(true);
-    }
-  };
-
-  const handleManualGameChange = (field, value) => {
-    setManualGame((prev) => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleAddManualGame = async () => {
-    if (!manualGame.home_team || !manualGame.away_team || !manualGame.commence_time || selectedWeek === null || !selectedSeason) {
-      setAlertMessage('Home team, away team, commence time, season, and week are required.');
-      setShowAlertModal(true);
-      return;
-    }
-
-    try {
-      const result = await addManualGame({
-        ...manualGame,
-        spread_home: manualGame.spread_home ? Number(manualGame.spread_home) : null,
-        spread_away: manualGame.spread_away ? Number(manualGame.spread_away) : null,
-        home_price: manualGame.home_price ? Number(manualGame.home_price) : null,
-        away_price: manualGame.away_price ? Number(manualGame.away_price) : null,
-      });
-
-      if (result.success) {
-        setManualGame(emptyManualGame);
-        setMessage('Manual game added.');
-      } else {
-        setMessage(result.error || 'Failed to add manual game.');
-      }
-    } catch (error) {
-      setMessage('Unable to add manual game.');
     }
   };
 
@@ -404,309 +358,29 @@ function App() {
           )}
 
           {isManualPage && (
-            <section className="panel manual-panel">
-              <h2>Add a Manual Game</h2>
-              <div className="manual-grid">
-                <label>
-                  Home team
-                  <select
-                    value={manualGame.home_team}
-                    onChange={(e) => handleManualGameChange('home_team', e.target.value)}
-                  >
-                    <option value="">-- Select Home Team --</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.school}>{t.school} {t.nickname}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Away team
-                  <select
-                    value={manualGame.away_team}
-                    onChange={(e) => handleManualGameChange('away_team', e.target.value)}
-                  >
-                    <option value="">-- Select Away Team --</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.school}>{t.school} {t.nickname}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Commence time
-                  <input
-                    type="datetime-local"
-                    value={manualGame.commence_time}
-                    onChange={(e) => handleManualGameChange('commence_time', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Spread home
-                  <input
-                    value={manualGame.spread_home}
-                    onChange={(e) => handleManualGameChange('spread_home', e.target.value)}
-                    placeholder="e.g. -3.5"
-                  />
-                </label>
-                <label>
-                  Spread away
-                  <input
-                    value={manualGame.spread_away}
-                    onChange={(e) => handleManualGameChange('spread_away', e.target.value)}
-                    placeholder="e.g. 3.5"
-                  />
-                </label>
-                <label>
-                  Home price
-                  <input
-                    value={manualGame.home_price}
-                    onChange={(e) => handleManualGameChange('home_price', e.target.value)}
-                    placeholder="e.g. -110"
-                  />
-                </label>
-                <label>
-                  Away price
-                  <input
-                    value={manualGame.away_price}
-                    onChange={(e) => handleManualGameChange('away_price', e.target.value)}
-                    placeholder="e.g. -110"
-                  />
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={manualGame.is_televised}
-                    onChange={(e) => handleManualGameChange('is_televised', e.target.checked)}
-                  />
-                  Televised
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={manualGame.is_mandatory}
-                    onChange={(e) => handleManualGameChange('is_mandatory', e.target.checked)}
-                  />
-                  Mandatory
-                </label>
-              </div>
-              <div className="actions manual-actions">
-                <button disabled={loading || selectedWeek === null} onClick={handleAddManualGame}>Add Manual Game</button>
-              </div>
-            </section>
+            <ManualGamePage 
+              teams={teams}
+              selectedWeek={selectedWeek}
+              selectedSeason={selectedSeason}
+              addManualGame={addManualGame}
+              setMessage={setMessage}
+              setAlertMessage={setAlertMessage}
+              setShowAlertModal={setShowAlertModal}
+              loading={loading}
+            />
           )}
 
           {isSummaryPage && (
-            <>
-              <section className="panel summary-panel">
-                <h2>Week {selectedWeek} Leaderboard</h2>
-                {summary.length === 0 ? (
-                  <p>No picks yet for this week.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Player</th>
-                        <th>Wins</th>
-                        <th>Win %</th>
-                        <th>Losses</th>
-                        <th>Pushes</th>
-                        <th>Pending</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.map((row) => (
-                        <tr key={row.player}>
-                          <td>{row.player}</td>
-                          <td>{row.wins}</td>
-                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
-                          <td>{row.losses}</td>
-                          <td>{row.pushes}</td>
-                          <td>{row.pending}</td>
-                          <td>{row.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
-
-              <section className="panel summary-panel">
-                <h2>{selectedSeason} Season Leaderboard</h2>
-                {seasonSummary.length === 0 ? (
-                  <p>No picks for this season yet.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Player</th>
-                        <th>Wins</th>
-                        <th>Win %</th>
-                        <th>Losses</th>
-                        <th>Pushes</th>
-                        <th>Pending</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {seasonSummary.map((row) => (
-                        <tr key={row.player}>
-                          <td>{row.player}</td>
-                          <td>{row.wins}</td>
-                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
-                          <td>{row.losses}</td>
-                          <td>{row.pushes}</td>
-                          <td>{row.pending}</td>
-                          <td>{row.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
-
-              <section className="panel summary-panel">
-                <h2>All-Time Leaderboard</h2>
-                {allTimeSummary.length === 0 ? (
-                  <p>No picks recorded yet.</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Player</th>
-                        <th>Wins</th>
-                        <th>Win %</th>
-                        <th>Losses</th>
-                        <th>Pushes</th>
-                        <th>Pending</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allTimeSummary.map((row) => (
-                        <tr key={row.player}>
-                          <td>{row.player}</td>
-                          <td>{row.wins}</td>
-                          <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
-                          <td>{row.losses}</td>
-                          <td>{row.pushes}</td>
-                          <td>{row.pending}</td>
-                          <td>{row.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </section>
-            </>
+            <LeaderboardPage 
+              summary={summary}
+              seasonSummary={seasonSummary}
+              allTimeSummary={allTimeSummary}
+              selectedWeek={selectedWeek}
+              selectedSeason={selectedSeason}
+            />
           )}
 
-          {isButtonsPage && (
-            <section className="panel buttons-panel">
-              <h2>UI Controls Preview</h2>
-              <p>Example buttons, radio groups, toggles, and dropdowns with dummy data.</p>
-
-              <div className="demo-grid">
-                <div className="control-card">
-                  <h3>Buttons</h3>
-                  <div className="button-row">
-                    <button className="sample-button">Primary</button>
-                    <button className="sample-button secondary">Secondary</button>
-                    <button className="sample-button danger">Danger</button>
-                    <button className="sample-button ghost">Ghost</button>
-                  </div>
-                </div>
-
-                <div className="control-card">
-                  <h3>Radio buttons</h3>
-                  <label><input type="radio" name="demo-radio" defaultChecked /> Option A</label>
-                  <label><input type="radio" name="demo-radio" /> Option B</label>
-                  <label><input type="radio" name="demo-radio" /> Option C</label>
-                </div>
-
-                <div className="control-card">
-                  <h3>Toggle switches</h3>
-                  <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
-                    <span className="slider" />
-                    <span>Enable notifications</span>
-                  </label>
-                  <label className="toggle-switch">
-                    <input type="checkbox" />
-                    <span className="slider" />
-                    <span>Use dark mode</span>
-                  </label>
-                </div>
-
-                <div className="control-card">
-                  <h3>Dropdowns</h3>
-                  <label>
-                    Simple select
-                    <select>
-                      <option>Option 1</option>
-                      <option>Option 2</option>
-                      <option>Option 3</option>
-                    </select>
-                  </label>
-                  <label>
-                    Large select
-                    <select className="large-select">
-                      <option>Choose a team</option>
-                      <option>Team A</option>
-                      <option>Team B</option>
-                      <option>Team C</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="control-card">
-                  <h3>Checkboxes</h3>
-                  <label><input type="checkbox" defaultChecked /> Auto sync</label>
-                  <label><input type="checkbox" /> Show scores</label>
-                </div>
-
-                <div className="control-card">
-                  <h3>Compact controls</h3>
-                  <div className="button-row compact">
-                    <button className="sample-button">Save</button>
-                    <button className="sample-button secondary">Cancel</button>
-                    <button className="sample-button danger">Delete</button>
-                  </div>
-                </div>
-
-                <div className="control-card">
-                  <h3>Pizza / Pasta switch</h3>
-                  <div className="meal-switch">
-                    <button
-                      type="button"
-                      className={`meal-switch-option ${selectedMeal === 'Pizza' ? 'active' : ''}`}
-                      onClick={() => setSelectedMeal('Pizza')}
-                    >
-                      Pizza
-                    </button>
-                    <button
-                      type="button"
-                      className={`meal-switch-option ${selectedMeal === null ? 'active' : ''}`}
-                      onClick={() => setSelectedMeal(null)}
-                    >
-                      Neither
-                    </button>
-                    <button
-                      type="button"
-                      className={`meal-switch-option ${selectedMeal === 'Pasta' ? 'active' : ''}`}
-                      onClick={() => setSelectedMeal('Pasta')}
-                    >
-                      Pasta
-                    </button>
-                    <span
-                      className="meal-switch-slider"
-                      style={{ transform: selectedMeal === 'Pasta' ? 'translateX(200%)' : selectedMeal === 'Pizza' ? 'translateX(0)' : 'translateX(100%)' }}
-                    />
-                  </div>
-                  <p className="switch-label">Selected: {selectedMeal || 'Neither'}</p>
-                </div>
-              </div>
-            </section>
-          )}
+          {isButtonsPage && <ButtonsPage />}
 
         </main>
       </div>
