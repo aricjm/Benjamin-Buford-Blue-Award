@@ -88,11 +88,13 @@ function init() {
       school TEXT NOT NULL UNIQUE,
       nickname TEXT,
       conference TEXT,
-      logo TEXT
+      logo TEXT,
+      school_primary_color TEXT
     )`
   ).run();
 
   addColumnIfMissing('teams', 'logo', 'TEXT');
+  addColumnIfMissing('teams', 'school_primary_color', 'TEXT');
 
   migrateWeeksTable();
 
@@ -317,17 +319,18 @@ function seedTeams() {
   ];
 
   const insert = db.prepare(`
-    INSERT INTO teams (school, nickname, conference, logo) 
-    VALUES (?, ?, ?, ?)
+    INSERT INTO teams (school, nickname, conference, logo, school_primary_color) 
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(school) DO UPDATE SET
       logo = excluded.logo,
       nickname = excluded.nickname,
-      conference = excluded.conference
+      conference = excluded.conference,
+      school_primary_color = excluded.school_primary_color
   `);
 
   const transaction = db.transaction((data) => {
     for (const team of data) {
-      insert.run(team.school, team.nickname, team.conference, team.logo);
+      insert.run(team.school, team.nickname, team.conference, team.logo, team.school_primary_color || null);
     }
   });
   transaction(teams);
@@ -349,7 +352,7 @@ function getPlayers() {
 }
 
 function getTeams() {
-  return db.prepare('SELECT id, school, nickname, conference, logo FROM teams ORDER BY school ASC').all();
+  return db.prepare('SELECT id, school, nickname, conference, logo, school_primary_color FROM teams ORDER BY school ASC').all();
 }
 
 function getSeasons() {
@@ -371,7 +374,10 @@ function getWeekGames(week, season) {
   if (season) {
     return db
       .prepare(`
-        SELECT g.*, ht.logo as home_logo, at.logo as away_logo 
+        SELECT 
+          g.*, 
+          ht.logo as home_logo, at.logo as away_logo,
+          ht.school_primary_color as home_color, at.school_primary_color as away_color
         FROM games g
         LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
         LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
@@ -1053,6 +1059,11 @@ function updatePick(pickId, updates) {
   return db.prepare('SELECT * FROM picks WHERE id = ?').get(pickId);
 }
 
+function updateTeamColor(teamId, color) {
+  const updateStmt = db.prepare('UPDATE teams SET school_primary_color = ? WHERE id = ?');
+  updateStmt.run(color, teamId);
+}
+
 module.exports = {
   init,
   seedPlayers,
@@ -1079,5 +1090,6 @@ module.exports = {
   getGameByApiId,
   getWeekSummary,
   getSeasonSummary,
-  getAllTimeSummary
+  getAllTimeSummary,
+  updateTeamColor
 };
