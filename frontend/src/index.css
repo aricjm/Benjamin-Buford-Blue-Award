@@ -448,7 +448,7 @@ select {
   left: 4px;
   width: calc(33.333% - 4px);
   height: calc(100% - 8px);
-  background: #333333;
+  background-color: #333333;
   border-radius: 999px;
   transition: transform 180ms ease;
 }
@@ -494,9 +494,9 @@ select {
   left: 4px;
   width: calc(33.333% - 4px);
   height: calc(100% - 8px);
-  background: #333333;
+  background-color: #333333;
   border-radius: 999px;
-  transition: transform 180ms ease;
+  transition: transform 180ms ease, background-color 180ms ease;
 }
 
 .game-switch-option.active + .game-switch-slider,

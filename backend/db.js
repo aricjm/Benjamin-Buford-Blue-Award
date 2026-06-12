@@ -325,7 +325,7 @@ function seedTeams() {
       logo = excluded.logo,
       nickname = excluded.nickname,
       conference = excluded.conference,
-      school_primary_color = excluded.school_primary_color
+      school_primary_color = COALESCE(excluded.school_primary_color, teams.school_primary_color)
   `);
 
   const transaction = db.transaction((data) => {

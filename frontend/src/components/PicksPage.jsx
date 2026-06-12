@@ -90,7 +90,6 @@ const PicksPage = ({
                   onClick={() => handlePickChange(game, null)}
                   disabled={isGameLocked(game)}
                 >
-                  Neither
                 </button>
                 <button
                   type="button"
@@ -107,7 +106,16 @@ const PicksPage = ({
                 </button>
                 <span
                   className="game-switch-slider"
-                  style={{ transform: picks[game.id]?.selectionTeam === game.home_team ? 'translateX(200%)' : picks[game.id]?.selectionTeam === game.away_team ? 'translateX(0)' : 'translateX(100%)' }}
+                  style={{ 
+                    transform: picks[game.id]?.selectionTeam === game.home_team 
+                      ? 'translateX(200%)' 
+                      : picks[game.id]?.selectionTeam === game.away_team 
+                        ? 'translateX(0)' 
+                        : 'translateX(100%)',
+                    backgroundColor: picks[game.id]?.selectionTeam === game.home_team 
+                      ? (game.home_color || '#4d7cff') 
+                      : (picks[game.id]?.selectionTeam === game.away_team ? (game.away_color || '#4d7cff') : '#333333')
+                  }}
                 />
               </div>
               <span>{new Date(game.commence_time).toLocaleString()}</span>
@@ -157,7 +165,6 @@ const PicksPage = ({
                   onClick={() => handlePickChange(game, null)}
                   disabled={isGameLocked(game)}
                 >
-                  Neither
                 </button>
                 <button
                   type="button"
@@ -174,7 +181,16 @@ const PicksPage = ({
                 </button>
                 <span
                   className="game-switch-slider"
-                  style={{ transform: picks[game.id]?.selectionTeam === game.home_team ? 'translateX(200%)' : picks[game.id]?.selectionTeam === game.away_team ? 'translateX(0)' : 'translateX(100%)' }}
+                  style={{ 
+                    transform: picks[game.id]?.selectionTeam === game.home_team 
+                      ? 'translateX(200%)' 
+                      : picks[game.id]?.selectionTeam === game.away_team 
+                        ? 'translateX(0)' 
+                        : 'translateX(100%)',
+                    backgroundColor: picks[game.id]?.selectionTeam === game.home_team 
+                      ? (game.home_color || '#4d7cff') 
+                      : (picks[game.id]?.selectionTeam === game.away_team ? (game.away_color || '#4d7cff') : '#333333')
+                  }}
                 />
               </div>
               <span>{new Date(game.commence_time).toLocaleString()}</span>
