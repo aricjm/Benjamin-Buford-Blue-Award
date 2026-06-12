@@ -341,6 +341,7 @@ function App() {
               setShowAlertModal={setShowAlertModal}
               loadWeek={loadWeek}
               loadStats={loadStats}
+              teams={teams}
             />
           )}
           {isPicksPage && (
