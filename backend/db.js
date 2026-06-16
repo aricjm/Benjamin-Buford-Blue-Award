@@ -57,7 +57,7 @@ function migrateWeeksTable() {
   ).run();
   db.prepare(
     `INSERT INTO weeks (week, season, label, starts_on, ends_on)
-     SELECT week, '2026', label, starts_on, ends_on FROM weeks_old`
+     SELECT week, '2025', label, starts_on, ends_on FROM weeks_old`
   ).run();
   db.prepare('DROP TABLE weeks_old').run();
 }
@@ -146,7 +146,7 @@ function init() {
     )`
   ).run();
 
-  addColumnIfMissing('games', 'season', 'TEXT', '2026');
+  addColumnIfMissing('games', 'season', 'TEXT', new Date().getUTCFullYear().toString());
 
   db.prepare(
     `CREATE TABLE IF NOT EXISTS picks (
@@ -346,7 +346,14 @@ function seedTeams() {
 }
 
 function seedWeeks() {
-  const weeks = buildSeasonWeeks();
+  // Seed both current and next year to ensure the scheduler always finds a week
+  const currentYear = new Date().getUTCFullYear();
+  const weeks = [
+    ...buildSeasonWeeks(currentYear.toString()),
+    ...buildSeasonWeeks((currentYear - 1).toString()),
+    ...buildSeasonWeeks((currentYear + 1).toString())
+  ];
+  
   const insert = db.prepare(
     'INSERT OR IGNORE INTO weeks (week, season, label, starts_on, ends_on) VALUES (?, ?, ?, ?, ?)'
   );
@@ -443,8 +450,8 @@ function upsertGame(game) {
          home_team = ?,
          away_team = ?,
          site = ?,
-         is_televised = ?,
-         is_mandatory = ?,
+         is_televised = COALESCE(?, is_televised),
+         is_mandatory = COALESCE(?, is_mandatory),
          spread_home = ?,
          spread_away = ?,
          home_price = ?,
@@ -461,8 +468,8 @@ function upsertGame(game) {
       game.home_team,
       game.away_team,
       game.site,
-      game.is_televised ? 1 : 0,
-      game.is_mandatory ? 1 : 0,
+      game.is_televised !== undefined ? (game.is_televised ? 1 : 0) : null,
+      game.is_mandatory !== undefined ? (game.is_mandatory ? 1 : 0) : null,
       game.spread_home,
       game.spread_away,
       game.home_price,
@@ -504,8 +511,8 @@ function upsertGame(game) {
     game.home_team,
     game.away_team,
     game.site,
-    game.is_televised ? 1 : 0,
-    game.is_mandatory ? 1 : 0,
+    game.is_televised !== undefined ? (game.is_televised ? 1 : 0) : 0,
+    game.is_mandatory !== undefined ? (game.is_mandatory ? 1 : 0) : 0,
     game.spread_home,
     game.spread_away,
     game.home_price,
@@ -534,6 +541,14 @@ function saveGamesForSeason(games) {
   for (const game of games) {
     if (!game.season) {
       game.season = getSeasonFromDate(game.commence_time);
+    }
+    // Ensure week is assigned during season-wide sync
+    if (game.week === undefined || game.week === null) {
+      game.week = getWeekNumberFromDate(game.commence_time, game.season);
+    }
+    // Fallback: If date is outside known week ranges, assign to Week 1 so it's visible
+    if (game.week === null) {
+      game.week = 1;
     }
     upsertGame(game);
     saved += 1;

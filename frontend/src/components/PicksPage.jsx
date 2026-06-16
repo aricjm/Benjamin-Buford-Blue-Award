@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 const formatSpread = (game, team) => {
   if (team === game.home_team) {
@@ -45,6 +46,7 @@ const CountdownTimer = ({ commenceTime }) => {
 const PicksPage = ({
   mandatoryGames,
   optionalGames,
+  pickGames, // Now receiving combined games
   picks,
   handlePickChange,
   isGameLocked,
@@ -52,6 +54,7 @@ const PicksPage = ({
   handleSubmit,
   loading,
   selectedWeek
+  selectedWeek,
 }) => {
   return (
     <>
@@ -206,6 +209,9 @@ const PicksPage = ({
           ))}
         </article>
       </section>
+  // Re-derive mandatory and optional games from the combined pickGames prop
+  const mandatoryGames = pickGames.filter((game) => game.is_mandatory || game.is_televised);
+  const optionalGames = pickGames.filter((game) => !game.is_mandatory && !game.is_televised);
 
       <div className="actions">
         <button disabled={loading || selectedWeek === null} onClick={handleSubmit}>Save Picks</button>
@@ -213,5 +219,24 @@ const PicksPage = ({
     </>
   );
 };
+  const getSpreadLabel = (game, team) => {
+    if (team === game.home_team) {
+      return game.spread_home === null ? "PK" : `${game.spread_home}`;
+    }
+    // Assumes `team` is `away_team` if not `home_team`
+    return game.spread_away === null ? "PK" : `${game.spread_away}`;
+  };
 
 export default PicksPage;
+  const renderGameCard = (game) => {
+    const isPicked = picks[game.id] && picks[game.id].selectionTeam;
+    const isHomePicked = isPicked && picks[game.id].selectionTeam === game.home_team;
+    const isAwayPicked = isPicked && picks[game.id].selectionTeam === game.away_team;
+    const isNeitherPicked = !isPicked;
+    const locked = isGameLocked(game);
+    const live = isGameLive(game);
+
+    return (
+      <div key={game.id} className={`game-card ${locked ? 'locked' : ''} ${live ? 'live' : ''}`}>
+        <div className="game-header">
+          {game.away_logo && <img src={game.away_logo} alt={game.away_team} className="team-logo small" style={{ backgroundColor: game.away_color || 'transparent' }} />}
