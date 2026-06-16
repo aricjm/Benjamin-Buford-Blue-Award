@@ -78,8 +78,8 @@ function App() {
     return acc;
   }, []);
 
-  const mandatoryGames = games.filter((game) => game.is_televised);
-  const optionalGames = games.filter((game) => !game.is_televised);
+  const mandatoryGames = games.filter((game) => game.is_mandatory || game.is_televised);
+  const optionalGames = games.filter((game) => !game.is_mandatory && !game.is_televised);
 
   const isSummaryPage = activePage === 'summary';
   const isManualPage = activePage === 'manual';
@@ -341,6 +341,7 @@ function App() {
               setShowAlertModal={setShowAlertModal}
               loadWeek={loadWeek}
               loadStats={loadStats}
+              teams={teams}
             />
           )}
           {isPicksPage && (
