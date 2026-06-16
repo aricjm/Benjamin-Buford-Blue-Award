@@ -78,8 +78,17 @@ function App() {
     return acc;
   }, []);
 
-  const mandatoryGames = games.filter((game) => game.is_televised);
-  const optionalGames = games.filter((game) => !game.is_televised);
+  // Combine mandatory and optional games into one list and deduplicate by ID
+  const pickGames = games
+    .filter((g, idx, arr) => idx === arr.findIndex(t => t.id === g.id))
+    .sort((a, b) => {
+      // Sort: Mandatory/Televised first, then by commence time
+      const aMandatory = a.is_mandatory || a.is_televised;
+      const bMandatory = b.is_mandatory || b.is_televised;
+      if (aMandatory && !bMandatory) return -1;
+      if (!aMandatory && bMandatory) return 1;
+      return new Date(a.commence_time) - new Date(b.commence_time);
+    });
 
   const isSummaryPage = activePage === 'summary';
   const isManualPage = activePage === 'manual';
@@ -97,8 +106,11 @@ function App() {
       return;
     }
 
-    const mandatoryGamesToPick = mandatoryGames.filter(game => !isGameLocked(game));
-    const mandatoryGamesAlreadyLockedWithoutPick = mandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
+    // Filter for mandatory games from the combined list for validation
+    const allMandatoryGames = pickGames.filter(game => game.is_mandatory || game.is_televised);
+
+    const mandatoryGamesToPick = allMandatoryGames.filter(game => !isGameLocked(game));
+    const mandatoryGamesAlreadyLockedWithoutPick = allMandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
 
     if (mandatoryGamesAlreadyLockedWithoutPick.length > 0) {
       setMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
@@ -344,9 +356,8 @@ function App() {
             />
           )}
           {isPicksPage && (
-            <PicksPage
-              mandatoryGames={mandatoryGames}
-              optionalGames={optionalGames}
+            <PicksPage 
+              pickGames={pickGames}
               picks={picks}
               handlePickChange={handlePickChange}
               isGameLocked={isGameLocked}
