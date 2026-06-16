@@ -89,7 +89,10 @@ function init() {
       nickname TEXT,
       conference TEXT,
       logo TEXT,
-      school_primary_color TEXT
+      school_primary_color TEXT,
+      stadium_name TEXT,
+      stadium_city TEXT,
+      stadium_state TEXT
     )`
   ).run();
 
@@ -138,6 +141,9 @@ function init() {
   ).run();
 
   addColumnIfMissing('games', 'season', 'TEXT', '2026');
+  addColumnIfMissing('teams', 'stadium_name', 'TEXT');
+  addColumnIfMissing('teams', 'stadium_city', 'TEXT');
+  addColumnIfMissing('teams', 'stadium_state', 'TEXT');
 
   db.prepare(
     `CREATE TABLE IF NOT EXISTS picks (

@@ -43,9 +43,78 @@ const CountdownTimer = ({ commenceTime }) => {
 };
 
 const GameIntel = ({ game }) => {
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchWeather = async () => {
+      const kickoff = new Date(game.commence_time);
+      const now = new Date();
+      // Open-Meteo forecast is available for ~14 days.
+      const daysUntil = (kickoff - now) / (1000 * 60 * 60 * 24);
+
+      if (daysUntil > 14 || daysUntil < -1) {
+        setWeather({ unavailable: true, reason: daysUntil < 0 ? 'Game Finished' : 'Forecast N/A' });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // 1. Geocode the home team to find location coordinates.
+        // We clean the name slightly (e.g., "Miami (FL)" -> "Miami") for better search results.
+        const searchTerm = game.home_team.split('(')[0].trim();
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(game.home_stadium_city || searchTerm)}&count=1&language=en&format=json`;
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json();
+
+        if (!geoData.results?.length) {
+          setWeather({ error: true });
+          return;
+        }
+
+        const { latitude, longitude, name, admin1 } = geoData.results[0];
+        const datePart = kickoff.toISOString().split('T')[0];
+
+        // 2. Fetch hourly forecast for the kickoff date.
+        // Using UTC timezone for both API and JS Date object to ensure alignment of the hourly index.
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=UTC&start_date=${datePart}&end_date=${datePart}`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+
+        if (weatherData.hourly) {
+          const hour = kickoff.getUTCHours();
+          setWeather({
+            temp: Math.round(weatherData.hourly.temperature_2m[hour]),
+            code: weatherData.hourly.weather_code[hour],
+            city: name,
+            state: admin1,
+            success: true
+          });
+        }
+      } catch (err) {
+        console.error('Weather error:', err);
+        setWeather({ error: true });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWeather();
+  }, [game.id, game.home_team, game.commence_time, game.home_stadium_city]); // Add game.home_stadium_city to dependencies
+
+  const getWeatherLabel = (code) => {
+    if (code === 0) return 'Clear';
+    if (code <= 3) return 'Partly Cloudy';
+    if (code >= 51 && code <= 67) return 'Rain';
+    if (code >= 71 && code <= 77) return 'Snow';
+    if (code >= 80 && code <= 82) return 'Showers';
+    if (code >= 95) return 'T-Storms';
+    return 'Cloudy';
+  };
+
   return (
-    <div className="game-intel" style={{ padding: '12px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ fontSize: '0.75em', color: '#888', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Statistics</div>
+    <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ fontSize: '0.75em', color: '#888', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div>
           <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Win Streak</div>
@@ -59,7 +128,15 @@ const GameIntel = ({ game }) => {
       </div>
       <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
         <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Weather</div>
-        <div style={{ fontSize: '0.85em', color: '#aaa' }}>Placeholder: Fetching weather data...</div>
+        <div style={{ fontSize: '0.85em', color: '#aaa' }}>
+          {loading ? 'Fetching forecast...' : (
+            weather?.success ? (
+              <span>{weather.city}, {weather.state}: {weather.temp}°F, {getWeatherLabel(weather.code)}</span>
+            ) : (
+              weather?.reason || 'Weather forecast unavailable'
+            )
+          )}
+        </div>
       </div>
     </div>
   );
@@ -68,6 +145,7 @@ const GameIntel = ({ game }) => {
 const PicksPage = ({
   pickGames,
   picks,
+  games,
   handlePickChange,
   isGameLocked,
   isGameLive,
@@ -118,7 +196,7 @@ const PicksPage = ({
                       onClick={() => handlePickChange(game, null)}
                       disabled={isGameLocked(game)}
                     > 
-                      <span style={{ fontSize: '2.9em', color: '#666' }}>@</span>
+                      <span style={{ fontSize: '2.7em', color: '#394d81' }}>@</span>
                     </button>
                     <button
                       type="button"
