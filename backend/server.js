@@ -75,7 +75,7 @@ app.get('/api/week/:week/games', async (req, res) => {
   }
 });
 
-app.post('/api/week/:week/picks', (req, res) => {
+app.post('/api/week/:week/picks', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
@@ -86,20 +86,20 @@ app.post('/api/week/:week/picks', (req, res) => {
 
     // Clear existing picks for this player, week, and season 
     // to allow for removals (selecting "Neither")
-    db.deletePicksForPlayerWeek(player, week, season);
+    await db.deletePicksForPlayerWeek(player, week, season);
 
     const saved = [];
     for (const pick of picks) {
-      saved.push(db.savePick(week, player, pick));
+      saved.push(await db.savePick(week, player, pick));
     }
-    const summary = db.getWeekSummary(week, season);
+    const summary = await db.getWeekSummary(week, season);
     res.json({ saved, summary });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/week/:week/games', (req, res) => {
+app.post('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
@@ -118,7 +118,7 @@ app.post('/api/week/:week/games', (req, res) => {
     if (!home_team || !away_team || !commence_time) {
       return res.status(400).json({ error: 'home_team, away_team, and commence_time are required' });
     }
-    const gameId = db.saveManualGame(week, season, {
+    const gameId = await db.saveManualGame(week, season, {
       home_team,
       away_team,
       commence_time,
@@ -130,7 +130,7 @@ app.post('/api/week/:week/games', (req, res) => {
       home_price,
       away_price
     });
-    const games = db.getWeekGames(week, season);
+    const games = await db.getWeekGames(week, season);
     res.json({ gameId, games });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -152,42 +152,42 @@ app.post('/api/week/:week/sync', async (req, res) => {
 app.post('/api/sync-all', async (req, res) => {
   try {
     const oddsGames = await api.fetchSeasonGames();
-    const savedCount = db.saveGamesForSeason(oddsGames);
+    const savedCount = await db.saveGamesForSeason(oddsGames);
     const scoreGames = await api.fetchSeasonScores();
-    const updatedCount = db.updateScoresFromSeason(scoreGames);
+    const updatedCount = await db.updateScoresFromSeason(scoreGames);
     res.json({ savedCount, updatedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/week/:week/summary', (req, res) => {
+app.get('/api/week/:week/summary', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    const summary = db.getWeekSummary(week, season);
+    const summary = await db.getWeekSummary(week, season);
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/week/:week/picks', (req, res) => {
+app.get('/api/week/:week/picks', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    const picks = db.getPicksByWeek(week, season);
+    const picks = await db.getPicksByWeek(week, season);
     res.json(picks);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.put('/api/game/:id', (req, res) => {
+app.put('/api/game/:id', async (req, res) => {
   try {
     const gameId = Number(req.params.id);
     const { spread_home, spread_away, home_price, away_price } = req.body;
-    const game = db.updateGameLine(gameId, {
+    const game = await db.updateGameLine(gameId, {
       spread_home: spread_home !== undefined ? spread_home : null,
       spread_away: spread_away !== undefined ? spread_away : null,
       home_price: home_price !== undefined ? home_price : null,
@@ -199,11 +199,11 @@ app.put('/api/game/:id', (req, res) => {
   }
 });
 
-app.put('/api/pick/:id', (req, res) => {
+app.put('/api/pick/:id', async (req, res) => {
   try {
     const pickId = Number(req.params.id);
     const { selection_team, selection_side, spread } = req.body;
-    const pick = db.updatePick(pickId, {
+    const pick = await db.updatePick(pickId, {
       selection_team,
       selection_side,
       spread: spread !== undefined ? spread : null
@@ -214,69 +214,69 @@ app.put('/api/pick/:id', (req, res) => {
   }
 });
 
-app.get('/api/mappings', (req, res) => {
+app.get('/api/mappings', async (req, res) => {
   try {
-    const mappings = db.getTeamMappings();
+    const mappings = await db.getTeamMappings();
     res.json(mappings);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/mappings', (req, res) => {
+app.post('/api/mappings', async (req, res) => {
   try {
     const { api_name, team_id } = req.body;
     if (!api_name || !team_id) {
       return res.status(400).json({ error: 'api_name and team_id are required' });
     }
-    db.addTeamMapping(api_name, team_id);
+    await db.addTeamMapping(api_name, team_id);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.delete('/api/mapping/:id', (req, res) => {
+app.delete('/api/mapping/:id', async (req, res) => {
   try {
-    db.deleteTeamMapping(Number(req.params.id));
+    await db.deleteTeamMapping(Number(req.params.id));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/season/:season/summary', (req, res) => {
+app.get('/api/season/:season/summary', async (req, res) => {
   try {
     const season = String(req.params.season);
-    const summary = db.getSeasonSummary(season);
+    const summary = await db.getSeasonSummary(season);
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/stats/:player', (req, res) => {
+app.get('/api/stats/:player', async (req, res) => {
   try {
-    const stats = db.getPlayerStats(req.params.player);
+    const stats = await db.getPlayerStats(req.params.player);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/stats/:player/conference', (req, res) => {
+app.get('/api/stats/:player/conference', async (req, res) => {
   try {
     const { conference, range, week, season } = req.query;
-    const stats = db.getConferenceStats(req.params.player, conference, range, Number(week), season);
+    const stats = await db.getConferenceStats(req.params.player, conference, range, Number(week), season);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/summary/alltime', (req, res) => {
+app.get('/api/summary/alltime', async (req, res) => {
   try {
-    const summary = db.getAllTimeSummary();
+    const summary = await db.getAllTimeSummary();
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -289,7 +289,7 @@ app.get('/api/summary/alltime', (req, res) => {
     await db.seedPlayers();
     await db.seedTeams();
     await db.seedWeeks();
-    db.seedTestData();
+    await db.seedTestData();
     scheduler.start(db);
     app.listen(PORT, () => {
       console.log(`Backend API listening on http://localhost:${PORT}`);
@@ -299,3 +299,5 @@ app.get('/api/summary/alltime', (req, res) => {
     process.exit(1);
   }
 })();
+
+module.exports = app;

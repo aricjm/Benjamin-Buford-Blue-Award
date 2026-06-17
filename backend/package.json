@@ -10,6 +10,7 @@
     "debug": "nodemon --inspect server.js"
   },
   "dependencies": {
+    "@vercel/postgres": "^0.10.0",
     "axios": "^1.17.0",
     "better-sqlite3": "^8.4.0",
     "cors": "^2.8.5",

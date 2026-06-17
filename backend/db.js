@@ -1,6 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+const { sql } = require('@vercel/postgres');
 const {
   buildSeasonWeeks,
   getWeekNumberFromDate,
@@ -8,83 +6,32 @@ const {
   getSeasonFromDate
 } = require('./utils');
 
-const dbFile = process.env.DB_FILE || path.join(__dirname, 'data', 'bets.db');
-fs.mkdirSync(path.dirname(dbFile), { recursive: true });
-const db = new Database(dbFile);
+async function addColumnIfMissing(table, column, definition, defaultValue) {
+  const { rows } = await sql.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name = $1 AND column_name = $2
+  `, [table, column]);
 
-function tableHasColumn(table, column) {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all();
-  return rows.some((row) => row.name === column);
-}
-
-function dedupeWeeksTable() {
-  const duplicateIds = db
-    .prepare(
-      `SELECT id
-       FROM weeks
-       WHERE id NOT IN (
-         SELECT MIN(id)
-         FROM weeks
-         GROUP BY season, week
-       )`
-    )
-    .all()
-    .map((row) => row.id);
-
-  if (duplicateIds.length) {
-    const deleteStmt = db.prepare('DELETE FROM weeks WHERE id = ?');
-    for (const id of duplicateIds) {
-      deleteStmt.run(id);
-    }
-  }
-}
-
-function migrateWeeksTable() {
-  const hasWeeks = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='weeks'`).get();
-  if (!hasWeeks) return;
-  if (tableHasColumn('weeks', 'season')) return;
-
-  db.prepare('ALTER TABLE weeks RENAME TO weeks_old').run();
-  db.prepare(
-    `CREATE TABLE weeks (
-      id INTEGER PRIMARY KEY,
-      week INTEGER,
-      season TEXT,
-      label TEXT,
-      starts_on TEXT,
-      ends_on TEXT
-    )`
-  ).run();
-  db.prepare(
-    `INSERT INTO weeks (week, season, label, starts_on, ends_on)
-     SELECT week, '2026', label, starts_on, ends_on FROM weeks_old`
-  ).run();
-  db.prepare('DROP TABLE weeks_old').run();
-}
-
-function addColumnIfMissing(table, column, definition, defaultValue) {
-  if (!tableHasColumn(table, column)) {
-    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  if (rows.length === 0) {
+    await sql.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     if (defaultValue !== undefined) {
-      db.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} IS NULL`).run(defaultValue);
+      await sql.query(`UPDATE ${table} SET ${column} = $1 WHERE ${column} IS NULL`, [defaultValue]);
     }
   }
 }
 
-function init() {
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = OFF');
-
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS players (
-      id INTEGER PRIMARY KEY,
+async function init() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS players (
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE
-    )`
-  ).run();
+    )
+  `;
 
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS teams (
-      id INTEGER PRIMARY KEY,
+  await sql`
+    CREATE TABLE IF NOT EXISTS teams (
+      id SERIAL PRIMARY KEY,
       school TEXT NOT NULL UNIQUE,
       nickname TEXT,
       conference TEXT,
@@ -93,32 +40,26 @@ function init() {
       stadium_name TEXT,
       stadium_city TEXT,
       stadium_state TEXT
-    )`
-  ).run();
+    )
+  `;
 
-  addColumnIfMissing('teams', 'logo', 'TEXT');
-  addColumnIfMissing('teams', 'school_primary_color', 'TEXT');
-
-  migrateWeeksTable();
-
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS weeks (
-      id INTEGER PRIMARY KEY,
+  await sql`
+    CREATE TABLE IF NOT EXISTS weeks (
+      id SERIAL PRIMARY KEY,
       week INTEGER,
       season TEXT,
       label TEXT,
       starts_on TEXT,
       ends_on TEXT,
       UNIQUE(season, week)
-    )`
-  ).run();
+    )
+  `;
 
-  dedupeWeeksTable();
-  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_weeks_unique ON weeks(season, week)').run();
+  await sql`CREATE INDEX IF NOT EXISTS idx_weeks_unique ON weeks(season, week)`;
 
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS games (
-      id INTEGER PRIMARY KEY,
+  await sql`
+    CREATE TABLE IF NOT EXISTS games (
+      id SERIAL PRIMARY KEY,
       api_game_id TEXT UNIQUE,
       week INTEGER,
       season TEXT,
@@ -136,18 +77,17 @@ function init() {
       score_away INTEGER,
       completed INTEGER DEFAULT 0,
       updated_at TEXT
-      , FOREIGN KEY (week, season) REFERENCES weeks(week, season)
-    )`
-  ).run();
+    )
+  `;
 
-  addColumnIfMissing('games', 'season', 'TEXT', '2026');
-  addColumnIfMissing('teams', 'stadium_name', 'TEXT');
-  addColumnIfMissing('teams', 'stadium_city', 'TEXT');
-  addColumnIfMissing('teams', 'stadium_state', 'TEXT');
+  await addColumnIfMissing('games', 'season', 'TEXT', '2026');
+  await addColumnIfMissing('teams', 'stadium_name', 'TEXT');
+  await addColumnIfMissing('teams', 'stadium_city', 'TEXT');
+  await addColumnIfMissing('teams', 'stadium_state', 'TEXT');
 
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS picks (
-      id INTEGER PRIMARY KEY,
+  await sql`
+    CREATE TABLE IF NOT EXISTS picks (
+      id SERIAL PRIMARY KEY,
       week INTEGER,
       player TEXT,
       game_id INTEGER,
@@ -158,27 +98,22 @@ function init() {
       result TEXT DEFAULT 'pending',
       picked_at TEXT,
       updated_at TEXT
-    )`
-  ).run();
+    )
+  `;
 
-  db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_unique ON picks(week, player, game_id)`).run();
-  db.pragma('foreign_keys = ON');
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_unique ON picks(week, player, game_id)`;
 }
 
-function seedPlayers() {
-  db.prepare('UPDATE players SET name = ? WHERE name = ?').run('Aric', 'You');
+async function seedPlayers() {
   const defaultPlayers = ['Aric', 'Nick', 'Cisco'];
-  const insert = db.prepare('INSERT OR IGNORE INTO players (name) VALUES (?)');
-  const count = defaultPlayers.reduce((acc, name) => {
-    insert.run(name);
-    return acc + 1;
-  }, 0);
-  return count;
+  for (const name of defaultPlayers) {
+    await sql`INSERT INTO players (name) VALUES (${name}) ON CONFLICT DO NOTHING`;
+  }
+  return defaultPlayers.length;
 }
 
-function seedTeams() {
+async function seedTeams() {
   const toLogo = (school) => {
-    // Convention: "Miami (FL)" -> miami-fl.png, "Texas A&M" -> texas-am.png
     const name = school.toLowerCase()
       .replace(/\(fl\)/g, 'fl')
       .replace(/\(oh\)/g, 'oh')
@@ -324,220 +259,177 @@ function seedTeams() {
     { school: 'UConn', nickname: 'Huskies', conference: 'Independent', logo: toLogo('UConn'), school_primary_color: '#000E2F', stadium_name: 'Pratt & Whitney Stadium at Rentschler Field', stadium_city: 'East Hartford', stadium_state: 'Connecticut' }
   ];
 
-  const insert = db.prepare(`
-    INSERT INTO teams (school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(school) DO UPDATE SET
-      logo = excluded.logo,
-      nickname = excluded.nickname,
-      conference = excluded.conference,
-      school_primary_color = COALESCE(excluded.school_primary_color, teams.school_primary_color),
-      stadium_name = excluded.stadium_name,
-      stadium_city = excluded.stadium_city,
-      stadium_state = excluded.stadium_state
-  `);
-
-  const transaction = db.transaction((data) => {
-    for (const team of data) {
-      insert.run(team.school, team.nickname, team.conference, team.logo, team.school_primary_color || null, team.stadium_name, team.stadium_city, team.stadium_state);
-    }
-  });
-  transaction(teams);
+  for (const team of teams) {
+    await sql`
+      INSERT INTO teams (school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state) 
+      VALUES (${team.school}, ${team.nickname}, ${team.conference}, ${team.logo}, ${team.school_primary_color}, ${team.stadium_name}, ${team.stadium_city}, ${team.stadium_state})
+      ON CONFLICT(school) DO UPDATE SET
+        logo = EXCLUDED.logo,
+        nickname = EXCLUDED.nickname,
+        conference = EXCLUDED.conference,
+        school_primary_color = COALESCE(EXCLUDED.school_primary_color, teams.school_primary_color),
+        stadium_name = EXCLUDED.stadium_name,
+        stadium_city = EXCLUDED.stadium_city,
+        stadium_state = EXCLUDED.stadium_state
+    `;
+  }
 }
 
-function seedWeeks() {
+async function seedWeeks() {
   const weeks = buildSeasonWeeks();
-  const insert = db.prepare(
-    'INSERT OR IGNORE INTO weeks (week, season, label, starts_on, ends_on) VALUES (?, ?, ?, ?, ?)'
-  );
   for (const item of weeks) {
-    insert.run(item.week, item.season, item.label, item.starts_on, item.ends_on);
+    await sql`
+      INSERT INTO weeks (week, season, label, starts_on, ends_on) 
+      VALUES (${item.week}, ${item.season}, ${item.label}, ${item.starts_on}, ${item.ends_on}) 
+      ON CONFLICT (season, week) DO NOTHING
+    `;
   }
   return weeks.length;
 }
 
-function getPlayers() {
-  return db.prepare('SELECT id, name FROM players ORDER BY id').all();
+async function getPlayers() {
+  const { rows } = await sql`SELECT id, name FROM players ORDER BY id`;
+  return rows;
 }
 
-function getTeams() {
-  return db.prepare('SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC').all();
+async function getTeams() {
+  const { rows } = await sql`SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC`;
+  return rows;
 }
 
-function getSeasons() {
-  return db.prepare('SELECT DISTINCT season FROM weeks ORDER BY season DESC').all().map((row) => row.season);
+async function getSeasons() {
+  const { rows } = await sql`SELECT DISTINCT season FROM weeks ORDER BY season DESC`;
+  return rows.map((row) => row.season);
 }
 
-function getWeeks(season) {
+async function getWeeks(season) {
   if (season) {
-    return db
-      .prepare(
-        'SELECT id, week, season, label, starts_on, ends_on FROM weeks WHERE season = ? ORDER BY week'
-      )
-      .all(season);
+    const { rows } = await sql`SELECT id, week, season, label, starts_on, ends_on FROM weeks WHERE season = ${season} ORDER BY week`;
+    return rows;
   }
-  return db.prepare('SELECT id, week, season, label, starts_on, ends_on FROM weeks ORDER BY season DESC, week').all();
+  const { rows } = await sql`SELECT id, week, season, label, starts_on, ends_on FROM weeks ORDER BY season DESC, week`;
+  return rows;
 }
 
-function getWeekGames(week, season) {
+async function getWeekGames(week, season) {
   if (season) {
-    return db
-      .prepare(`
-        SELECT 
-          g.*, 
-          ht.logo as home_logo, at.logo as away_logo,
-          ht.school_primary_color as home_color, at.school_primary_color as away_color,
-          ht.stadium_name as home_stadium_name,
-          ht.stadium_city as home_stadium_city,
-          ht.stadium_state as home_stadium_state,
-          ht.nickname as home_nickname, at.nickname as away_nickname
-        FROM games g
-        LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
-        LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
-        WHERE g.week = ? AND g.season = ? 
-        ORDER BY g.commence_time ASC, g.id ASC
-      `)
-      .all(week, season);
+    const { rows } = await sql`
+      SELECT 
+        g.*, 
+        ht.logo as home_logo, at.logo as away_logo,
+        ht.school_primary_color as home_color, at.school_primary_color as away_color,
+        ht.stadium_name as home_stadium_name,
+        ht.stadium_city as home_stadium_city,
+        ht.stadium_state as home_stadium_state,
+        ht.nickname as home_nickname, at.nickname as away_nickname
+      FROM games g
+      LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
+      LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+      WHERE g.week = ${week} AND g.season = ${season} 
+      ORDER BY g.commence_time ASC, g.id ASC
+    `;
+    return rows;
   }
-
-  // Fallback for missing season param
   return [];
 }
 
-function getPicksByWeek(week, season) {
-  const baseQuery =
-    `SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
-       FROM picks p
-       JOIN games g ON p.game_id = g.id
-       WHERE p.week = ?`;
+async function getPicksByWeek(week, season) {
   if (season) {
-    return db
-      .prepare(`${baseQuery} AND g.season = ? ORDER BY p.player, p.updated_at DESC`)
-      .all(week, season);
+    const { rows } = await sql`
+      SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
+      FROM picks p
+      JOIN games g ON p.game_id = g.id
+      WHERE p.week = ${week} AND g.season = ${season} 
+      ORDER BY p.player, p.updated_at DESC
+    `;
+    return rows;
   }
-  return db.prepare(`${baseQuery} ORDER BY p.player, p.updated_at DESC`).all(week);
+  const { rows } = await sql`
+    SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.week = ${week} 
+    ORDER BY p.player, p.updated_at DESC
+  `;
+  return rows;
 }
 
-function getGameByApiId(apiGameId) {
-  return db.prepare('SELECT * FROM games WHERE api_game_id = ?').get(apiGameId);
+async function getGameByApiId(apiGameId) {
+  const { rows } = await sql`SELECT * FROM games WHERE api_game_id = ${apiGameId}`;
+  return rows[0] || null;
 }
 
-function getGameById(id) {
-  return db.prepare('SELECT * FROM games WHERE id = ?').get(id);
+async function getGameById(id) {
+  const { rows } = await sql`SELECT * FROM games WHERE id = ${id}`;
+  return rows[0] || null;
 }
 
-function upsertGame(game) {
-  const existing = game.api_game_id ? getGameByApiId(game.api_game_id) : null;
+async function upsertGame(game) {
+  const existing = game.api_game_id ? await getGameByApiId(game.api_game_id) : null;
   if (existing) {
-    db.prepare(
-      `UPDATE games SET
-         week = ?,
-         season = ?,
-         commence_time = ?,
-         home_team = ?,
-         away_team = ?,
-         site = ?,
-         is_televised = ?,
-         is_mandatory = ?,
-         spread_home = ?,
-         spread_away = ?,
-         home_price = ?,
-         away_price = ?,
-         score_home = ?,
-         score_away = ?,
-         completed = ?,
-         updated_at = ?
-       WHERE api_game_id = ?`
-    ).run(
-      game.week,
-      game.season,
-      game.commence_time,
-      game.home_team,
-      game.away_team,
-      game.site,
-      game.is_televised ? 1 : 0,
-      game.is_mandatory ? 1 : 0,
-      game.spread_home,
-      game.spread_away,
-      game.home_price,
-      game.away_price,
-      game.score_home,
-      game.score_away,
-      game.completed ? 1 : 0,
-      new Date().toISOString(),
-      game.api_game_id
-    );
+    await sql`
+      UPDATE games SET
+        week = ${game.week},
+        season = ${game.season},
+        commence_time = ${game.commence_time},
+        home_team = ${game.home_team},
+        away_team = ${game.away_team},
+        site = ${game.site},
+        is_televised = ${game.is_televised ? 1 : 0},
+        is_mandatory = ${game.is_mandatory ? 1 : 0},
+        spread_home = ${game.spread_home},
+        spread_away = ${game.spread_away},
+        home_price = ${game.home_price},
+        away_price = ${game.away_price},
+        score_home = ${game.score_home},
+        score_away = ${game.score_away},
+        completed = ${game.completed ? 1 : 0},
+        updated_at = ${new Date().toISOString()}
+      WHERE api_game_id = ${game.api_game_id}
+    `;
     return existing.id;
   }
 
-  const info = db.prepare(
-    `INSERT INTO games (
-      api_game_id,
-      week,
-      season,
-      commence_time,
-      home_team,
-      away_team,
-      site,
-      is_televised,
-      is_mandatory,
-      spread_home,
-      spread_away,
-      home_price,
-      away_price,
-      score_home,
-      score_away,
-      completed,
-      updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    game.api_game_id,
-    game.week,
-    game.season,
-    game.commence_time,
-    game.home_team,
-    game.away_team,
-    game.site,
-    game.is_televised ? 1 : 0,
-    game.is_mandatory ? 1 : 0,
-    game.spread_home,
-    game.spread_away,
-    game.home_price,
-    game.away_price,
-    game.score_home,
-    game.score_away,
-    game.completed ? 1 : 0,
-    new Date().toISOString()
-  );
-  return info.lastInsertRowid;
+  const { rows } = await sql`
+    INSERT INTO games (
+      api_game_id, week, season, commence_time, home_team, away_team, site,
+      is_televised, is_mandatory, spread_home, spread_away, home_price, away_price,
+      score_home, score_away, completed, updated_at
+    ) VALUES (
+      ${game.api_game_id}, ${game.week}, ${game.season}, ${game.commence_time}, ${game.home_team}, ${game.away_team}, ${game.site},
+      ${game.is_televised ? 1 : 0}, ${game.is_mandatory ? 1 : 0}, ${game.spread_home}, ${game.spread_away}, ${game.home_price}, ${game.away_price},
+      ${game.score_home}, ${game.score_away}, ${game.completed ? 1 : 0}, ${new Date().toISOString()}
+    ) RETURNING id
+  `;
+  return rows[0].id;
 }
 
-function saveGamesForWeek(week, games, season) {
+async function saveGamesForWeek(week, games, season) {
   let saved = 0;
   for (const game of games) {
     game.week = week;
     game.season = season;
-    upsertGame(game);
+    await upsertGame(game);
     saved += 1;
   }
   return saved;
 }
 
-function saveGamesForSeason(games) {
+async function saveGamesForSeason(games) {
   let saved = 0;
   for (const game of games) {
     if (!game.season) {
       game.season = getSeasonFromDate(game.commence_time);
     }
-    upsertGame(game);
+    await upsertGame(game);
     saved += 1;
   }
   return saved;
 }
 
-function saveManualGame(week, season, gameData) {
+async function saveManualGame(week, season, gameData) {
   const manualId = gameData.api_game_id || `manual-${season}-${week}-${Date.now()}`;
-  return upsertGame({
+  return await upsertGame({
     api_game_id: manualId,
     week,
     season,
@@ -557,54 +449,46 @@ function saveManualGame(week, season, gameData) {
   });
 }
 
-function updateScoresFromSeason(scoreGames) {
+async function updateScoresFromSeason(scoreGames) {
   let updated = 0;
-  const updateStmt = db.prepare(
-    `UPDATE games SET score_home = ?, score_away = ?, completed = ?, updated_at = ? WHERE api_game_id = ?`
-  );
   for (const game of scoreGames) {
-    const existing = getGameByApiId(game.api_game_id);
+    const existing = await getGameByApiId(game.api_game_id);
     if (!existing) continue;
-    updateStmt.run(
-      game.score_home,
-      game.score_away,
-      game.completed ? 1 : 0,
-      new Date().toISOString(),
-      game.api_game_id
-    );
+    await sql`
+      UPDATE games SET 
+        score_home = ${game.score_home}, 
+        score_away = ${game.score_away}, 
+        completed = ${game.completed ? 1 : 0}, 
+        updated_at = ${new Date().toISOString()} 
+      WHERE api_game_id = ${game.api_game_id}
+    `;
     updated += 1;
-    updatePickResults(existing.id);
+    await updatePickResults(existing.id);
   }
   return updated;
 }
 
-function deletePicksForPlayerWeek(player, week, season) {
-  const stmt = db.prepare(`
+async function deletePicksForPlayerWeek(player, week, season) {
+  return await sql`
     DELETE FROM picks 
-    WHERE player = ? 
-    AND week = ? 
-    AND game_id IN (SELECT id FROM games WHERE season = ?)
-  `);
-  return stmt.run(player, week, season);
+    WHERE player = ${player} 
+    AND week = ${week} 
+    AND game_id IN (SELECT id FROM games WHERE season = ${season})
+  `;
 }
 
-function updatePickResults(gameId) {
-  const game = getGameById(gameId);
+async function updatePickResults(gameId) {
+  const game = await getGameById(gameId);
   if (!game) return;
-  const picks = db
-    .prepare('SELECT * FROM picks WHERE game_id = ?')
-    .all(gameId);
-  const update = db.prepare(
-    'UPDATE picks SET result = ?, updated_at = ? WHERE id = ?'
-  );
+  const { rows: picks } = await sql`SELECT * FROM picks WHERE game_id = ${gameId}`;
   for (const pick of picks) {
     const result = determinePickResult(game, pick);
-    update.run(result, new Date().toISOString(), pick.id);
+    await sql`UPDATE picks SET result = ${result}, updated_at = ${new Date().toISOString()} WHERE id = ${pick.id}`;
   }
 }
 
-function savePick(week, player, pick) {
-  const game = getGameById(pick.gameId);
+async function savePick(week, player, pick) {
+  const game = await getGameById(pick.gameId);
   if (!game) {
     throw new Error(`Game ${pick.gameId} not found`);
   }
@@ -613,201 +497,111 @@ function savePick(week, player, pick) {
     selection_side: pick.selectionSide,
     spread: pick.spread
   });
-  const row = db.prepare(
-    `INSERT INTO picks (
-      week,
-      player,
-      game_id,
-      selection_team,
-      selection_side,
-      spread,
-      is_mandatory,
-      result,
-      picked_at,
-      updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(week, player, game_id) DO UPDATE SET
-      selection_team = excluded.selection_team,
-      selection_side = excluded.selection_side,
-      spread = excluded.spread,
-      is_mandatory = excluded.is_mandatory,
-      result = excluded.result,
-      picked_at = excluded.picked_at,
-      updated_at = excluded.updated_at
-    `
-  ).run(
-    week,
-    player,
-    pick.gameId,
-    pick.selectionTeam,
-    pick.selectionSide,
-    pick.spread,
-    pick.isMandatory ? 1 : 0,
-    result,
-    new Date().toISOString(),
-    new Date().toISOString()
-  );
-  return db.prepare('SELECT * FROM picks WHERE week = ? AND player = ? AND game_id = ?').get(week, player, pick.gameId);
-}
 
-function getWeekSummary(week, season) {
-  const summary = {};
-  const players = getPlayers();
-  for (const player of players) {
-    summary[player.name] = {
-      player: player.name,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
-  }
-  const baseQuery = 'SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = ?';
-  const query = season
-    ? `${baseQuery} AND g.season = ? GROUP BY player, result`
-    : `${baseQuery} GROUP BY player, result`;
-  const rows = season ? db.prepare(query).all(week, season) : db.prepare(query).all(week);
-
-  for (const row of rows) {
-    const current = summary[row.player] || {
-      player: row.player,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
-    current.total += row.count;
-    if (row.result === 'win') current.wins += row.count;
-    else if (row.result === 'loss') current.losses += row.count;
-    else if (row.result === 'push') current.pushes += row.count;
-    else current.pending += row.count;
-    summary[row.player] = current;
-  }
-  return Object.values(summary);
-}
-
-function getSeasonSummary(season) {
-  const summary = {};
-  const players = getPlayers();
-  for (const player of players) {
-    summary[player.name] = {
-      player: player.name,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
-  }
-  const rows = db
-    .prepare(
-      `SELECT p.player, p.result, COUNT(*) AS count
-       FROM picks p
-       JOIN games g ON p.game_id = g.id
-       WHERE g.season = ?
-       GROUP BY p.player, p.result`
+  await sql`
+    INSERT INTO picks (
+      week, player, game_id, selection_team, selection_side, spread,
+      is_mandatory, result, picked_at, updated_at
+    ) VALUES (
+      ${week}, ${player}, ${pick.gameId}, ${pick.selectionTeam}, ${pick.selectionSide}, ${pick.spread},
+      ${pick.isMandatory ? 1 : 0}, ${result}, ${new Date().toISOString()}, ${new Date().toISOString()}
     )
-    .all(season);
-  for (const row of rows) {
-    const current = summary[row.player] || {
-      player: row.player,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
-    current.total += row.count;
-    if (row.result === 'win') current.wins += row.count;
-    else if (row.result === 'loss') current.losses += row.count;
-    else if (row.result === 'push') current.pushes += row.count;
-    else current.pending += row.count;
-    summary[row.player] = current;
-  }
-  return Object.values(summary);
+    ON CONFLICT(week, player, game_id) DO UPDATE SET
+      selection_team = EXCLUDED.selection_team,
+      selection_side = EXCLUDED.selection_side,
+      spread = EXCLUDED.spread,
+      is_mandatory = EXCLUDED.is_mandatory,
+      result = EXCLUDED.result,
+      updated_at = EXCLUDED.updated_at
+  `;
+
+  const { rows } = await sql`SELECT * FROM picks WHERE week = ${week} AND player = ${player} AND game_id = ${pick.gameId}`;
+  return rows[0];
 }
 
-function getAllTimeSummary() {
+async function getWeekSummary(week, season) {
   const summary = {};
-  const players = getPlayers();
+  const players = await getPlayers();
   for (const player of players) {
-    summary[player.name] = {
-      player: player.name,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
+    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
-  const rows = db
-    .prepare('SELECT player, result, COUNT(*) AS count FROM picks GROUP BY player, result')
-    .all();
+
+  const { rows } = season
+    ? await sql`SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = ${week} AND g.season = ${season} GROUP BY player, result`
+    : await sql`SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = ${week} GROUP BY player, result`;
+
   for (const row of rows) {
-    const current = summary[row.player] || {
-      player: row.player,
-      wins: 0,
-      losses: 0,
-      pushes: 0,
-      pending: 0,
-      total: 0
-    };
-    current.total += row.count;
-    if (row.result === 'win') current.wins += row.count;
-    else if (row.result === 'loss') current.losses += row.count;
-    else if (row.result === 'push') current.pushes += row.count;
-    else current.pending += row.count;
-    summary[row.player] = current;
+    const current = summary[row.player];
+    if (current) {
+      current.total += Number(row.count);
+      if (row.result === 'win') current.wins += Number(row.count);
+      else if (row.result === 'loss') current.losses += Number(row.count);
+      else if (row.result === 'push') current.pushes += Number(row.count);
+      else current.pending += Number(row.count);
+    }
   }
   return Object.values(summary);
 }
 
-function seedTestData() {
-  // Hardcode season to match frontend and seedWeeks logic for consistency
+async function getSeasonSummary(season) {
+  const summary = {};
+  const players = await getPlayers();
+  for (const player of players) {
+    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+  }
+  const { rows } = await sql`
+    SELECT p.player, p.result, COUNT(*) AS count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE g.season = ${season}
+    GROUP BY p.player, p.result
+  `;
+  for (const row of rows) {
+    const current = summary[row.player];
+    if (current) {
+      current.total += Number(row.count);
+      if (row.result === 'win') current.wins += Number(row.count);
+      else if (row.result === 'loss') current.losses += Number(row.count);
+      else if (row.result === 'push') current.pushes += Number(row.count);
+      else current.pending += Number(row.count);
+    }
+  }
+  return Object.values(summary);
+}
+
+async function getAllTimeSummary() {
+  const summary = {};
+  const players = await getPlayers();
+  for (const player of players) {
+    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+  }
+  const { rows } = await sql`SELECT player, result, COUNT(*) AS count FROM picks GROUP BY player, result`;
+  for (const row of rows) {
+    const current = summary[row.player];
+    if (current) {
+      current.total += Number(row.count);
+      if (row.result === 'win') current.wins += Number(row.count);
+      else if (row.result === 'loss') current.losses += Number(row.count);
+      else if (row.result === 'push') current.pushes += Number(row.count);
+      else current.pending += Number(row.count);
+    }
+  }
+  return Object.values(summary);
+}
+
+async function seedTestData() {
   const season = '2025'; 
   const weekNum = 0;
 
-  const transaction = db.transaction(() => {
-    // Ensure Week 0 exists in weeks table
-    db.prepare(`
-      INSERT OR REPLACE INTO weeks (week, season, label, starts_on, ends_on)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      weekNum,
-      season,
-      'Week 0 (Test Data)',
-      new Date(Date.now() - 86400000 * 7).toISOString(),
-      new Date(Date.now() + 86400000 * 7).toISOString()
-    );
-
-    // 1. Live Game: Started 1.5 hours ago, not completed.
-    const liveTime = new Date(Date.now() - 5400000).toISOString();
-    db.prepare(`
-      INSERT OR REPLACE INTO games (
-        api_game_id, week, season, commence_time, home_team, away_team, site, 
-        is_televised, is_mandatory, spread_home, spread_away, completed, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, -3.5, 3.5, 0, ?)
-    `).run('test-game-live', weekNum, season, liveTime, 'Live State', 'Live Tech', 'Test Arena', new Date().toISOString());
-
-    // 2. Finished Game: Started yesterday, completed.
-    const finishedTime = new Date(Date.now() - 86400000).toISOString();
-    db.prepare(`
-      INSERT OR REPLACE INTO games (
-        api_game_id, week, season, commence_time, home_team, away_team, site, 
-        is_televised, is_mandatory, spread_home, spread_away, score_home, score_away, completed, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, -7, 7, 45, 17, 1, ?)
-    `).run('test-game-finished', weekNum, season, finishedTime, 'Winner University', 'Loser College', 'Victory Field', new Date().toISOString());
-  });
-
-  transaction();
-  console.log(`[db] Week 0 test data seeded for season ${season}.`);
+  await sql`
+    INSERT INTO weeks (week, season, label, starts_on, ends_on)
+    VALUES (${weekNum}, ${season}, 'Week 0 (Test Data)', ${new Date(Date.now() - 86400000 * 7).toISOString()}, ${new Date(Date.now() + 86400000 * 7).toISOString()})
+    ON CONFLICT (season, week) DO UPDATE SET label = EXCLUDED.label
+  `;
 }
 
-function getPlayerStats(player) {
-  // Conference most betted for
-  const favConf = db.prepare(`
+async function getPlayerStats(player) {
+  const { rows: [favConf] } = await sql`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
@@ -815,10 +609,9 @@ function getPlayerStats(player) {
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // Conference with most wins
-  const bestConf = db.prepare(`
+  const { rows: [bestConf] } = await sql`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
@@ -826,10 +619,9 @@ function getPlayerStats(player) {
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // Conference with most losses
-  const worstConf = db.prepare(`
+  const { rows: [worstConf] } = await sql`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
@@ -837,10 +629,9 @@ function getPlayerStats(player) {
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // Week-over-week trend (Last 10 weeks of activity)
-  const trend = db.prepare(`
+  const { rows: trendRows } = await sql`
     SELECT g.season, p.week, 
            SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
@@ -850,10 +641,10 @@ function getPlayerStats(player) {
     GROUP BY g.season, p.week
     ORDER BY g.season DESC, p.week DESC
     LIMIT 10
-  `).all(player).reverse();
+  `;
+  const trend = trendRows.reverse();
 
-  // School that wins the most for you
-  const topWinSchool = db.prepare(`
+  const { rows: [topWinSchool] } = await sql`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
@@ -861,10 +652,9 @@ function getPlayerStats(player) {
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // School that loses the most for you
-  const topLossSchool = db.prepare(`
+  const { rows: [topLossSchool] } = await sql`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
@@ -872,10 +662,9 @@ function getPlayerStats(player) {
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // Overall record
-  const record = db.prepare(`
+  const { rows: [record] } = await sql`
     SELECT 
       SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
       SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
@@ -884,10 +673,9 @@ function getPlayerStats(player) {
       COUNT(*) as total
     FROM picks
     WHERE player = ?
-  `).get(player);
+  `;
 
-  // School most betted for
-  const mostBetsFor = db.prepare(`
+  const { rows: [mostBetsFor] } = await sql`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
@@ -895,10 +683,9 @@ function getPlayerStats(player) {
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // School most betted against
-  const mostBetsAgainst = db.prepare(`
+  const { rows: [mostBetsAgainst] } = await sql`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
       t.logo,
@@ -907,26 +694,24 @@ function getPlayerStats(player) {
     JOIN games g ON p.game_id = g.id
     LEFT JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
     WHERE p.player = ?
-    GROUP BY school
+    GROUP BY school, t.logo
     ORDER BY count DESC
     LIMIT 1
-  `).get(player);
+  `;
 
-  // Current and Longest Streaks
-  const recentResults = db.prepare(`
+  const { rows: recentResults } = await sql`
     SELECT p.result
     FROM picks p
     JOIN games g ON p.game_id = g.id
     WHERE p.player = ? AND p.result IN ('win', 'loss', 'push')
     ORDER BY g.commence_time ASC, g.id ASC -- Order chronologically for longest streak calculation
-  `).all(player);
+  `;
 
-  // Calculate current streaks (from most recent pick backwards)
   let currentWinStreak = 0;
   let currentLossStreak = 0;
   let winStreakActive = true;
   let lossStreakActive = true;
-  const reversedResults = [...recentResults].reverse(); // For current streak, iterate backwards
+  const reversedResults = [...recentResults].reverse();
   for (const r of reversedResults) {
     if (winStreakActive) {
       if (r.result === 'win') currentWinStreak++;
@@ -936,28 +721,26 @@ function getPlayerStats(player) {
       if (r.result === 'loss') currentLossStreak++;
       else if (r.result === 'win') lossStreakActive = false;
     }
-    if (!winStreakActive && !lossStreakActive) break; // Both current streaks broken
+    if (!winStreakActive && !lossStreakActive) break;
   }
 
-  // Calculate longest ever streaks (from oldest pick forwards)
   let longestWinStreak = 0;
   let longestLossStreak = 0;
   let tempWinStreak = 0;
   let tempLossStreak = 0;
 
-  for (const r of recentResults) { // Already chronological
+  for (const r of recentResults) {
     if (r.result === 'win') {
       tempWinStreak++;
-      tempLossStreak = 0; // Reset loss streak on a win
+      tempLossStreak = 0;
       if (tempWinStreak > longestWinStreak) longestWinStreak = tempWinStreak;
     } else if (r.result === 'loss') {
       tempLossStreak++;
-      tempWinStreak = 0; // Reset win streak on a loss
+      tempWinStreak = 0;
       if (tempLossStreak > longestLossStreak) longestLossStreak = tempLossStreak;
     }
   }
 
-  // Calculate "Last 10" Form
   const last10Form = recentResults
     .slice(-10)
     .map((r) => {
@@ -971,7 +754,7 @@ function getPlayerStats(player) {
   return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form };
 }
 
-function getConferenceStats(player, conference, timeRange, week, season) {
+async function getConferenceStats(player, conference, timeRange, week, season) {
   let timeFilter = '';
   const params = [player, conference];
 
@@ -983,119 +766,120 @@ function getConferenceStats(player, conference, timeRange, week, season) {
     params.push(season);
   }
 
-  const bestTeam = db.prepare(`
+  const { rows: [bestTeam] } = await sql.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as wins
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? AND p.result = 'win' ${timeFilter}
     GROUP BY p.selection_team, t.logo
-    ORDER BY wins DESC
-    LIMIT 1
-  `).get(...params);
+    ORDER BY wins DESC LIMIT 1
+  `, params);
 
-  const worstTeam = db.prepare(`
+  const { rows: [worstTeam] } = await sql.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as losses
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? AND p.result = 'loss' ${timeFilter}
     GROUP BY p.selection_team, t.logo
-    ORDER BY losses DESC
-    LIMIT 1
-  `).get(...params);
+    ORDER BY losses DESC LIMIT 1
+  `, params);
 
-  const mostBetsFor = db.prepare(`
+  const { rows: [mostBetsFor] } = await sql.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? ${timeFilter}
     GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `).get(...params);
+    ORDER BY count DESC LIMIT 1
+  `, params);
 
-  const mostBetsAgainst = db.prepare(`
+  const { rows: [mostBetsAgainst] } = await sql.query(`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
       t.logo,
       COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    JOIN teams t ON (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END) = t.school
+    JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
     WHERE p.player = ? AND t.conference = ? ${timeFilter}
-    GROUP BY school
-    ORDER BY count DESC
-    LIMIT 1
-  `).get(...params);
+    GROUP BY school, t.logo
+    ORDER BY count DESC LIMIT 1
+  `, params);
 
-  const schoolRecordsParams = [player];
-  if (timeRange === 'Week') schoolRecordsParams.push(week, season);
-  else if (timeRange === 'Season') schoolRecordsParams.push(season);
-  schoolRecordsParams.push(conference);
-
-  const schoolRecords = db.prepare(`
+  const { rows: schoolRecords } = await sql.query(`
     SELECT 
       t.school,
       t.logo,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'win' THEN 1 ELSE 0 END) as wins,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'loss' THEN 1 ELSE 0 END) as losses,
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'push' THEN 1 ELSE 0 END) as pushes,
-      COUNT(g.id) as total
+      COUNT(p.id) as total
     FROM teams t
     LEFT JOIN picks p ON t.school = p.selection_team AND p.player = ?
-    LEFT JOIN games g ON p.game_id = g.id ${timeFilter}
+    LEFT JOIN games g ON p.game_id = g.id AND t.conference = ? ${timeFilter}
     WHERE t.conference = ?
-    GROUP BY t.school
+    GROUP BY t.school, t.logo
     ORDER BY wins DESC, total DESC
-  `).all(...schoolRecordsParams);
+  `, [player, conference, conference, ...params.slice(2)]);
 
-  const sosResult = db.prepare(`
+  const { rows: [sosResult] } = await sql.query(`
     SELECT AVG(ABS(p.spread)) as avgSpread
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
     WHERE p.player = ? AND t.conference = ? ${timeFilter}
-  `).get(...params);
+  `, params);
 
   const strengthOfSchedule = sosResult?.avgSpread || 0;
 
   return { bestTeam, worstTeam, mostBetsFor, mostBetsAgainst, schoolRecords, strengthOfSchedule };
 }
 
-function updateGameLine(gameId, updates) {
+async function updateGameLine(gameId, updates) {
   const { spread_home, spread_away, home_price, away_price } = updates;
-  const updateStmt = db.prepare(
-    `UPDATE games SET spread_home = ?, spread_away = ?, home_price = ?, away_price = ?, updated_at = ? 
-     WHERE id = ?`
-  );
-  updateStmt.run(spread_home, spread_away, home_price, away_price, new Date().toISOString(), gameId);
-  return getGameById(gameId);
+  await sql`
+    UPDATE games SET 
+      spread_home = ${spread_home}, 
+      spread_away = ${spread_away}, 
+      home_price = ${home_price}, 
+      away_price = ${away_price}, 
+      updated_at = ${new Date().toISOString()} 
+    WHERE id = ${gameId}
+  `;
+  return await getGameById(gameId);
 }
 
-function updatePick(pickId, updates) {
+async function updatePick(pickId, updates) {
   const { selection_team, selection_side, spread } = updates;
-  const pick = db.prepare('SELECT * FROM picks WHERE id = ?').get(pickId);
+  const { rows: [pick] } = await sql`SELECT * FROM picks WHERE id = ${pickId}`;
   if (!pick) {
     throw new Error(`Pick ${pickId} not found`);
   }
-  const game = getGameById(pick.game_id);
+  const game = await getGameById(pick.game_id);
   const result = determinePickResult(game, {
     selection_team,
     selection_side,
     spread: spread !== null ? spread : (selection_side === 'home' ? game.spread_home : game.spread_away)
   });
-  const updateStmt = db.prepare(
-    `UPDATE picks SET selection_team = ?, selection_side = ?, spread = ?, result = ?, updated_at = ? WHERE id = ?`
-  );
-  updateStmt.run(selection_team, selection_side, spread, result, new Date().toISOString(), pickId);
-  return db.prepare('SELECT * FROM picks WHERE id = ?').get(pickId);
+
+  await sql`
+    UPDATE picks SET 
+      selection_team = ${selection_team}, 
+      selection_side = ${selection_side}, 
+      spread = ${spread}, 
+      result = ${result}, 
+      updated_at = ${new Date().toISOString()} 
+    WHERE id = ${pickId}
+  `;
+  const { rows: [updatedPick] } = await sql`SELECT * FROM picks WHERE id = ${pickId}`;
+  return updatedPick;
 }
 
-function updateTeamColor(teamId, color) {
-  const updateStmt = db.prepare('UPDATE teams SET school_primary_color = ? WHERE id = ?');
-  updateStmt.run(color, teamId);
+async function updateTeamColor(teamId, color) {
+  await sql`UPDATE teams SET school_primary_color = ${color} WHERE id = ${teamId}`;
 }
 
 module.exports = {
