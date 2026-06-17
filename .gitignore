@@ -1,3 +1,12 @@
+# .gitignore
+.env
+*.db
+*.db-journal
+*.db-wal
+node_modules/
+frontend/dist/
+
+
 # Logs
 logs
 *.log

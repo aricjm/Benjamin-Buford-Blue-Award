@@ -1,6 +1,6 @@
 const { getWeekNumberFromDate, getSeasonFromDate } = require('./utils');
 
-const API_KEY = process.env.ODDS_API_KEY || '2cb8e2786b5a2c43c58bbbefb50394ce';
+const API_KEY = process.env.ODDS_API_KEY;
 const BASE_URL = 'https://api.the-odds-api.com/v4';
 const SPORT_KEY = 'americanfootball_ncaaf';
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();

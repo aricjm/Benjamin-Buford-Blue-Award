@@ -1,3 +1,4 @@
+require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
@@ -208,6 +209,37 @@ app.put('/api/pick/:id', (req, res) => {
       spread: spread !== undefined ? spread : null
     });
     res.json({ success: true, pick });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/mappings', (req, res) => {
+  try {
+    const mappings = db.getTeamMappings();
+    res.json(mappings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/mappings', (req, res) => {
+  try {
+    const { api_name, team_id } = req.body;
+    if (!api_name || !team_id) {
+      return res.status(400).json({ error: 'api_name and team_id are required' });
+    }
+    db.addTeamMapping(api_name, team_id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/mapping/:id', (req, res) => {
+  try {
+    db.deleteTeamMapping(Number(req.params.id));
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
