@@ -284,19 +284,24 @@ app.get('/api/summary/alltime', async (req, res) => {
 });
 
 (async () => {
-  try {
-    await db.init();
-    await db.seedPlayers();
-    await db.seedTeams();
-    await db.seedWeeks();
-    await db.seedTestData();
-    scheduler.start(db);
-    app.listen(PORT, () => {
-      console.log(`Backend API listening on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error('Failed to start backend', error);
-    process.exit(1);
+  if (process.env.VERCEL !== '1') {
+    try {
+      await db.init();
+      await db.seedPlayers();
+      await db.seedTeams();
+      await db.seedWeeks();
+      await db.seedTestData();
+      scheduler.start(db);
+      app.listen(PORT, () => {
+        console.log(`Backend API listening on http://localhost:${PORT}`);
+      });
+    } catch (error) {
+      console.error('Failed to start backend', error);
+      process.exit(1);
+    }
+  } else {
+    // On Vercel, we only ensure the database tables exist.
+    db.init().catch(err => console.error('Database initialization failed', err));
   }
 })();
 
