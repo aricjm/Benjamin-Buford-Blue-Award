@@ -8,8 +8,7 @@
         "backend": {
             "root": "backend",
             "routePrefix": "/api",
-            "entrypoint": "server.js",
-            "runtime": "nodejs18.x"
+            "entrypoint": "server.js"
         }
     }
 }
