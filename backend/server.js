@@ -299,3 +299,5 @@ app.get('/api/summary/alltime', (req, res) => {
     process.exit(1);
   }
 })();
+
+module.exports = app;
