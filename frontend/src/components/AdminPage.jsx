@@ -18,6 +18,7 @@ const AdminPage = ({
   setShowAlertModal, // From App.jsx
   loadWeek, // From App.jsx (to refresh main games after sync)
   loadStats, // From App.jsx (to refresh player stats after sync)
+  teams = [], // From App.jsx
 }) => {
   const [adminGames, setAdminGames] = useState([]);
   const [adminPicks, setAdminPicks] = useState([]);
@@ -29,19 +30,77 @@ const AdminPage = ({
     const saved = localStorage.getItem('lastSyncTime');
     return saved ? new Date(saved) : null;
   });
+  const [mappings, setMappings] = useState([]);
+  const [mappingInput, setMappingInput] = useState({ api_name: '', team_id: '' });
+
+  const loadMappings = async () => {
+    try {
+      const res = await fetch('/api/mappings');
+      const data = await res.json();
+      setMappings(data || []);
+    } catch (err) {
+      setMessage('Failed to load team mappings.');
+    }
+  };
+
+  const handleCreateMapping = async () => {
+    if (!mappingInput.api_name || !mappingInput.team_id) {
+      setAlertMessage('Both API Team Name and School Selection are required.');
+      setShowAlertModal(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_name: mappingInput.api_name, team_id: Number(mappingInput.team_id) })
+      });
+      if (res.ok) {
+        setMappingInput({ api_name: '', team_id: '' });
+        setMessage('Team mapping created.');
+        loadMappings();
+      } else {
+        const d = await res.json();
+        setMessage(d.error || 'Failed to create mapping.');
+      }
+    } catch (e) {
+      setMessage('Error creating mapping.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMapping = async (id) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/mapping/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMessage('Mapping deleted.');
+        loadMappings();
+      }
+    } catch (e) {
+      setMessage('Error deleting mapping.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadAdminData = async () => {
     if (selectedWeek === null || !selectedSeason) return;
     setLoading(true);
     try {
-      const [gamesRes, picksRes] = await Promise.all([
+      const [gamesRes, picksRes, mappingsRes] = await Promise.all([
         fetch(`/api/week/${selectedWeek}/games?season=${selectedSeason}`),
-        fetch(`/api/week/${selectedWeek}/picks?season=${selectedSeason}`)
+        fetch(`/api/week/${selectedWeek}/picks?season=${selectedSeason}`),
+        fetch('/api/mappings')
       ]);
       const gamesData = await gamesRes.json();
       const picksData = await picksRes.json();
+      const mappingsData = await mappingsRes.json();
       setAdminGames(gamesData.games || []);
       setAdminPicks(picksData || []);
+      setMappings(mappingsData || []);
     } catch (error) {
       setMessage('Unable to load admin data.');
     } finally {
@@ -194,7 +253,11 @@ const AdminPage = ({
                         }
                       />
                     ) : (
-                      game.spread_away || 'N/A'
+                      game.spread_away === null ? 'N/A' : (
+                        game.spread_away === 0 ? 'PK' : (
+                          game.spread_away > 0 ? `+${game.spread_away}` : game.spread_away
+                        )
+                      )
                     )}
                   </td>
                   <td>
@@ -208,7 +271,11 @@ const AdminPage = ({
                         }
                       />
                     ) : (
-                      game.spread_home || 'N/A'
+                      game.spread_home === null ? 'N/A' : (
+                        game.spread_home === 0 ? 'PK' : (
+                          game.spread_home > 0 ? `+${game.spread_home}` : game.spread_home
+                        )
+                      )
                     )}
                   </td>
                   <td>
@@ -329,7 +396,17 @@ const AdminPage = ({
                       pick.selection_team
                     )}
                   </td>
-                  <td>{editingPickId === pick.id ? editingPickData.spread : pick.spread}</td>
+                  <td>
+                    {editingPickId === pick.id ? (
+                      editingPickData.spread === 0 ? 'PK' : (
+                        editingPickData.spread > 0 ? `+${editingPickData.spread}` : editingPickData.spread
+                      )
+                    ) : (
+                      pick.spread === 0 ? 'PK' : (
+                        pick.spread > 0 ? `+${pick.spread}` : pick.spread
+                      )
+                    )}
+                  </td>
                   <td>{formatResultLabel(pick.result)}</td>
                   <td>
                     {editingPickId === pick.id ? (
@@ -366,6 +443,68 @@ const AdminPage = ({
                         Edit
                       </button>
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel admin-panel">
+        <h2>Admin: Manage Team Mappings</h2>
+        <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '15px' }}>
+          Mapping an "API Team Name" (e.g. "USF Bulls") to a "Database School" (e.g. "South Florida") fixes broken logos and duplicate entries.
+        </p>
+        <div className="manual-grid" style={{ marginBottom: '20px' }}>
+          <label>
+            API Team Name
+            <input 
+              type="text" 
+              placeholder="e.g. UMass Minutemen" 
+              value={mappingInput.api_name}
+              onChange={e => setMappingInput({...mappingInput, api_name: e.target.value})}
+            />
+          </label>
+          <label>
+            Maps to School
+            <select 
+              value={mappingInput.team_id}
+              onChange={e => setMappingInput({...mappingInput, team_id: e.target.value})}
+            >
+              <option value="">-- Select Team --</option>
+              {teams.map(t => (
+                <option key={t.id} value={t.id}>{t.school}</option>
+              ))}
+            </select>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button 
+              onClick={handleCreateMapping} 
+              disabled={loading}
+              style={{ margin: 0, width: '100%' }}
+            >
+              Add Mapping
+            </button>
+          </div>
+        </div>
+
+        {mappings.length > 0 && (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>API Name</th>
+                <th>Database School</th>
+                <th style={{ width: '100px' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mappings.map(m => (
+                <tr key={m.id}>
+                  <td>{m.api_name}</td>
+                  <td>{m.school}</td>
+                  <td>
+                    <button className="admin-action-btn secondary" onClick={() => handleDeleteMapping(m.id)} disabled={loading}>Delete</button>
                   </td>
                 </tr>
               ))}

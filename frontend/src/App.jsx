@@ -268,7 +268,9 @@ function App() {
                     <ul>
                       {savedPicksList.map((p, idx) => (
                         <li key={idx}>
-                          {p.away_team} @ {p.home_team} — <strong>{p.selection_team}</strong> {p.spread ? `(${p.spread})` : ''}
+                          {p.away_team} @ {p.home_team} — <strong>{p.selection_team}</strong> {p.spread !== null ? (
+                            p.spread === 0 ? '(PK)' : `(${p.spread > 0 ? '+' : ''}${p.spread})`
+                          ) : ''}
                         </li>
                       ))}
                     </ul>

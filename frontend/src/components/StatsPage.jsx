@@ -21,6 +21,9 @@ const StatsPage = ({
           <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0' }}>
             {playerStats.record.wins || 0} - {playerStats.record.losses || 0} - {playerStats.record.pushes || 0}
           </p>
+          {playerStats.last10Form && (
+            <p style={{ fontSize: '0.85em', color: '#aaa', margin: '5px 0' }}>Form: {playerStats.last10Form}</p>
+          )}
           <p className="switch-label">
             Win %: {playerStats.record.wins + playerStats.record.losses > 0 
               ? ((playerStats.record.wins / (playerStats.record.wins + playerStats.record.losses)) * 100).toFixed(1) + '%' 
@@ -148,6 +151,11 @@ const StatsPage = ({
                   {conferenceStats.mostBetsAgainst?.school || 'None'}
                 </p>
                 <p className="switch-label">{conferenceStats.mostBetsAgainst?.count || 0} fades</p>
+              </div>
+              <div className="control-card">
+                <h3>Strength of Schedule</h3>
+                <p style={{ fontSize: '1.5em', fontWeight: 'bold', margin: '10px 0' }}>{conferenceStats.strengthOfSchedule.toFixed(1)}</p>
+                <p className="switch-label">Avg. absolute spread</p>
               </div>
             </div>
 

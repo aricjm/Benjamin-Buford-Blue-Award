@@ -188,155 +188,158 @@ function seedTeams() {
     return `/logos/${name}.png`;
   };
   const teams = [
-    { school: 'Boston College', nickname: 'Eagles', conference: 'ACC', logo: toLogo('Boston College') },
-    { school: 'California', nickname: 'Golden Bears', conference: 'ACC', logo: toLogo('California') },
-    { school: 'Clemson', nickname: 'Tigers', conference: 'ACC', logo: toLogo('Clemson') },
-    { school: 'Duke', nickname: 'Blue Devils', conference: 'ACC', logo: toLogo('Duke') },
-    { school: 'Florida State', nickname: 'Seminoles', conference: 'ACC', logo: toLogo('Florida State') },
-    { school: 'Georgia Tech', nickname: 'Yellow Jackets', conference: 'ACC', logo: toLogo('Georgia Tech') },
-    { school: 'Louisville', nickname: 'Cardinals', conference: 'ACC', logo: toLogo('Louisville') },
-    { school: 'Miami (FL)', nickname: 'Hurricanes', conference: 'ACC', logo: toLogo('Miami FL') },
-    { school: 'NC State', nickname: 'Wolfpack', conference: 'ACC', logo: toLogo('NC State') },
-    { school: 'North Carolina', nickname: 'Tar Heels', conference: 'ACC', logo: toLogo('North Carolina') },
-    { school: 'Pittsburgh', nickname: 'Panthers', conference: 'ACC', logo: toLogo('Pittsburgh') },
-    { school: 'SMU', nickname: 'Mustangs', conference: 'ACC', logo: toLogo('SMU') },
-    { school: 'Stanford', nickname: 'Cardinal', conference: 'ACC', logo: toLogo('Stanford') },
-    { school: 'Syracuse', nickname: 'Orange', conference: 'ACC', logo: toLogo('Syracuse') },
-    { school: 'Virginia', nickname: 'Cavaliers', conference: 'ACC', logo: toLogo('Virginia') },
-    { school: 'Virginia Tech', nickname: 'Hokies', conference: 'ACC', logo: toLogo('Virginia Tech') },
-    { school: 'Wake Forest', nickname: 'Demon Deacons', conference: 'ACC', logo: toLogo('Wake Forest') },
-    { school: 'Army', nickname: 'Black Knights', conference: 'American', logo: toLogo('Army') },
-    { school: 'Charlotte', nickname: '49ers', conference: 'American', logo: toLogo('Charlotte') },
-    { school: 'East Carolina', nickname: 'Pirates', conference: 'American', logo: toLogo('East Carolina') },
-    { school: 'Florida Atlantic', nickname: 'Owls', conference: 'American', logo: toLogo('Florida Atlantic') },
-    { school: 'Memphis', nickname: 'Tigers', conference: 'American', logo: toLogo('Memphis') },
-    { school: 'Navy', nickname: 'Midshipmen', conference: 'American', logo: toLogo('Navy') },
-    { school: 'North Texas', nickname: 'Mean Green', conference: 'American', logo: toLogo('North Texas') },
-    { school: 'Rice', nickname: 'Owls', conference: 'American', logo: toLogo('Rice') },
-    { school: 'South Florida', nickname: 'Bulls', conference: 'American', logo: toLogo('South Florida') },
-    { school: 'Temple', nickname: 'Owls', conference: 'American', logo: toLogo('Temple') },
-    { school: 'Tulane', nickname: 'Green Wave', conference: 'American', logo: toLogo('Tulane') },
-    { school: 'Tulsa', nickname: 'Golden Hurricane', conference: 'American', logo: toLogo('Tulsa') },
-    { school: 'UAB', nickname: 'Blazers', conference: 'American', logo: toLogo('UAB') },
-    { school: 'UTSA', nickname: 'Roadrunners', conference: 'American', logo: toLogo('UTSA') },
-    { school: 'Arizona', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Arizona') },
-    { school: 'Arizona State', nickname: 'Sun Devils', conference: 'Big 12', logo: toLogo('Arizona State') },
-    { school: 'Baylor', nickname: 'Bears', conference: 'Big 12', logo: toLogo('Baylor') },
-    { school: 'BYU', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('BYU') },
-    { school: 'Cincinnati', nickname: 'Bearcats', conference: 'Big 12', logo: toLogo('Cincinnati') },
-    { school: 'Colorado', nickname: 'Buffaloes', conference: 'Big 12', logo: toLogo('Colorado') },
-    { school: 'Houston', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('Houston') },
-    { school: 'Iowa State', nickname: 'Cyclones', conference: 'Big 12', logo: toLogo('Iowa State') },
-    { school: 'Kansas', nickname: 'Jayhawks', conference: 'Big 12', logo: toLogo('Kansas') },
-    { school: 'Kansas State', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Kansas State') },
-    { school: 'Oklahoma State', nickname: 'Cowboys', conference: 'Big 12', logo: toLogo('Oklahoma State') },
-    { school: 'TCU', nickname: 'Horned Frogs', conference: 'Big 12', logo: toLogo('TCU') },
-    { school: 'Texas Tech', nickname: 'Red Raiders', conference: 'Big 12', logo: toLogo('Texas Tech') },
-    { school: 'UCF', nickname: 'Knights', conference: 'Big 12', logo: toLogo('UCF') },
-    { school: 'Utah', nickname: 'Utes', conference: 'Big 12', logo: toLogo('Utah') },
-    { school: 'West Virginia', nickname: 'Mountaineers', conference: 'Big 12', logo: toLogo('West Virginia') },
-    { school: 'Illinois', nickname: 'Fighting Illini', conference: 'Big Ten', logo: toLogo('Illinois') },
-    { school: 'Indiana', nickname: 'Hoosiers', conference: 'Big Ten', logo: toLogo('Indiana') },
-    { school: 'Iowa', nickname: 'Hawkeyes', conference: 'Big Ten', logo: toLogo('Iowa') },
-    { school: 'Maryland', nickname: 'Terrapins', conference: 'Big Ten', logo: toLogo('Maryland') },
-    { school: 'Michigan', nickname: 'Wolverines', conference: 'Big Ten', logo: toLogo('Michigan') },
-    { school: 'Michigan State', nickname: 'Spartans', conference: 'Big Ten', logo: toLogo('Michigan State') },
-    { school: 'Minnesota', nickname: 'Golden Gophers', conference: 'Big Ten', logo: toLogo('Minnesota') },
-    { school: 'Nebraska', nickname: 'Cornhuskers', conference: 'Big Ten', logo: toLogo('Nebraska') },
-    { school: 'Northwestern', nickname: 'Wildcats', conference: 'Big Ten', logo: toLogo('Northwestern') },
-    { school: 'Ohio State', nickname: 'Buckeyes', conference: 'Big Ten', logo: toLogo('Ohio State') },
-    { school: 'Oregon', nickname: 'Ducks', conference: 'Big Ten', logo: toLogo('Oregon') },
-    { school: 'Penn State', nickname: 'Nittany Lions', conference: 'Big Ten', logo: toLogo('Penn State') },
-    { school: 'Purdue', nickname: 'Boilermakers', conference: 'Big Ten', logo: toLogo('Purdue') },
-    { school: 'Rutgers', nickname: 'Scarlet Knights', conference: 'Big Ten', logo: toLogo('Rutgers') },
-    { school: 'UCLA', nickname: 'Bruins', conference: 'Big Ten', logo: toLogo('UCLA') },
-    { school: 'USC', nickname: 'Trojans', conference: 'Big Ten', logo: toLogo('USC') },
-    { school: 'Washington', nickname: 'Huskies', conference: 'Big Ten', logo: toLogo('Washington') },
-    { school: 'Wisconsin', nickname: 'Badgers', conference: 'Big Ten', logo: toLogo('Wisconsin') },
-    { school: 'Delaware', nickname: "Fightin' Blue Hens", conference: 'CUSA', logo: toLogo('Delaware') },
-    { school: 'FIU', nickname: 'Panthers', conference: 'CUSA', logo: toLogo('FIU') },
-    { school: 'Jacksonville State', nickname: 'Gamecocks', conference: 'CUSA', logo: toLogo('Jacksonville State') },
-    { school: 'Kennesaw State', nickname: 'Owls', conference: 'CUSA', logo: toLogo('Kennesaw State') },
-    { school: 'Liberty', nickname: 'Flames', conference: 'CUSA', logo: toLogo('Liberty') },
-    { school: 'Louisiana Tech', nickname: 'Bulldogs', conference: 'CUSA', logo: toLogo('Louisiana Tech') },
-    { school: 'Middle Tennessee', nickname: 'Blue Raiders', conference: 'CUSA', logo: toLogo('Middle Tennessee') },
-    { school: 'Missouri State', nickname: 'Bears', conference: 'CUSA', logo: toLogo('Missouri State') },
-    { school: 'New Mexico State', nickname: 'Aggies', conference: 'CUSA', logo: toLogo('New Mexico State') },
-    { school: 'Sam Houston', nickname: 'Bearkats', conference: 'CUSA', logo: toLogo('Sam Houston') },
-    { school: 'Western Kentucky', nickname: 'Hilltoppers', conference: 'CUSA', logo: toLogo('Western Kentucky') },
-    { school: 'Akron', nickname: 'Zips', conference: 'MAC', logo: toLogo('Akron') },
-    { school: 'Ball State', nickname: 'Cardinals', conference: 'MAC', logo: toLogo('Ball State') },
-    { school: 'Bowling Green', nickname: 'Falcons', conference: 'MAC', logo: toLogo('Bowling Green') },
-    { school: 'Buffalo', nickname: 'Bulls', conference: 'MAC', logo: toLogo('Buffalo') },
-    { school: 'Central Michigan', nickname: 'Chippewas', conference: 'MAC', logo: toLogo('Central Michigan') },
-    { school: 'Eastern Michigan', nickname: 'Eagles', conference: 'MAC', logo: toLogo('Eastern Michigan') },
-    { school: 'Kent State', nickname: 'Golden Flashes', conference: 'MAC', logo: toLogo('Kent State') },
-    { school: 'Miami (OH)', nickname: 'RedHawks', conference: 'MAC', logo: toLogo('Miami OH') },
-    { school: 'Northern Illinois', nickname: 'Huskies', conference: 'MAC', logo: toLogo('Northern Illinois') },
-    { school: 'Ohio', nickname: 'Bobcats', conference: 'MAC', logo: toLogo('Ohio') },
-    { school: 'Sacramento State', nickname: 'Hornets', conference: 'MAC', logo: toLogo('Sacramento State') },
-    { school: 'Toledo', nickname: 'Rockets', conference: 'MAC', logo: toLogo('Toledo') },
-    { school: 'UMass', nickname: 'Minutemen', conference: 'MAC', logo: toLogo('UMass') },
-    { school: 'Western Michigan', nickname: 'Broncos', conference: 'MAC', logo: toLogo('Western Michigan') },
-    { school: 'Air Force', nickname: 'Falcons', conference: 'Mountain West', logo: toLogo('Air Force') },
-    { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West', logo: toLogo('Boise State') },
-    { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West', logo: toLogo('Colorado State') },
-    { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West', logo: toLogo('Fresno State') },
-    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West', logo: toLogo('Hawaii') },
-    { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West', logo: toLogo('Nevada') },
-    { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West', logo: toLogo('New Mexico') },
-    { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West', logo: toLogo('San Diego State') },
-    { school: 'San Jose State', nickname: 'Spartans', conference: 'Mountain West', logo: toLogo('San Jose State') },
-    { school: 'UNLV', nickname: 'Rebels', conference: 'Mountain West', logo: toLogo('UNLV') },
-    { school: 'Utah State', nickname: 'Aggies', conference: 'Mountain West', logo: toLogo('Utah State') },
-    { school: 'Wyoming', nickname: 'Cowboys', conference: 'Mountain West', logo: toLogo('Wyoming') },
-    { school: 'Alabama', nickname: 'Crimson Tide', conference: 'SEC', logo: toLogo('Alabama') },
-    { school: 'Arkansas', nickname: 'Razorbacks', conference: 'SEC', logo: toLogo('Arkansas') },
-    { school: 'Auburn', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Auburn') },
-    { school: 'Florida', nickname: 'Gators', conference: 'SEC', logo: toLogo('Florida') },
-    { school: 'Georgia', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Georgia') },
-    { school: 'Kentucky', nickname: 'Wildcats', conference: 'SEC', logo: toLogo('Kentucky') },
-    { school: 'LSU', nickname: 'Tigers', conference: 'SEC', logo: toLogo('LSU') },
-    { school: 'Mississippi State', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Mississippi State') },
-    { school: 'Missouri', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Missouri') },
-    { school: 'Oklahoma', nickname: 'Sooners', conference: 'SEC', logo: toLogo('Oklahoma') },
-    { school: 'Ole Miss', nickname: 'Rebels', conference: 'SEC', logo: toLogo('Ole Miss') },
-    { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC', logo: toLogo('South Carolina') },
-    { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC', logo: toLogo('Tennessee') },
-    { school: 'Texas', nickname: 'Longhorns', conference: 'SEC', logo: toLogo('Texas') },
-    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC', logo: toLogo('Texas AM') },
-    { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC', logo: toLogo('Vanderbilt') },
-    { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt', logo: toLogo('Appalachian State') },
-    { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt', logo: toLogo('Arkansas State') },
-    { school: 'Coastal Carolina', nickname: 'Chanticleers', conference: 'Sun Belt', logo: toLogo('Coastal Carolina') },
-    { school: 'Georgia Southern', nickname: 'Eagles', conference: 'Sun Belt', logo: toLogo('Georgia Southern') },
-    { school: 'Georgia State', nickname: 'Panthers', conference: 'Sun Belt', logo: toLogo('Georgia State') },
-    { school: 'James Madison', nickname: 'Dukes', conference: 'Sun Belt', logo: toLogo('James Madison') },
-    { school: 'Louisiana', nickname: "Ragin' Cajuns", conference: 'Sun Belt', logo: toLogo('Louisiana') },
-    { school: 'Marshall', nickname: 'Thundering Herd', conference: 'Sun Belt', logo: toLogo('Marshall') },
-    { school: 'Old Dominion', nickname: 'Monarchs', conference: 'Sun Belt', logo: toLogo('Old Dominion') },
-    { school: 'South Alabama', nickname: 'Jaguars', conference: 'Sun Belt', logo: toLogo('South Alabama') },
-    { school: 'Southern Miss', nickname: 'Golden Eagles', conference: 'Sun Belt', logo: toLogo('Southern Miss') },
-    { school: 'Texas State', nickname: 'Bobcats', conference: 'Sun Belt', logo: toLogo('Texas State') },
-    { school: 'Troy', nickname: 'Trojans', conference: 'Sun Belt', logo: toLogo('Troy') },
-    { school: 'ULM', nickname: 'Warhawks', conference: 'Sun Belt', logo: toLogo('ULM') },
-    { school: 'Notre Dame', nickname: 'Fighting Irish', conference: 'Independent', logo: toLogo('Notre Dame') },
-    { school: 'UConn', nickname: 'Huskies', conference: 'Independent', logo: toLogo('UConn') }
+    { school: 'Boston College', nickname: 'Eagles', conference: 'ACC', logo: toLogo('Boston College'), school_primary_color: '#98002E', stadium_name: 'Alumni Stadium', stadium_city: 'Chestnut Hill', stadium_state: 'Massachusetts' },
+    { school: 'California', nickname: 'Golden Bears', conference: 'ACC', logo: toLogo('California'), school_primary_color: '#003262', stadium_name: 'California Memorial Stadium', stadium_city: 'Berkeley', stadium_state: 'California' },
+    { school: 'Clemson', nickname: 'Tigers', conference: 'ACC', logo: toLogo('Clemson'), school_primary_color: '#F56600', stadium_name: 'Memorial Stadium', stadium_city: 'Clemson', stadium_state: 'South Carolina' },
+    { school: 'Duke', nickname: 'Blue Devils', conference: 'ACC', logo: toLogo('Duke'), school_primary_color: '#003087', stadium_name: 'Wallace Wade Stadium', stadium_city: 'Durham', stadium_state: 'North Carolina' },
+    { school: 'Florida State', nickname: 'Seminoles', conference: 'ACC', logo: toLogo('Florida State'), school_primary_color: '#782F40', stadium_name: 'Doak Campbell Stadium', stadium_city: 'Tallahassee', stadium_state: 'Florida' },
+    { school: 'Georgia Tech', nickname: 'Yellow Jackets', conference: 'ACC', logo: toLogo('Georgia Tech'), school_primary_color: '#B3A369', stadium_name: 'Bobby Dodd Stadium', stadium_city: 'Atlanta', stadium_state: 'Georgia' },
+    { school: 'Louisville', nickname: 'Cardinals', conference: 'ACC', logo: toLogo('Louisville'), school_primary_color: '#AD0000', stadium_name: 'L&N Federal Credit Union Stadium', stadium_city: 'Louisville', stadium_state: 'Kentucky' },
+    { school: 'Miami (FL)', nickname: 'Hurricanes', conference: 'ACC', logo: toLogo('Miami FL'), school_primary_color: '#005030', stadium_name: 'Hard Rock Stadium', stadium_city: 'Miami Gardens', stadium_state: 'Florida' },
+    { school: 'NC State', nickname: 'Wolfpack', conference: 'ACC', logo: toLogo('NC State'), school_primary_color: '#CC0000', stadium_name: 'Carter–Finley Stadium', stadium_city: 'Raleigh', stadium_state: 'North Carolina' },
+    { school: 'North Carolina', nickname: 'Tar Heels', conference: 'ACC', logo: toLogo('North Carolina'), school_primary_color: '#7BAFD4', stadium_name: 'Kenan Memorial Stadium', stadium_city: 'Chapel Hill', stadium_state: 'North Carolina' },
+    { school: 'Pittsburgh', nickname: 'Panthers', conference: 'ACC', logo: toLogo('Pittsburgh'), school_primary_color: '#003594', stadium_name: 'Acrisure Stadium', stadium_city: 'Pittsburgh', stadium_state: 'Pennsylvania' },
+    { school: 'SMU', nickname: 'Mustangs', conference: 'ACC', logo: toLogo('SMU'), school_primary_color: '#CC0000', stadium_name: 'Gerald J. Ford Stadium', stadium_city: 'Dallas', stadium_state: 'Texas' },
+    { school: 'Stanford', nickname: 'Cardinal', conference: 'ACC', logo: toLogo('Stanford'), school_primary_color: '#8C1515', stadium_name: 'Stanford Stadium', stadium_city: 'Stanford', stadium_state: 'California' },
+    { school: 'Syracuse', nickname: 'Orange', conference: 'ACC', logo: toLogo('Syracuse'), school_primary_color: '#F7641E', stadium_name: 'JMA Wireless Dome', stadium_city: 'Syracuse', stadium_state: 'New York' },
+    { school: 'Virginia', nickname: 'Cavaliers', conference: 'ACC', logo: toLogo('Virginia'), school_primary_color: '#232D4B', stadium_name: 'Scott Stadium', stadium_city: 'Charlottesville', stadium_state: 'Virginia' },
+    { school: 'Virginia Tech', nickname: 'Hokies', conference: 'ACC', logo: toLogo('Virginia Tech'), school_primary_color: '#630031', stadium_name: 'Lane Stadium', stadium_city: 'Blacksburg', stadium_state: 'Virginia' },
+    { school: 'Wake Forest', nickname: 'Demon Deacons', conference: 'ACC', logo: toLogo('Wake Forest'), school_primary_color: '#9E7E38', stadium_name: 'Allegacy Federal Credit Union Stadium', stadium_city: 'Winston-Salem', stadium_state: 'North Carolina' },
+    { school: 'Army', nickname: 'Black Knights', conference: 'American', logo: toLogo('Army'), school_primary_color: '#000000', stadium_name: 'Michie Stadium', stadium_city: 'West Point', stadium_state: 'New York' },
+    { school: 'Charlotte', nickname: '49ers', conference: 'American', logo: toLogo('Charlotte'), school_primary_color: '#00703C', stadium_name: 'Jerry Richardson Stadium', stadium_city: 'Charlotte', stadium_state: 'North Carolina' },
+    { school: 'East Carolina', nickname: 'Pirates', conference: 'American', logo: toLogo('East Carolina'), school_primary_color: '#592A8A', stadium_name: 'Dowdy–Ficklen Stadium', stadium_city: 'Greenville', stadium_state: 'North Carolina' },
+    { school: 'Florida Atlantic', nickname: 'Owls', conference: 'American', logo: toLogo('Florida Atlantic'), school_primary_color: '#003366', stadium_name: 'FAU Stadium', stadium_city: 'Boca Raton', stadium_state: 'Florida' },
+    { school: 'Memphis', nickname: 'Tigers', conference: 'American', logo: toLogo('Memphis'), school_primary_color: '#003087', stadium_name: 'Simmons Bank Liberty Stadium', stadium_city: 'Memphis', stadium_state: 'Tennessee' },
+    { school: 'Navy', nickname: 'Midshipmen', conference: 'American', logo: toLogo('Navy'), school_primary_color: '#000080', stadium_name: 'Navy–Marine Corps Memorial Stadium', stadium_city: 'Annapolis', stadium_state: 'Maryland' },
+    { school: 'North Texas', nickname: 'Mean Green', conference: 'American', logo: toLogo('North Texas'), school_primary_color: '#00853E', stadium_name: 'DATCU Stadium', stadium_city: 'Denton', stadium_state: 'Texas' },
+    { school: 'Rice', nickname: 'Owls', conference: 'American', logo: toLogo('Rice'), school_primary_color: '#00205B', stadium_name: 'Rice Stadium', stadium_city: 'Houston', stadium_state: 'Texas' },
+    { school: 'South Florida', nickname: 'Bulls', conference: 'American', logo: toLogo('South Florida'), school_primary_color: '#006747', stadium_name: 'Raymond James Stadium', stadium_city: 'Tampa', stadium_state: 'Florida' },
+    { school: 'Temple', nickname: 'Owls', conference: 'American', logo: toLogo('Temple'), school_primary_color: '#9D2235', stadium_name: 'Lincoln Financial Field', stadium_city: 'Philadelphia', stadium_state: 'Pennsylvania' },
+    { school: 'Tulane', nickname: 'Green Wave', conference: 'American', logo: toLogo('Tulane'), school_primary_color: '#006747', stadium_name: 'Yulman Stadium', stadium_city: 'New Orleans', stadium_state: 'Louisiana' },
+    { school: 'Tulsa', nickname: 'Golden Hurricane', conference: 'American', logo: toLogo('Tulsa'), school_primary_color: '#002D62', stadium_name: 'H. A. Chapman Stadium', stadium_city: 'Tulsa', stadium_state: 'Oklahoma' },
+    { school: 'UAB', nickname: 'Blazers', conference: 'American', logo: toLogo('UAB'), school_primary_color: '#006341', stadium_name: 'Protective Stadium', stadium_city: 'Birmingham', stadium_state: 'Alabama' },
+    { school: 'UTSA', nickname: 'Roadrunners', conference: 'American', logo: toLogo('UTSA'), school_primary_color: '#002244', stadium_name: 'Alamodome', stadium_city: 'San Antonio', stadium_state: 'Texas' },
+    { school: 'Arizona', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Arizona'), school_primary_color: '#CC0033', stadium_name: 'Arizona Stadium', stadium_city: 'Tucson', stadium_state: 'Arizona' },
+    { school: 'Arizona State', nickname: 'Sun Devils', conference: 'Big 12', logo: toLogo('Arizona State'), school_primary_color: '#8C1D40', stadium_name: 'Mountain America Stadium', stadium_city: 'Tempe', stadium_state: 'Arizona' },
+    { school: 'Baylor', nickname: 'Bears', conference: 'Big 12', logo: toLogo('Baylor'), school_primary_color: '#003015', stadium_name: 'McLane Stadium', stadium_city: 'Waco', stadium_state: 'Texas' },
+    { school: 'BYU', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('BYU'), school_primary_color: '#002E5D', stadium_name: 'LaVell Edwards Stadium', stadium_city: 'Provo', stadium_state: 'Utah' },
+    { school: 'Cincinnati', nickname: 'Bearcats', conference: 'Big 12', logo: toLogo('Cincinnati'), school_primary_color: '#E00122', stadium_name: 'Nippert Stadium', stadium_city: 'Cincinnati', stadium_state: 'Ohio' },
+    { school: 'Colorado', nickname: 'Buffaloes', conference: 'Big 12', logo: toLogo('Colorado'), school_primary_color: '#CFB87C', stadium_name: 'Folsom Field', stadium_city: 'Boulder', stadium_state: 'Colorado' },
+    { school: 'Houston', nickname: 'Cougars', conference: 'Big 12', logo: toLogo('Houston'), school_primary_color: '#C8102E', stadium_name: 'TDECU Stadium', stadium_city: 'Houston', stadium_state: 'Texas' },
+    { school: 'Iowa State', nickname: 'Cyclones', conference: 'Big 12', logo: toLogo('Iowa State'), school_primary_color: '#C8102E', stadium_name: 'Jack Trice Stadium', stadium_city: 'Ames', stadium_state: 'Iowa' },
+    { school: 'Kansas', nickname: 'Jayhawks', conference: 'Big 12', logo: toLogo('Kansas'), school_primary_color: '#0051BA', stadium_name: 'David Booth Kansas Memorial Stadium', stadium_city: 'Lawrence', stadium_state: 'Kansas' },
+    { school: 'Kansas State', nickname: 'Wildcats', conference: 'Big 12', logo: toLogo('Kansas State'), school_primary_color: '#512888', stadium_name: 'Bill Snyder Family Stadium', stadium_city: 'Manhattan', stadium_state: 'Kansas' },
+    { school: 'Oklahoma State', nickname: 'Cowboys', conference: 'Big 12', logo: toLogo('Oklahoma State'), school_primary_color: '#FF6600', stadium_name: 'Boone Pickens Stadium', stadium_city: 'Stillwater', stadium_state: 'Oklahoma' },
+    { school: 'TCU', nickname: 'Horned Frogs', conference: 'Big 12', logo: toLogo('TCU'), school_primary_color: '#4D1979', stadium_name: 'Amon G. Carter Stadium', stadium_city: 'Fort Worth', stadium_state: 'Texas' },
+    { school: 'Texas Tech', nickname: 'Red Raiders', conference: 'Big 12', logo: toLogo('Texas Tech'), school_primary_color: '#CC0000', stadium_name: 'Jones AT&T Stadium', stadium_city: 'Lubbock', stadium_state: 'Texas' },
+    { school: 'UCF', nickname: 'Knights', conference: 'Big 12', logo: toLogo('UCF'), school_primary_color: '#BA9B37', stadium_name: 'FBC Mortgage Stadium', stadium_city: 'Orlando', stadium_state: 'Florida' },
+    { school: 'Utah', nickname: 'Utes', conference: 'Big 12', logo: toLogo('Utah'), school_primary_color: '#CC0000', stadium_name: 'Rice–Eccles Stadium', stadium_city: 'Salt Lake City', stadium_state: 'Utah' },
+    { school: 'West Virginia', nickname: 'Mountaineers', conference: 'Big 12', logo: toLogo('West Virginia'), school_primary_color: '#002855', stadium_name: 'Milan Puskar Stadium', stadium_city: 'Morgantown', stadium_state: 'West Virginia' },
+    { school: 'Illinois', nickname: 'Fighting Illini', conference: 'Big Ten', logo: toLogo('Illinois'), school_primary_color: '#13294B', stadium_name: 'Memorial Stadium', stadium_city: 'Champaign', stadium_state: 'Illinois' },
+    { school: 'Indiana', nickname: 'Hoosiers', conference: 'Big Ten', logo: toLogo('Indiana'), school_primary_color: '#990000', stadium_name: 'Memorial Stadium', stadium_city: 'Bloomington', stadium_state: 'Indiana' },
+    { school: 'Iowa', nickname: 'Hawkeyes', conference: 'Big Ten', logo: toLogo('Iowa'), school_primary_color: '#000000', stadium_name: 'Kinnick Stadium', stadium_city: 'Iowa City', stadium_state: 'Iowa' },
+    { school: 'Maryland', nickname: 'Terrapins', conference: 'Big Ten', logo: toLogo('Maryland'), school_primary_color: '#E31937', stadium_name: 'SECU Stadium', stadium_city: 'College Park', stadium_state: 'Maryland' },
+    { school: 'Michigan', nickname: 'Wolverines', conference: 'Big Ten', logo: toLogo('Michigan'), school_primary_color: '#00274C', stadium_name: 'Michigan Stadium', stadium_city: 'Ann Arbor', stadium_state: 'Michigan' },
+    { school: 'Michigan State', nickname: 'Spartans', conference: 'Big Ten', logo: toLogo('Michigan State'), school_primary_color: '#18453B', stadium_name: 'Spartan Stadium', stadium_city: 'East Lansing', stadium_state: 'Michigan' },
+    { school: 'Minnesota', nickname: 'Golden Gophers', conference: 'Big Ten', logo: toLogo('Minnesota'), school_primary_color: '#7A0019', stadium_name: 'Huntington Bank Stadium', stadium_city: 'Minneapolis', stadium_state: 'Minnesota' },
+    { school: 'Nebraska', nickname: 'Cornhuskers', conference: 'Big Ten', logo: toLogo('Nebraska'), school_primary_color: '#E4173E', stadium_name: 'Memorial Stadium', stadium_city: 'Lincoln', stadium_state: 'Nebraska' },
+    { school: 'Northwestern', nickname: 'Wildcats', conference: 'Big Ten', logo: toLogo('Northwestern'), school_primary_color: '#4E2A84', stadium_name: 'Martin Stadium', stadium_city: 'Evanston', stadium_state: 'Illinois' },
+    { school: 'Ohio State', nickname: 'Buckeyes', conference: 'Big Ten', logo: toLogo('Ohio State'), school_primary_color: '#BB0000', stadium_name: 'Ohio Stadium', stadium_city: 'Columbus', stadium_state: 'Ohio' },
+    { school: 'Oregon', nickname: 'Ducks', conference: 'Big Ten', logo: toLogo('Oregon'), school_primary_color: '#154733', stadium_name: 'Autzen Stadium', stadium_city: 'Eugene', stadium_state: 'Oregon' },
+    { school: 'Penn State', nickname: 'Nittany Lions', conference: 'Big Ten', logo: toLogo('Penn State'), school_primary_color: '#041E42', stadium_name: 'Beaver Stadium', stadium_city: 'University Park', stadium_state: 'Pennsylvania' },
+    { school: 'Purdue', nickname: 'Boilermakers', conference: 'Big Ten', logo: toLogo('Purdue'), school_primary_color: '#CEB888', stadium_name: 'Ross–Ade Stadium', stadium_city: 'West Lafayette', stadium_state: 'Indiana' },
+    { school: 'Rutgers', nickname: 'Scarlet Knights', conference: 'Big Ten', logo: toLogo('Rutgers'), school_primary_color: '#CC0033', stadium_name: 'SHI Stadium', stadium_city: 'Piscataway', stadium_state: 'New Jersey' },
+    { school: 'UCLA', nickname: 'Bruins', conference: 'Big Ten', logo: toLogo('UCLA'), school_primary_color: '#2D68C4', stadium_name: 'Rose Bowl', stadium_city: 'Pasadena', stadium_state: 'California' },
+    { school: 'USC', nickname: 'Trojans', conference: 'Big Ten', logo: toLogo('USC'), school_primary_color: '#990000', stadium_name: 'Los Angeles Memorial Coliseum', stadium_city: 'Los Angeles', stadium_state: 'California' },
+    { school: 'Washington', nickname: 'Huskies', conference: 'Big Ten', logo: toLogo('Washington'), school_primary_color: '#4B2E83', stadium_name: 'Husky Stadium', stadium_city: 'Seattle', stadium_state: 'Washington' },
+    { school: 'Wisconsin', nickname: 'Badgers', conference: 'Big Ten', logo: toLogo('Wisconsin'), school_primary_color: '#C5050C', stadium_name: 'Camp Randall Stadium', stadium_city: 'Madison', stadium_state: 'Wisconsin' },
+    { school: 'Delaware', nickname: "Fightin' Blue Hens", conference: 'CUSA', logo: toLogo('Delaware'), school_primary_color: '#004C97', stadium_name: 'Delaware Stadium', stadium_city: 'Newark', stadium_state: 'Delaware' },
+    { school: 'FIU', nickname: 'Panthers', conference: 'CUSA', logo: toLogo('FIU'), school_primary_color: '#081E3F', stadium_name: 'Pitbull Stadium', stadium_city: 'Miami', stadium_state: 'Florida' },
+    { school: 'Jacksonville State', nickname: 'Gamecocks', conference: 'CUSA', logo: toLogo('Jacksonville State'), school_primary_color: '#CC0000', stadium_name: 'Burgess–Snow Field', stadium_city: 'Jacksonville', stadium_state: 'Alabama' },
+    { school: 'Kennesaw State', nickname: 'Owls', conference: 'CUSA', logo: toLogo('Kennesaw State'), school_primary_color: '#000000', stadium_name: 'Fifth Third Stadium', stadium_city: 'Kennesaw', stadium_state: 'Georgia' },
+    { school: 'Liberty', nickname: 'Flames', conference: 'CUSA', logo: toLogo('Liberty'), school_primary_color: '#002D62', stadium_name: 'Williams Stadium', stadium_city: 'Lynchburg', stadium_state: 'Virginia' },
+    { school: 'Louisiana Tech', nickname: 'Bulldogs', conference: 'CUSA', logo: toLogo('Louisiana Tech'), school_primary_color: '#002F8B', stadium_name: 'Joe Aillet Stadium', stadium_city: 'Ruston', stadium_state: 'Louisiana' },
+    { school: 'Middle Tennessee', nickname: 'Blue Raiders', conference: 'CUSA', logo: toLogo('Middle Tennessee'), school_primary_color: '#0066CC', stadium_name: 'Johnny “Red” Floyd Stadium', stadium_city: 'Murfeesboro', stadium_state: 'Tennessee' },
+    { school: 'Missouri State', nickname: 'Bears', conference: 'CUSA', logo: toLogo('Missouri State'), school_primary_color: '#5E0009', stadium_name: 'Robert W. Plaster Stadium', stadium_city: 'Springfield', stadium_state: 'Missouri' },
+    { school: 'New Mexico State', nickname: 'Aggies', conference: 'CUSA', logo: toLogo('New Mexico State'), school_primary_color: '#891216', stadium_name: 'Aggie Memorial Stadium', stadium_city: 'Las Cruces', stadium_state: 'New Mexico' },
+    { school: 'Sam Houston', nickname: 'Bearkats', conference: 'CUSA', logo: toLogo('Sam Houston'), school_primary_color: '#F05522', stadium_name: 'Bowers Stadium', stadium_city: 'Huntsville', stadium_state: 'Texas' },
+    { school: 'Western Kentucky', nickname: 'Hilltoppers', conference: 'CUSA', logo: toLogo('Western Kentucky'), school_primary_color: '#CC0000', stadium_name: 'Houchens Industries–L. T. Smith Stadium', stadium_city: 'Bowling Green', stadium_state: 'Kentucky' },
+    { school: 'Akron', nickname: 'Zips', conference: 'MAC', logo: toLogo('Akron'), school_primary_color: '#041E42', stadium_name: 'InfoCision Stadium', stadium_city: 'Akron', stadium_state: 'Ohio' },
+    { school: 'Ball State', nickname: 'Cardinals', conference: 'MAC', logo: toLogo('Ball State'), school_primary_color: '#BA0C2F', stadium_name: 'Scheumann Stadium', stadium_city: 'Muncie', stadium_state: 'Indiana' },
+    { school: 'Bowling Green', nickname: 'Falcons', conference: 'MAC', logo: toLogo('Bowling Green'), school_primary_color: '#FE5000', stadium_name: 'Doyt Perry Stadium', stadium_city: 'Bowling Green', stadium_state: 'Ohio' },
+    { school: 'Buffalo', nickname: 'Bulls', conference: 'MAC', logo: toLogo('Buffalo'), school_primary_color: '#005BBB', stadium_name: 'UB Stadium', stadium_city: 'Amherst', stadium_state: 'New York' },
+    { school: 'Central Michigan', nickname: 'Chippewas', conference: 'MAC', logo: toLogo('Central Michigan'), school_primary_color: '#6A0032', stadium_name: 'Kelly/Shorts Stadium', stadium_city: 'Mount Pleasant', stadium_state: 'Michigan' },
+    { school: 'Eastern Michigan', nickname: 'Eagles', conference: 'MAC', logo: toLogo('Eastern Michigan'), school_primary_color: '#006633', stadium_name: 'Rynearson Stadium', stadium_city: 'Ypsilanti', stadium_state: 'Michigan' },
+    { school: 'Kent State', nickname: 'Golden Flashes', conference: 'MAC', logo: toLogo('Kent State'), school_primary_color: '#002664', stadium_name: 'Dix Stadium', stadium_city: 'Kent', stadium_state: 'Ohio' },
+    { school: 'Miami (OH)', nickname: 'RedHawks', conference: 'MAC', logo: toLogo('Miami OH'), school_primary_color: '#B61E2E', stadium_name: 'Yager Stadium', stadium_city: 'Oxford', stadium_state: 'Ohio' },
+    { school: 'Northern Illinois', nickname: 'Huskies', conference: 'MAC', logo: toLogo('Northern Illinois'), school_primary_color: '#BA0C2F', stadium_name: 'Huskie Stadium', stadium_city: 'DeKalb', stadium_state: 'Illinois' },
+    { school: 'Ohio', nickname: 'Bobcats', conference: 'MAC', logo: toLogo('Ohio'), school_primary_color: '#2E4E31', stadium_name: 'Peden Stadium', stadium_city: 'Athens', stadium_state: 'Ohio' },
+    { school: 'Sacramento State', nickname: 'Hornets', conference: 'MAC', logo: toLogo('Sacramento State'), school_primary_color: '#004E38', stadium_name: 'Hornet Stadium', stadium_city: 'Sacramento', stadium_state: 'California' },
+    { school: 'Toledo', nickname: 'Rockets', conference: 'MAC', logo: toLogo('Toledo'), school_primary_color: '#0039A6', stadium_name: 'Glass Bowl', stadium_city: 'Toledo', stadium_state: 'Ohio' },
+    { school: 'UMass', nickname: 'Minutemen', conference: 'MAC', logo: toLogo('UMass'), school_primary_color: '#881124', stadium_name: 'Warren McGuirk Alumni Stadium', stadium_city: 'Amherst', stadium_state: 'Massachusetts' },
+    { school: 'Western Michigan', nickname: 'Broncos', conference: 'MAC', logo: toLogo('Western Michigan'), school_primary_color: '#4B331A', stadium_name: 'Waldo Stadium', stadium_city: 'Kalamazoo', stadium_state: 'Michigan' },
+    { school: 'Air Force', nickname: 'Falcons', conference: 'Mountain West', logo: toLogo('Air Force'), school_primary_color: '#003087', stadium_name: 'Falcon Stadium', stadium_city: 'Colorado Springs', stadium_state: 'Colorado' },
+    { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West', logo: toLogo('Boise State'), school_primary_color: '#0033A0', stadium_name: 'Albertsons Stadium', stadium_city: 'Boise', stadium_state: 'Idaho' },
+    { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West', logo: toLogo('Colorado State'), school_primary_color: '#1E4D2B', stadium_name: 'Canvas Stadium', stadium_city: 'Fort Collins', stadium_state: 'Colorado' },
+    { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West', logo: toLogo('Fresno State'), school_primary_color: '#C41230', stadium_name: 'Valley Children’s Stadium', stadium_city: 'Fresno', stadium_state: 'California' },
+    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West', logo: toLogo('Hawaii'), school_primary_color: '#024731', stadium_name: 'Clarence T. C. Ching Athletics Complex', stadium_city: 'Honolulu', stadium_state: 'Hawaii' },
+    { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West', logo: toLogo('Nevada'), school_primary_color: '#003366', stadium_name: 'Mackay Stadium', stadium_city: 'Reno', stadium_state: 'Nevada' },
+    { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West', logo: toLogo('New Mexico'), school_primary_color: '#BA0C2F', stadium_name: 'University Stadium', stadium_city: 'Albuquerque', stadium_state: 'New Mexico' },
+    { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West', logo: toLogo('San Diego State'), school_primary_color: '#A6192E', stadium_name: 'Snapdragon Stadium', stadium_city: 'San Diego', stadium_state: 'California' },
+    { school: 'San Jose State', nickname: 'Spartans', conference: 'Mountain West', logo: toLogo('San Jose State'), school_primary_color: '#0055A2', stadium_name: 'CEFCU Stadium', stadium_city: 'San Jose', stadium_state: 'California' },
+    { school: 'UNLV', nickname: 'Rebels', conference: 'Mountain West', logo: toLogo('UNLV'), school_primary_color: '#CF0A2C', stadium_name: 'Allegiant Stadium', stadium_city: 'Paradise', stadium_state: 'Nevada' },
+    { school: 'Utah State', nickname: 'Aggies', conference: 'Mountain West', logo: toLogo('Utah State'), school_primary_color: '#00263A', stadium_name: 'Maverik Stadium', stadium_city: 'Logan', stadium_state: 'Utah' },
+    { school: 'Wyoming', nickname: 'Cowboys', conference: 'Mountain West', logo: toLogo('Wyoming'), school_primary_color: '#492F24', stadium_name: 'War Memorial Stadium', stadium_city: 'Laramie', stadium_state: 'Wyoming' },
+    { school: 'Alabama', nickname: 'Crimson Tide', conference: 'SEC', logo: toLogo('Alabama'), school_primary_color: '#9E1B32', stadium_name: 'Bryant–Denny Stadium', stadium_city: 'Tuscaloosa', stadium_state: 'Alabama' },
+    { school: 'Arkansas', nickname: 'Razorbacks', conference: 'SEC', logo: toLogo('Arkansas'), school_primary_color: '#9D2235', stadium_name: 'Donald W. Reynolds Razorback Stadium', stadium_city: 'Fayetteville', stadium_state: 'Arkansas' },
+    { school: 'Auburn', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Auburn'), school_primary_color: '#0C2340', stadium_name: 'Jordan–Hare Stadium', stadium_city: 'Auburn', stadium_state: 'Alabama' },
+    { school: 'Florida', nickname: 'Gators', conference: 'SEC', logo: toLogo('Florida'), school_primary_color: '#0021A5', stadium_name: 'Ben Hill Griffin Stadium', stadium_city: 'Gainesville', stadium_state: 'Florida' },
+    { school: 'Georgia', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Georgia'), school_primary_color: '#BA0C2F', stadium_name: 'Sanford Stadium', stadium_city: 'Athens', stadium_state: 'Georgia' },
+    { school: 'Kentucky', nickname: 'Wildcats', conference: 'SEC', logo: toLogo('Kentucky'), school_primary_color: '#0033A0', stadium_name: 'Kroger Field', stadium_city: 'Lexington', stadium_state: 'Kentucky' },
+    { school: 'LSU', nickname: 'Tigers', conference: 'SEC', logo: toLogo('LSU'), school_primary_color: '#461D7C', stadium_name: 'Tiger Stadium', stadium_city: 'Baton Rouge', stadium_state: 'Louisiana' },
+    { school: 'Mississippi State', nickname: 'Bulldogs', conference: 'SEC', logo: toLogo('Mississippi State'), school_primary_color: '#660000', stadium_name: 'Davis Wade Stadium', stadium_city: 'Starkville', stadium_state: 'Mississippi' },
+    { school: 'Missouri', nickname: 'Tigers', conference: 'SEC', logo: toLogo('Missouri'), school_primary_color: '#000000', stadium_name: 'Faurot Field', stadium_city: 'Columbia', stadium_state: 'Missouri' },
+    { school: 'Oklahoma', nickname: 'Sooners', conference: 'SEC', logo: toLogo('Oklahoma'), school_primary_color: '#841617', stadium_name: 'Gaylord Family Oklahoma Memorial Stadium', stadium_city: 'Norman', stadium_state: 'Oklahoma' },
+    { school: 'Ole Miss', nickname: 'Rebels', conference: 'SEC', logo: toLogo('Ole Miss'), school_primary_color: '#CE1126', stadium_name: 'Vaught–Hemingway Stadium', stadium_city: 'University', stadium_state: 'Mississippi' },
+    { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC', logo: toLogo('South Carolina'), school_primary_color: '#73000A', stadium_name: 'Williams–Brice Stadium', stadium_city: 'Columbia', stadium_state: 'South Carolina' },
+    { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC', logo: toLogo('Tennessee'), school_primary_color: '#FF8200', stadium_name: 'Neyland Stadium', stadium_city: 'Knoxville', stadium_state: 'Tennessee' },
+    { school: 'Texas', nickname: 'Longhorns', conference: 'SEC', logo: toLogo('Texas'), school_primary_color: '#BF5700', stadium_name: 'Darrell K Royal–Texas Memorial Stadium', stadium_city: 'Austin', stadium_state: 'Texas' },
+    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC', logo: toLogo('Texas AM'), school_primary_color: '#500000', stadium_name: 'Kyle Field', stadium_city: 'College Station', stadium_state: 'Texas' },
+    { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC', logo: toLogo('Vanderbilt'), school_primary_color: '#000000', stadium_name: 'FirstBank Stadium', stadium_city: 'Nashville', stadium_state: 'Tennessee' },
+    { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt', logo: toLogo('Appalachian State'), school_primary_color: '#222222', stadium_name: 'Kidd Brewer Stadium', stadium_city: 'Boone', stadium_state: 'North Carolina' },
+    { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt', logo: toLogo('Arkansas State'), school_primary_color: '#CC092F', stadium_name: 'Centennial Bank Stadium', stadium_city: 'Jonesboro', stadium_state: 'Arkansas' },
+    { school: 'Coastal Carolina', nickname: 'Chanticleers', conference: 'Sun Belt', logo: toLogo('Coastal Carolina'), school_primary_color: '#006F71', stadium_name: 'Brooks Stadium', stadium_city: 'Conway', stadium_state: 'South Carolina' },
+    { school: 'Georgia Southern', nickname: 'Eagles', conference: 'Sun Belt', logo: toLogo('Georgia Southern'), school_primary_color: '#011E41', stadium_name: 'Allen E. Paulson Stadium', stadium_city: 'Statesboro', stadium_state: 'Georgia' },
+    { school: 'Georgia State', nickname: 'Panthers', conference: 'Sun Belt', logo: toLogo('Georgia State'), school_primary_color: '#0039A6', stadium_name: 'Center Parc Stadium', stadium_city: 'Atlanta', stadium_state: 'Georgia' },
+    { school: 'James Madison', nickname: 'Dukes', conference: 'Sun Belt', logo: toLogo('James Madison'), school_primary_color: '#450084', stadium_name: 'Bridgeforth Stadium', stadium_city: 'Harrisonburg', stadium_state: 'Virginia' },
+    { school: 'Louisiana', nickname: "Ragin' Cajuns", conference: 'Sun Belt', logo: toLogo('Louisiana'), school_primary_color: '#CE181E', stadium_name: 'Cajun Field', stadium_city: 'Lafayette', stadium_state: 'Louisiana' },
+    { school: 'Marshall', nickname: 'Thundering Herd', conference: 'Sun Belt', logo: toLogo('Marshall'), school_primary_color: '#00B140', stadium_name: 'Joan C. Edwards Stadium', stadium_city: 'Huntington', stadium_state: 'West Virginia' },
+    { school: 'Old Dominion', nickname: 'Monarchs', conference: 'Sun Belt', logo: toLogo('Old Dominion'), school_primary_color: '#003057', stadium_name: 'Kornblau Field at S. B. Ballard Stadium', stadium_city: 'Norfolk', stadium_state: 'Virginia' },
+    { school: 'South Alabama', nickname: 'Jaguars', conference: 'Sun Belt', logo: toLogo('South Alabama'), school_primary_color: '#00205B', stadium_name: 'Hancock Whitney Stadium', stadium_city: 'Mobile', stadium_state: 'Alabama' },
+    { school: 'Southern Miss', nickname: 'Golden Eagles', conference: 'Sun Belt', logo: toLogo('Southern Miss'), school_primary_color: '#FFAB00', stadium_name: 'M. M. Roberts Stadium', stadium_city: 'Hattiesburg', stadium_state: 'Mississippi' },
+    { school: 'Texas State', nickname: 'Bobcats', conference: 'Sun Belt', logo: toLogo('Texas State'), school_primary_color: '#501214', stadium_name: 'UFCU Stadium', stadium_city: 'San Marcos', stadium_state: 'Texas' },
+    { school: 'Troy', nickname: 'Trojans', conference: 'Sun Belt', logo: toLogo('Troy'), school_primary_color: '#8A2432', stadium_name: 'Veterans Memorial Stadium', stadium_city: 'Troy', stadium_state: 'Alabama' },
+    { school: 'ULM', nickname: 'Warhawks', conference: 'Sun Belt', logo: toLogo('ULM'), school_primary_color: '#840D2F', stadium_name: 'Malone Stadium', stadium_city: 'Monroe', stadium_state: 'Louisiana' },
+    { school: 'Notre Dame', nickname: 'Fighting Irish', conference: 'Independent', logo: toLogo('Notre Dame'), school_primary_color: '#0C2340', stadium_name: 'Notre Dame Stadium', stadium_city: 'Notre Dame', stadium_state: 'Indiana' },
+    { school: 'UConn', nickname: 'Huskies', conference: 'Independent', logo: toLogo('UConn'), school_primary_color: '#000E2F', stadium_name: 'Pratt & Whitney Stadium at Rentschler Field', stadium_city: 'East Hartford', stadium_state: 'Connecticut' }
   ];
 
   const insert = db.prepare(`
-    INSERT INTO teams (school, nickname, conference, logo, school_primary_color) 
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO teams (school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(school) DO UPDATE SET
       logo = excluded.logo,
       nickname = excluded.nickname,
       conference = excluded.conference,
-      school_primary_color = COALESCE(excluded.school_primary_color, teams.school_primary_color)
+      school_primary_color = COALESCE(excluded.school_primary_color, teams.school_primary_color),
+      stadium_name = excluded.stadium_name,
+      stadium_city = excluded.stadium_city,
+      stadium_state = excluded.stadium_state
   `);
 
   const transaction = db.transaction((data) => {
     for (const team of data) {
-      insert.run(team.school, team.nickname, team.conference, team.logo, team.school_primary_color || null);
+      insert.run(team.school, team.nickname, team.conference, team.logo, team.school_primary_color || null, team.stadium_name, team.stadium_city, team.stadium_state);
     }
   });
   transaction(teams);
@@ -358,7 +361,7 @@ function getPlayers() {
 }
 
 function getTeams() {
-  return db.prepare('SELECT id, school, nickname, conference, logo, school_primary_color FROM teams ORDER BY school ASC').all();
+  return db.prepare('SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC').all();
 }
 
 function getSeasons() {
@@ -383,7 +386,11 @@ function getWeekGames(week, season) {
         SELECT 
           g.*, 
           ht.logo as home_logo, at.logo as away_logo,
-          ht.school_primary_color as home_color, at.school_primary_color as away_color
+          ht.school_primary_color as home_color, at.school_primary_color as away_color,
+          ht.stadium_name as home_stadium_name,
+          ht.stadium_city as home_stadium_city,
+          ht.stadium_state as home_stadium_state,
+          ht.nickname as home_nickname, at.nickname as away_nickname
         FROM games g
         LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
         LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
@@ -950,7 +957,18 @@ function getPlayerStats(player) {
     }
   }
 
-  return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak };
+  // Calculate "Last 10" Form
+  const last10Form = recentResults
+    .slice(-10)
+    .map((r) => {
+      if (r.result === 'win') return 'W';
+      if (r.result === 'loss') return 'L';
+      if (r.result === 'push') return 'P';
+      return '';
+    })
+    .join('-');
+
+  return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form };
 }
 
 function getConferenceStats(player, conference, timeRange, week, season) {
@@ -1033,7 +1051,17 @@ function getConferenceStats(player, conference, timeRange, week, season) {
     ORDER BY wins DESC, total DESC
   `).all(...schoolRecordsParams);
 
-  return { bestTeam, worstTeam, mostBetsFor, mostBetsAgainst, schoolRecords };
+  const sosResult = db.prepare(`
+    SELECT AVG(ABS(p.spread)) as avgSpread
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+  `).get(...params);
+
+  const strengthOfSchedule = sosResult?.avgSpread || 0;
+
+  return { bestTeam, worstTeam, mostBetsFor, mostBetsAgainst, schoolRecords, strengthOfSchedule };
 }
 
 function updateGameLine(gameId, updates) {
