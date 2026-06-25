@@ -6,9 +6,6 @@
   "engines": {
     "node": "24.x"
   },
-  "overrides": {
-    "rollup": "3.29.5"
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
