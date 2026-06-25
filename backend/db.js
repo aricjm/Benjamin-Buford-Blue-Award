@@ -1,4 +1,4 @@
-const { sql } = require('@vercel/postgres');
+const { Pool } = require('pg');
 const {
   buildSeasonWeeks,
   getWeekNumberFromDate,
@@ -6,30 +6,49 @@ const {
   getSeasonFromDate
 } = require('./utils');
 
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function ensureConnected() {
+  try {
+    console.log('Attempting to connect to the database...');
+    console.log(`Using connection string: ${process.env.POSTGRES_URL}`);
+    const client = await pool.connect();
+    client.release();
+    console.log('Database connected successfully');
+  } catch (error) {
+    console.error('Database connection failed:', error.message);
+    throw error;
+  }
+}
+
 async function addColumnIfMissing(table, column, definition, defaultValue) {
-  const { rows } = await sql.query(`
+  const { rows } = await pool.query(`
     SELECT column_name 
     FROM information_schema.columns 
     WHERE table_name = $1 AND column_name = $2
   `, [table, column]);
 
   if (rows.length === 0) {
-    await sql.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     if (defaultValue !== undefined) {
-      await sql.query(`UPDATE ${table} SET ${column} = $1 WHERE ${column} IS NULL`, [defaultValue]);
+      await pool.query(`UPDATE ${table} SET ${column} = $1 WHERE ${column} IS NULL`, [defaultValue]);
     }
   }
 }
 
 async function init() {
-  await sql`
+  await ensureConnected();
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS players (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE
     )
-  `;
+  `);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
       id SERIAL PRIMARY KEY,
       school TEXT NOT NULL UNIQUE,
@@ -41,9 +60,9 @@ async function init() {
       stadium_city TEXT,
       stadium_state TEXT
     )
-  `;
+  `);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS weeks (
       id SERIAL PRIMARY KEY,
       week INTEGER,
@@ -53,11 +72,11 @@ async function init() {
       ends_on TEXT,
       UNIQUE(season, week)
     )
-  `;
+  `);
 
-  await sql`CREATE INDEX IF NOT EXISTS idx_weeks_unique ON weeks(season, week)`;
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_weeks_unique ON weeks(season, week)`);
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS games (
       id SERIAL PRIMARY KEY,
       api_game_id TEXT UNIQUE,
@@ -78,14 +97,14 @@ async function init() {
       completed INTEGER DEFAULT 0,
       updated_at TEXT
     )
-  `;
+  `);
 
   await addColumnIfMissing('games', 'season', 'TEXT', '2026');
   await addColumnIfMissing('teams', 'stadium_name', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_city', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_state', 'TEXT');
 
-  await sql`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS picks (
       id SERIAL PRIMARY KEY,
       week INTEGER,
@@ -99,15 +118,23 @@ async function init() {
       picked_at TEXT,
       updated_at TEXT
     )
-  `;
+  `);
 
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_unique ON picks(week, player, game_id)`;
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_unique ON picks(week, player, game_id)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_mappings (
+      id SERIAL PRIMARY KEY,
+      api_name TEXT NOT NULL UNIQUE,
+      team_id INTEGER NOT NULL
+    )
+  `);
 }
 
 async function seedPlayers() {
   const defaultPlayers = ['Aric', 'Nick', 'Cisco'];
   for (const name of defaultPlayers) {
-    await sql`INSERT INTO players (name) VALUES (${name}) ON CONFLICT DO NOTHING`;
+    await pool.query('INSERT INTO players (name) VALUES ($1) ON CONFLICT DO NOTHING', [name]);
   }
   return defaultPlayers.length;
 }
@@ -260,9 +287,9 @@ async function seedTeams() {
   ];
 
   for (const team of teams) {
-    await sql`
+    await pool.query(`
       INSERT INTO teams (school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state) 
-      VALUES (${team.school}, ${team.nickname}, ${team.conference}, ${team.logo}, ${team.school_primary_color}, ${team.stadium_name}, ${team.stadium_city}, ${team.stadium_state})
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT(school) DO UPDATE SET
         logo = EXCLUDED.logo,
         nickname = EXCLUDED.nickname,
@@ -271,49 +298,49 @@ async function seedTeams() {
         stadium_name = EXCLUDED.stadium_name,
         stadium_city = EXCLUDED.stadium_city,
         stadium_state = EXCLUDED.stadium_state
-    `;
+    `, [team.school, team.nickname, team.conference, team.logo, team.school_primary_color, team.stadium_name, team.stadium_city, team.stadium_state]);
   }
 }
 
 async function seedWeeks() {
   const weeks = buildSeasonWeeks();
   for (const item of weeks) {
-    await sql`
+    await pool.query(`
       INSERT INTO weeks (week, season, label, starts_on, ends_on) 
-      VALUES (${item.week}, ${item.season}, ${item.label}, ${item.starts_on}, ${item.ends_on}) 
+      VALUES ($1, $2, $3, $4, $5) 
       ON CONFLICT (season, week) DO NOTHING
-    `;
+    `, [item.week, item.season, item.label, item.starts_on, item.ends_on]);
   }
   return weeks.length;
 }
 
 async function getPlayers() {
-  const { rows } = await sql`SELECT id, name FROM players ORDER BY id`;
+  const { rows } = await pool.query('SELECT id, name FROM players ORDER BY id');
   return rows;
 }
 
 async function getTeams() {
-  const { rows } = await sql`SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC`;
+  const { rows } = await pool.query('SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC');
   return rows;
 }
 
 async function getSeasons() {
-  const { rows } = await sql`SELECT DISTINCT season FROM weeks ORDER BY season DESC`;
+  const { rows } = await pool.query('SELECT DISTINCT season FROM weeks ORDER BY season DESC');
   return rows.map((row) => row.season);
 }
 
 async function getWeeks(season) {
   if (season) {
-    const { rows } = await sql`SELECT id, week, season, label, starts_on, ends_on FROM weeks WHERE season = ${season} ORDER BY week`;
+    const { rows } = await pool.query('SELECT id, week, season, label, starts_on, ends_on FROM weeks WHERE season = $1 ORDER BY week', [season]);
     return rows;
   }
-  const { rows } = await sql`SELECT id, week, season, label, starts_on, ends_on FROM weeks ORDER BY season DESC, week`;
+  const { rows } = await pool.query('SELECT id, week, season, label, starts_on, ends_on FROM weeks ORDER BY season DESC, week');
   return rows;
 }
 
 async function getWeekGames(week, season) {
   if (season) {
-    const { rows } = await sql`
+    const { rows } = await pool.query(`
       SELECT 
         g.*, 
         ht.logo as home_logo, at.logo as away_logo,
@@ -325,9 +352,9 @@ async function getWeekGames(week, season) {
       FROM games g
       LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
       LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
-      WHERE g.week = ${week} AND g.season = ${season} 
+      WHERE g.week = $1 AND g.season = $2 
       ORDER BY g.commence_time ASC, g.id ASC
-    `;
+    `, [week, season]);
     return rows;
   }
   return [];
@@ -335,72 +362,76 @@ async function getWeekGames(week, season) {
 
 async function getPicksByWeek(week, season) {
   if (season) {
-    const { rows } = await sql`
+    const { rows } = await pool.query(`
       SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
       FROM picks p
       JOIN games g ON p.game_id = g.id
-      WHERE p.week = ${week} AND g.season = ${season} 
+      WHERE p.week = $1 AND g.season = $2 
       ORDER BY p.player, p.updated_at DESC
-    `;
+    `, [week, season]);
     return rows;
   }
-  const { rows } = await sql`
+  const { rows } = await pool.query(`
     SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.week = ${week} 
+    WHERE p.week = $1 
     ORDER BY p.player, p.updated_at DESC
-  `;
+  `, [week]);
   return rows;
 }
 
 async function getGameByApiId(apiGameId) {
-  const { rows } = await sql`SELECT * FROM games WHERE api_game_id = ${apiGameId}`;
+  const { rows } = await pool.query('SELECT * FROM games WHERE api_game_id = $1', [apiGameId]);
   return rows[0] || null;
 }
 
 async function getGameById(id) {
-  const { rows } = await sql`SELECT * FROM games WHERE id = ${id}`;
+  const { rows } = await pool.query('SELECT * FROM games WHERE id = $1', [id]);
   return rows[0] || null;
 }
 
 async function upsertGame(game) {
   const existing = game.api_game_id ? await getGameByApiId(game.api_game_id) : null;
   if (existing) {
-    await sql`
+    await pool.query(`
       UPDATE games SET
-        week = ${game.week},
-        season = ${game.season},
-        commence_time = ${game.commence_time},
-        home_team = ${game.home_team},
-        away_team = ${game.away_team},
-        site = ${game.site},
-        is_televised = ${game.is_televised ? 1 : 0},
-        is_mandatory = ${game.is_mandatory ? 1 : 0},
-        spread_home = ${game.spread_home},
-        spread_away = ${game.spread_away},
-        home_price = ${game.home_price},
-        away_price = ${game.away_price},
-        score_home = ${game.score_home},
-        score_away = ${game.score_away},
-        completed = ${game.completed ? 1 : 0},
-        updated_at = ${new Date().toISOString()}
-      WHERE api_game_id = ${game.api_game_id}
-    `;
+        week = $1,
+        season = $2,
+        commence_time = $3,
+        home_team = $4,
+        away_team = $5,
+        site = $6,
+        is_televised = $7,
+        is_mandatory = $8,
+        spread_home = $9,
+        spread_away = $10,
+        home_price = $11,
+        away_price = $12,
+        score_home = $13,
+        score_away = $14,
+        completed = $15,
+        updated_at = $16
+      WHERE api_game_id = $17
+    `, [game.week, game.season, game.commence_time, game.home_team, game.away_team, game.site,
+        game.is_televised ? 1 : 0, game.is_mandatory ? 1 : 0, game.spread_home, game.spread_away,
+        game.home_price, game.away_price, game.score_home, game.score_away, game.completed ? 1 : 0,
+        new Date().toISOString(), game.api_game_id]);
     return existing.id;
   }
 
-  const { rows } = await sql`
+  const { rows } = await pool.query(`
     INSERT INTO games (
       api_game_id, week, season, commence_time, home_team, away_team, site,
       is_televised, is_mandatory, spread_home, spread_away, home_price, away_price,
       score_home, score_away, completed, updated_at
     ) VALUES (
-      ${game.api_game_id}, ${game.week}, ${game.season}, ${game.commence_time}, ${game.home_team}, ${game.away_team}, ${game.site},
-      ${game.is_televised ? 1 : 0}, ${game.is_mandatory ? 1 : 0}, ${game.spread_home}, ${game.spread_away}, ${game.home_price}, ${game.away_price},
-      ${game.score_home}, ${game.score_away}, ${game.completed ? 1 : 0}, ${new Date().toISOString()}
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
     ) RETURNING id
-  `;
+  `, [game.api_game_id, game.week, game.season, game.commence_time, game.home_team, game.away_team, game.site,
+      game.is_televised ? 1 : 0, game.is_mandatory ? 1 : 0, game.spread_home, game.spread_away,
+      game.home_price, game.away_price, game.score_home, game.score_away, game.completed ? 1 : 0,
+      new Date().toISOString()]);
   return rows[0].id;
 }
 
@@ -454,14 +485,14 @@ async function updateScoresFromSeason(scoreGames) {
   for (const game of scoreGames) {
     const existing = await getGameByApiId(game.api_game_id);
     if (!existing) continue;
-    await sql`
+    await pool.query(`
       UPDATE games SET 
-        score_home = ${game.score_home}, 
-        score_away = ${game.score_away}, 
-        completed = ${game.completed ? 1 : 0}, 
-        updated_at = ${new Date().toISOString()} 
-      WHERE api_game_id = ${game.api_game_id}
-    `;
+        score_home = $1, 
+        score_away = $2, 
+        completed = $3, 
+        updated_at = $4 
+      WHERE api_game_id = $5
+    `, [game.score_home, game.score_away, game.completed ? 1 : 0, new Date().toISOString(), game.api_game_id]);
     updated += 1;
     await updatePickResults(existing.id);
   }
@@ -469,21 +500,21 @@ async function updateScoresFromSeason(scoreGames) {
 }
 
 async function deletePicksForPlayerWeek(player, week, season) {
-  return await sql`
+  return await pool.query(`
     DELETE FROM picks 
-    WHERE player = ${player} 
-    AND week = ${week} 
-    AND game_id IN (SELECT id FROM games WHERE season = ${season})
-  `;
+    WHERE player = $1 
+    AND week = $2 
+    AND game_id IN (SELECT id FROM games WHERE season = $3)
+  `, [player, week, season]);
 }
 
 async function updatePickResults(gameId) {
   const game = await getGameById(gameId);
   if (!game) return;
-  const { rows: picks } = await sql`SELECT * FROM picks WHERE game_id = ${gameId}`;
+  const { rows: picks } = await pool.query('SELECT * FROM picks WHERE game_id = $1', [gameId]);
   for (const pick of picks) {
     const result = determinePickResult(game, pick);
-    await sql`UPDATE picks SET result = ${result}, updated_at = ${new Date().toISOString()} WHERE id = ${pick.id}`;
+    await pool.query('UPDATE picks SET result = $1, updated_at = $2 WHERE id = $3', [result, new Date().toISOString(), pick.id]);
   }
 }
 
@@ -498,13 +529,12 @@ async function savePick(week, player, pick) {
     spread: pick.spread
   });
 
-  await sql`
+  await pool.query(`
     INSERT INTO picks (
       week, player, game_id, selection_team, selection_side, spread,
       is_mandatory, result, picked_at, updated_at
     ) VALUES (
-      ${week}, ${player}, ${pick.gameId}, ${pick.selectionTeam}, ${pick.selectionSide}, ${pick.spread},
-      ${pick.isMandatory ? 1 : 0}, ${result}, ${new Date().toISOString()}, ${new Date().toISOString()}
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
     )
     ON CONFLICT(week, player, game_id) DO UPDATE SET
       selection_team = EXCLUDED.selection_team,
@@ -513,9 +543,10 @@ async function savePick(week, player, pick) {
       is_mandatory = EXCLUDED.is_mandatory,
       result = EXCLUDED.result,
       updated_at = EXCLUDED.updated_at
-  `;
+  `, [week, player, pick.gameId, pick.selectionTeam, pick.selectionSide, pick.spread,
+      pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString()]);
 
-  const { rows } = await sql`SELECT * FROM picks WHERE week = ${week} AND player = ${player} AND game_id = ${pick.gameId}`;
+  const { rows } = await pool.query('SELECT * FROM picks WHERE week = $1 AND player = $2 AND game_id = $3', [week, player, pick.gameId]);
   return rows[0];
 }
 
@@ -527,8 +558,8 @@ async function getWeekSummary(week, season) {
   }
 
   const { rows } = season
-    ? await sql`SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = ${week} AND g.season = ${season} GROUP BY player, result`
-    : await sql`SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = ${week} GROUP BY player, result`;
+    ? await pool.query('SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 GROUP BY player, result', [week, season])
+    : await pool.query('SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 GROUP BY player, result', [week]);
 
   for (const row of rows) {
     const current = summary[row.player];
@@ -549,13 +580,13 @@ async function getSeasonSummary(season) {
   for (const player of players) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
-  const { rows } = await sql`
+  const { rows } = await pool.query(`
     SELECT p.player, p.result, COUNT(*) AS count
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE g.season = ${season}
+    WHERE g.season = $1
     GROUP BY p.player, p.result
-  `;
+  `, [season]);
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
@@ -575,7 +606,7 @@ async function getAllTimeSummary() {
   for (const player of players) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
-  const { rows } = await sql`SELECT player, result, COUNT(*) AS count FROM picks GROUP BY player, result`;
+  const { rows } = await pool.query('SELECT player, result, COUNT(*) AS count FROM picks GROUP BY player, result');
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
@@ -593,78 +624,78 @@ async function seedTestData() {
   const season = '2025'; 
   const weekNum = 0;
 
-  await sql`
+  await pool.query(`
     INSERT INTO weeks (week, season, label, starts_on, ends_on)
-    VALUES (${weekNum}, ${season}, 'Week 0 (Test Data)', ${new Date(Date.now() - 86400000 * 7).toISOString()}, ${new Date(Date.now() + 86400000 * 7).toISOString()})
+    VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (season, week) DO UPDATE SET label = EXCLUDED.label
-  `;
+  `, [weekNum, season, 'Week 0 (Test Data)', new Date(Date.now() - 86400000 * 7).toISOString(), new Date(Date.now() + 86400000 * 7).toISOString()]);
 }
 
 async function getPlayerStats(player) {
-  const { rows: [favConf] } = await sql`
+  const { rows: [favConf] } = await pool.query(`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ?
+    WHERE p.player = $1
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: [bestConf] } = await sql`
+  const { rows: [bestConf] } = await pool.query(`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND p.result = 'win'
+    WHERE p.player = $1 AND p.result = 'win'
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: [worstConf] } = await sql`
+  const { rows: [worstConf] } = await pool.query(`
     SELECT t.conference, COUNT(*) as count
     FROM picks p
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND p.result = 'loss'
+    WHERE p.player = $1 AND p.result = 'loss'
     GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: trendRows } = await sql`
+  const { rows: trendRows } = await pool.query(`
     SELECT g.season, p.week, 
            SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.player = ?
+    WHERE p.player = $1
     GROUP BY g.season, p.week
     ORDER BY g.season DESC, p.week DESC
     LIMIT 10
-  `;
+  `, [player]);
   const trend = trendRows.reverse();
 
-  const { rows: [topWinSchool] } = await sql`
+  const { rows: [topWinSchool] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND p.result = 'win'
+    WHERE p.player = $1 AND p.result = 'win'
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: [topLossSchool] } = await sql`
+  const { rows: [topLossSchool] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND p.result = 'loss'
+    WHERE p.player = $1 AND p.result = 'loss'
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: [record] } = await sql`
+  const { rows: [record] } = await pool.query(`
     SELECT 
       SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
       SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
@@ -672,20 +703,20 @@ async function getPlayerStats(player) {
       SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END) as pending,
       COUNT(*) as total
     FROM picks
-    WHERE player = ?
-  `;
+    WHERE player = $1
+  `, [player]);
 
-  const { rows: [mostBetsFor] } = await sql`
+  const { rows: [mostBetsFor] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ?
+    WHERE p.player = $1
     GROUP BY p.selection_team
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: [mostBetsAgainst] } = await sql`
+  const { rows: [mostBetsAgainst] } = await pool.query(`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
       t.logo,
@@ -693,19 +724,19 @@ async function getPlayerStats(player) {
     FROM picks p
     JOIN games g ON p.game_id = g.id
     LEFT JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
-    WHERE p.player = ?
+    WHERE p.player = $1
     GROUP BY school, t.logo
     ORDER BY count DESC
     LIMIT 1
-  `;
+  `, [player]);
 
-  const { rows: recentResults } = await sql`
+  const { rows: recentResults } = await pool.query(`
     SELECT p.result
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.player = ? AND p.result IN ('win', 'loss', 'push')
+    WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push')
     ORDER BY g.commence_time ASC, g.id ASC -- Order chronologically for longest streak calculation
-  `;
+  `, [player]);
 
   let currentWinStreak = 0;
   let currentLossStreak = 0;
@@ -759,44 +790,44 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
   const params = [player, conference];
 
   if (timeRange === 'Week') {
-    timeFilter = 'AND p.week = ? AND g.season = ?';
+    timeFilter = 'AND p.week = $3 AND g.season = $4';
     params.push(week, season);
   } else if (timeRange === 'Season') {
-    timeFilter = 'AND g.season = ?';
+    timeFilter = 'AND g.season = $3';
     params.push(season);
   }
 
-  const { rows: [bestTeam] } = await sql.query(`
+  const { rows: [bestTeam] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as wins
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND t.conference = ? AND p.result = 'win' ${timeFilter}
+    WHERE p.player = $1 AND t.conference = $2 AND p.result = 'win' ${timeFilter}
     GROUP BY p.selection_team, t.logo
     ORDER BY wins DESC LIMIT 1
   `, params);
 
-  const { rows: [worstTeam] } = await sql.query(`
+  const { rows: [worstTeam] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as losses
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND t.conference = ? AND p.result = 'loss' ${timeFilter}
+    WHERE p.player = $1 AND t.conference = $2 AND p.result = 'loss' ${timeFilter}
     GROUP BY p.selection_team, t.logo
     ORDER BY losses DESC LIMIT 1
   `, params);
 
-  const { rows: [mostBetsFor] } = await sql.query(`
+  const { rows: [mostBetsFor] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+    WHERE p.player = $1 AND t.conference = $2 ${timeFilter}
     GROUP BY p.selection_team, t.logo
     ORDER BY count DESC LIMIT 1
   `, params);
 
-  const { rows: [mostBetsAgainst] } = await sql.query(`
+  const { rows: [mostBetsAgainst] } = await pool.query(`
     SELECT 
       CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
       t.logo,
@@ -804,12 +835,12 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
-    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+    WHERE p.player = $1 AND t.conference = $2 ${timeFilter}
     GROUP BY school, t.logo
     ORDER BY count DESC LIMIT 1
   `, params);
 
-  const { rows: schoolRecords } = await sql.query(`
+  const { rows: schoolRecords } = await pool.query(`
     SELECT 
       t.school,
       t.logo,
@@ -818,19 +849,19 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
       SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'push' THEN 1 ELSE 0 END) as pushes,
       COUNT(p.id) as total
     FROM teams t
-    LEFT JOIN picks p ON t.school = p.selection_team AND p.player = ?
-    LEFT JOIN games g ON p.game_id = g.id AND t.conference = ? ${timeFilter}
-    WHERE t.conference = ?
+    LEFT JOIN picks p ON t.school = p.selection_team AND p.player = $1
+    LEFT JOIN games g ON p.game_id = g.id AND t.conference = $2 ${timeFilter}
+    WHERE t.conference = $2
     GROUP BY t.school, t.logo
     ORDER BY wins DESC, total DESC
   `, [player, conference, conference, ...params.slice(2)]);
 
-  const { rows: [sosResult] } = await sql.query(`
+  const { rows: [sosResult] } = await pool.query(`
     SELECT AVG(ABS(p.spread)) as avgSpread
     FROM picks p
     JOIN games g ON p.game_id = g.id
     JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = ? AND t.conference = ? ${timeFilter}
+    WHERE p.player = $1 AND t.conference = $2 ${timeFilter}
   `, params);
 
   const strengthOfSchedule = sosResult?.avgSpread || 0;
@@ -840,21 +871,21 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
 
 async function updateGameLine(gameId, updates) {
   const { spread_home, spread_away, home_price, away_price } = updates;
-  await sql`
+  await pool.query(`
     UPDATE games SET 
-      spread_home = ${spread_home}, 
-      spread_away = ${spread_away}, 
-      home_price = ${home_price}, 
-      away_price = ${away_price}, 
-      updated_at = ${new Date().toISOString()} 
-    WHERE id = ${gameId}
-  `;
+      spread_home = $1, 
+      spread_away = $2, 
+      home_price = $3, 
+      away_price = $4, 
+      updated_at = $5 
+    WHERE id = $6
+  `, [spread_home, spread_away, home_price, away_price, new Date().toISOString(), gameId]);
   return await getGameById(gameId);
 }
 
 async function updatePick(pickId, updates) {
   const { selection_team, selection_side, spread } = updates;
-  const { rows: [pick] } = await sql`SELECT * FROM picks WHERE id = ${pickId}`;
+  const { rows: [pick] } = await pool.query('SELECT * FROM picks WHERE id = $1', [pickId]);
   if (!pick) {
     throw new Error(`Pick ${pickId} not found`);
   }
@@ -865,21 +896,39 @@ async function updatePick(pickId, updates) {
     spread: spread !== null ? spread : (selection_side === 'home' ? game.spread_home : game.spread_away)
   });
 
-  await sql`
+  await pool.query(`
     UPDATE picks SET 
-      selection_team = ${selection_team}, 
-      selection_side = ${selection_side}, 
-      spread = ${spread}, 
-      result = ${result}, 
-      updated_at = ${new Date().toISOString()} 
-    WHERE id = ${pickId}
-  `;
-  const { rows: [updatedPick] } = await sql`SELECT * FROM picks WHERE id = ${pickId}`;
+      selection_team = $1, 
+      selection_side = $2, 
+      spread = $3, 
+      result = $4, 
+      updated_at = $5 
+    WHERE id = $6
+  `, [selection_team, selection_side, spread, result, new Date().toISOString(), pickId]);
+  const { rows: [updatedPick] } = await pool.query('SELECT * FROM picks WHERE id = $1', [pickId]);
   return updatedPick;
 }
 
 async function updateTeamColor(teamId, color) {
-  await sql`UPDATE teams SET school_primary_color = ${color} WHERE id = ${teamId}`;
+  await pool.query('UPDATE teams SET school_primary_color = $1 WHERE id = $2', [color, teamId]);
+}
+
+async function getTeamMappings() {
+  const { rows } = await pool.query('SELECT id, api_name, team_id FROM team_mappings ORDER BY id');
+  return rows;
+}
+
+async function addTeamMapping(apiName, teamId) {
+  const { rows } = await pool.query(`
+    INSERT INTO team_mappings (api_name, team_id)
+    VALUES ($1, $2)
+    RETURNING id
+  `, [apiName, teamId]);
+  return rows[0];
+}
+
+async function deleteTeamMapping(id) {
+  await pool.query('DELETE FROM team_mappings WHERE id = $1', [id]);
 }
 
 module.exports = {
@@ -909,5 +958,8 @@ module.exports = {
   getWeekSummary,
   getSeasonSummary,
   getAllTimeSummary,
-  updateTeamColor
+  updateTeamColor,
+  getTeamMappings,
+  addTeamMapping,
+  deleteTeamMapping
 };

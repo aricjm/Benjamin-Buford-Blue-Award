@@ -20,37 +20,37 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/api/players', (req, res) => {
+app.get('/api/players', async (req, res) => {
   try {
-    const players = db.getPlayers();
+    const players = await db.getPlayers();
     res.json(players);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/teams', (req, res) => {
+app.get('/api/teams', async (req, res) => {
   try {
-    const teams = db.getTeams();
+    const teams = await db.getTeams();
     res.json(teams);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/seasons', (req, res) => {
+app.get('/api/seasons', async (req, res) => {
   try {
-    const seasons = db.getSeasons();
+    const seasons = await db.getSeasons();
     res.json(seasons);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/weeks', (req, res) => {
+app.get('/api/weeks', async (req, res) => {
   try {
     const season = getSeason(req);
-    const weeks = db.getWeeks(season);
+    const weeks = await db.getWeeks(season);
     res.json(weeks);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -61,14 +61,14 @@ app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    let games = db.getWeekGames(week, season);
+    let games = await db.getWeekGames(week, season);
     if (!games.length) {
       const gamesFromApi = await api.fetchWeekGames(week, season);
-      db.saveGamesForWeek(week, gamesFromApi, season);
-      games = db.getWeekGames(week, season);
+      await db.saveGamesForWeek(week, gamesFromApi, season);
+      games = await db.getWeekGames(week, season);
     }
-    const picks = db.getPicksByWeek(week, season);
-    const summary = db.getWeekSummary(week, season);
+    const picks = await db.getPicksByWeek(week, season);
+    const summary = await db.getWeekSummary(week, season);
     res.json({ games, picks, summary });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -142,7 +142,7 @@ app.post('/api/week/:week/sync', async (req, res) => {
     const week = Number(req.params.week);
     const season = getSeason(req);
     const games = await api.fetchWeekGames(week, season);
-    const updatedCount = db.saveGamesForWeek(week, games, season);
+    const updatedCount = await db.saveGamesForWeek(week, games, season);
     res.json({ updatedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
