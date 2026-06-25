@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Player {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  @@map("players")
+}
+
+model Team {
+  id                  Int    @id @default(autoincrement())
+  school              String @unique
+  nickname            String?
+  conference          String?
+  logo                String?
+  school_primary_color String?
+  stadium_name        String?
+  stadium_city        String?
+  stadium_state       String?
+
+  @@map("teams")
+}
+
+model Week {
+  id        Int    @id @default(autoincrement())
+  week      Int
+  season    String
+  label     String?
+  starts_on String?
+  ends_on   String?
+
+  @@unique([season, week])
+  @@map("weeks")
+}
+
+model Game {
+  id            Int      @id @default(autoincrement())
+  api_game_id   String   @unique
+  week          Int?
+  season        String?
+  commence_time String?
+  home_team     String?
+  away_team     String?
+  site          String?
+  is_televised  Boolean  @default(false)
+  is_mandatory  Boolean  @default(false)
+  spread_home   Float?
+  spread_away   Float?
+  home_price    Float?
+  away_price    Float?
+  score_home    Int?
+  score_away    Int?
+  completed     Boolean  @default(false)
+  updated_at    String?
+
+  @@map("games")
+}
+
+model Pick {
+  id              Int      @id @default(autoincrement())
+  week            Int?
+  player          String?
+  game_id         Int?
+  selection_team  String?
+  selection_side  String?
+  spread          Float?
+  is_mandatory    Boolean  @default(false)
+  result          String   @default("pending")
+  picked_at       String?
+  updated_at      String?
+
+  @@unique([week, player, game_id])
+  @@map("picks")
+}
