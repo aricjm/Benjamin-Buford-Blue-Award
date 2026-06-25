@@ -6,6 +6,9 @@
   "engines": {
     "node": "24.x"
   },
+  "overrides": {
+    "rollup": "3.29.5"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,6 +20,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.2"
+    "vite": "^4.5.0"
   }
 }
