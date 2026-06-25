@@ -10,7 +10,7 @@ const StatsPage = ({
   setStatsTimeRange, 
   conferenceStats 
 }) => {
-  if (!playerStats) return null;
+  if (!playerStats || !playerStats.record) return null;
 
   return (
     <section className="panel stats-panel">

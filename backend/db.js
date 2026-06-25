@@ -144,9 +144,9 @@ async function seedTeams() {
     const name = school.toLowerCase()
       .replace(/\(fl\)/g, 'fl')
       .replace(/\(oh\)/g, 'oh')
-      .replace(/[^a-z0-9 ]/g, '') // remove special chars like & or '
+      .replace(/[^a-z0-9 ]/g, '')
       .trim()
-      .replace(/\s+/g, '-');      // replace spaces with hyphens
+      .replace(/\s+/g, '-');
     return `/logos/${name}.png`;
   };
   const teams = [
@@ -244,7 +244,7 @@ async function seedTeams() {
     { school: 'Boise State', nickname: 'Broncos', conference: 'Mountain West', logo: toLogo('Boise State'), school_primary_color: '#0033A0', stadium_name: 'Albertsons Stadium', stadium_city: 'Boise', stadium_state: 'Idaho' },
     { school: 'Colorado State', nickname: 'Rams', conference: 'Mountain West', logo: toLogo('Colorado State'), school_primary_color: '#1E4D2B', stadium_name: 'Canvas Stadium', stadium_city: 'Fort Collins', stadium_state: 'Colorado' },
     { school: 'Fresno State', nickname: 'Bulldogs', conference: 'Mountain West', logo: toLogo('Fresno State'), school_primary_color: '#C41230', stadium_name: 'Valley Children’s Stadium', stadium_city: 'Fresno', stadium_state: 'California' },
-    { school: 'Hawai\u02BBi', nickname: 'Rainbow Warriors', conference: 'Mountain West', logo: toLogo('Hawaii'), school_primary_color: '#024731', stadium_name: 'Clarence T. C. Ching Athletics Complex', stadium_city: 'Honolulu', stadium_state: 'Hawaii' },
+    { school: 'Hawaiʻi', nickname: 'Rainbow Warriors', conference: 'Mountain West', logo: toLogo('Hawaii'), school_primary_color: '#024731', stadium_name: 'Clarence T. C. Ching Athletics Complex', stadium_city: 'Honolulu', stadium_state: 'Hawaii' },
     { school: 'Nevada', nickname: 'Wolf Pack', conference: 'Mountain West', logo: toLogo('Nevada'), school_primary_color: '#003366', stadium_name: 'Mackay Stadium', stadium_city: 'Reno', stadium_state: 'Nevada' },
     { school: 'New Mexico', nickname: 'Lobos', conference: 'Mountain West', logo: toLogo('New Mexico'), school_primary_color: '#BA0C2F', stadium_name: 'University Stadium', stadium_city: 'Albuquerque', stadium_state: 'New Mexico' },
     { school: 'San Diego State', nickname: 'Aztecs', conference: 'Mountain West', logo: toLogo('San Diego State'), school_primary_color: '#A6192E', stadium_name: 'Snapdragon Stadium', stadium_city: 'San Diego', stadium_state: 'California' },
@@ -266,7 +266,7 @@ async function seedTeams() {
     { school: 'South Carolina', nickname: 'Gamecocks', conference: 'SEC', logo: toLogo('South Carolina'), school_primary_color: '#73000A', stadium_name: 'Williams–Brice Stadium', stadium_city: 'Columbia', stadium_state: 'South Carolina' },
     { school: 'Tennessee', nickname: 'Volunteers', conference: 'SEC', logo: toLogo('Tennessee'), school_primary_color: '#FF8200', stadium_name: 'Neyland Stadium', stadium_city: 'Knoxville', stadium_state: 'Tennessee' },
     { school: 'Texas', nickname: 'Longhorns', conference: 'SEC', logo: toLogo('Texas'), school_primary_color: '#BF5700', stadium_name: 'Darrell K Royal–Texas Memorial Stadium', stadium_city: 'Austin', stadium_state: 'Texas' },
-    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC', logo: toLogo('Texas AM'), school_primary_color: '#500000', stadium_name: 'Kyle Field', stadium_city: 'College Station', stadium_state: 'Texas' },
+    { school: 'Texas A&M', nickname: 'Aggies', conference: 'SEC', logo: toLogo('Texas A&M'), school_primary_color: '#500000', stadium_name: 'Kyle Field', stadium_city: 'College Station', stadium_state: 'Texas' },
     { school: 'Vanderbilt', nickname: 'Commodores', conference: 'SEC', logo: toLogo('Vanderbilt'), school_primary_color: '#000000', stadium_name: 'FirstBank Stadium', stadium_city: 'Nashville', stadium_state: 'Tennessee' },
     { school: 'Appalachian State', nickname: 'Mountaineers', conference: 'Sun Belt', logo: toLogo('Appalachian State'), school_primary_color: '#222222', stadium_name: 'Kidd Brewer Stadium', stadium_city: 'Boone', stadium_state: 'North Carolina' },
     { school: 'Arkansas State', nickname: 'Red Wolves', conference: 'Sun Belt', logo: toLogo('Arkansas State'), school_primary_color: '#CC092F', stadium_name: 'Centennial Bank Stadium', stadium_city: 'Jonesboro', stadium_state: 'Arkansas' },
@@ -426,7 +426,7 @@ async function upsertGame(game) {
       is_televised, is_mandatory, spread_home, spread_away, home_price, away_price,
       score_home, score_away, completed, updated_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
     ) RETURNING id
   `, [game.api_game_id, game.week, game.season, game.commence_time, game.home_team, game.away_team, game.site,
       game.is_televised ? 1 : 0, game.is_mandatory ? 1 : 0, game.spread_home, game.spread_away,
@@ -680,7 +680,7 @@ async function getPlayerStats(player) {
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
     WHERE p.player = $1 AND p.result = 'win'
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY count DESC
     LIMIT 1
   `, [player]);
@@ -690,28 +690,30 @@ async function getPlayerStats(player) {
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
     WHERE p.player = $1 AND p.result = 'loss'
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY count DESC
     LIMIT 1
   `, [player]);
 
   const { rows: [record] } = await pool.query(`
     SELECT 
-      SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
-      SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-      SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) as pushes,
-      SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END) as pending,
+      COALESCE(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
+      COALESCE(SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
       COUNT(*) as total
     FROM picks
     WHERE player = $1
   `, [player]);
+
+  const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
 
   const { rows: [mostBetsFor] } = await pool.query(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
     FROM picks p
     LEFT JOIN teams t ON p.selection_team = t.school
     WHERE p.player = $1
-    GROUP BY p.selection_team
+    GROUP BY p.selection_team, t.logo
     ORDER BY count DESC
     LIMIT 1
   `, [player]);
@@ -725,7 +727,7 @@ async function getPlayerStats(player) {
     JOIN games g ON p.game_id = g.id
     LEFT JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
     WHERE p.player = $1
-    GROUP BY school, t.logo
+    GROUP BY school, t.logo, p.selection_side, g.away_team, g.home_team
     ORDER BY count DESC
     LIMIT 1
   `, [player]);
@@ -735,7 +737,7 @@ async function getPlayerStats(player) {
     FROM picks p
     JOIN games g ON p.game_id = g.id
     WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push')
-    ORDER BY g.commence_time ASC, g.id ASC -- Order chronologically for longest streak calculation
+    ORDER BY g.commence_time ASC, g.id ASC
   `, [player]);
 
   let currentWinStreak = 0;
@@ -782,7 +784,7 @@ async function getPlayerStats(player) {
     })
     .join('-');
 
-  return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form };
+  return { favConf, bestConf, worstConf, topWinSchool, topLossSchool, record: safeRecord, trend, mostBetsFor, mostBetsAgainst, currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form };
 }
 
 async function getConferenceStats(player, conference, timeRange, week, season) {
