@@ -10,8 +10,9 @@ import ButtonsPage from './components/ButtonsPage';
 import LeaderboardPage from './components/LeaderboardPage';
 import ManualGamePage from './components/ManualGamePage';
 
-// Import Custom Hook
+// Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
+import useIsMobile from './hooks/useIsMobile';
 
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 
@@ -37,7 +38,8 @@ function App() {
     return saved === 'true';
   });
 
-  // Consume the custom hook
+  // Consume the custom hooks
+  const isMobile = useIsMobile();
   const {
     players, seasons, weeks, teams, games, picks,
     summary, seasonSummary, allTimeSummary,
@@ -106,26 +108,27 @@ function App() {
       return;
     }
 
+    //TODO: Add mandatory games back? 
     // Filter for mandatory games from the combined list for validation
-    const allMandatoryGames = pickGames.filter(game => game.is_mandatory || game.is_televised);
+    // const allMandatoryGames = pickGames.filter(game => game.is_mandatory || game.is_televised);
 
-    const mandatoryGamesToPick = allMandatoryGames.filter(game => !isGameLocked(game));
-    const mandatoryGamesAlreadyLockedWithoutPick = allMandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
+    // const mandatoryGamesToPick = allMandatoryGames.filter(game => !isGameLocked(game));
+    // const mandatoryGamesAlreadyLockedWithoutPick = allMandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
 
-    if (mandatoryGamesAlreadyLockedWithoutPick.length > 0) {
-      setMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
-      setAlertMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
-      setShowAlertModal(true);
-      return;
-    }
+    // if (mandatoryGamesAlreadyLockedWithoutPick.length > 0) {
+    //   setMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
+    //   setAlertMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
+    //   setShowAlertModal(true);
+    //   return;
+    // }
 
-    const missingMandatoryPicks = mandatoryGamesToPick.filter(game => !picks[game.id]);
-    if (missingMandatoryPicks.length > 0) {
-      setMessage('Please make a selection for all mandatory televised games.');
-      setAlertMessage('Please make a selection for all mandatory televised games.');
-      setShowAlertModal(true);
-      return;
-    }
+    // const missingMandatoryPicks = mandatoryGamesToPick.filter(game => !picks[game.id]);
+    // if (missingMandatoryPicks.length > 0) {
+    //   setMessage('Please make a selection for all mandatory televised games.');
+    //   setAlertMessage('Please make a selection for all mandatory televised games.');
+    //   setShowAlertModal(true);
+    //   return;
+    // }
 
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam);
     if (!playerPicks.length) {
@@ -183,7 +186,7 @@ function App() {
       <header className="page-header">
         <div>
           <h1 className="image-title">
-            <img src={logo} alt="Benjamin Buford Blue Award" />
+            {isMobile ? 'BBB Award' : <img src={logo} alt="Benjamin Buford Blue Award" />}
           </h1>
         </div>
         <button
