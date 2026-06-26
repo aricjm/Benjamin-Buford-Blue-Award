@@ -239,6 +239,8 @@ const PicksPage = ({
                     >
                       {game.away_logo ? (
                         <img src={game.away_logo} alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                      ) : isMobile ? (
+                        <img src="/logos/iowa.png" alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
                       ) : (
                         game.away_team
                       )}
@@ -262,6 +264,8 @@ const PicksPage = ({
                     >
                       {game.home_logo ? (
                         <img src={game.home_logo} alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                      ) : isMobile ? (
+                        <img src="/logos/iowa.png" alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
                       ) : (
                         game.home_team
                       )}
