@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useIsMobile from '../hooks/useIsMobile';
 
 const formatSpread = (game, team) => {
   const spread = team === game.home_team ? game.spread_home : game.spread_away;
@@ -170,6 +171,7 @@ const PicksPage = ({
   selectedWeek
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const isMobile = useIsMobile();
 
   const filteredGames = pickGames.filter((game) => {
     const term = searchTerm.toLowerCase();
@@ -214,7 +216,7 @@ const PicksPage = ({
 
               return (
                 <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}
-                   style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px', alignItems: 'start' }}>
+                   style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px', padding: '20px', alignItems: 'start' }}>
                 
                 {/* Left Column: Toggle and Game Info */}
                 <div className="pick-interface">
