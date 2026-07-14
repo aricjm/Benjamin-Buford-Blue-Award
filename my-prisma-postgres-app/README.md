@@ -2,17 +2,19 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Local startup:
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\backend: npm start  OR npm run debug
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\frontend: npm run dev
+
+http://localhost:5173/
+
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\my-prisma-postgres-app
+npx prisma studio
+
+
+
+
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

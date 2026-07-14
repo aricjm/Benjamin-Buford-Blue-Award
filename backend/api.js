@@ -1,70 +1,69 @@
 const { getWeekNumberFromDate, getSeasonFromDate } = require('./utils');
+const axios = require('axios');
 
-const API_KEY = process.env.ODDS_API_KEY;
-const BASE_URL = 'https://api.the-odds-api.com/v4';
-const SPORT_KEY = 'americanfootball_ncaaf';
+const BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/college-football';
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 
 async function fetchJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    const payload = await response.text();
-    throw new Error(`Odds API error ${response.status}: ${payload}`);
+  try {
+    const response = await axios.get(url);
+    return response.data;
+  } catch (error) {
+    throw new Error(`ESPN API error: ${error.message}`);
   }
-  return response.json();
-}
-
-function parseMarketSpreads(event) {
-  const firstBookmaker = event.bookmakers?.[0];
-  if (!firstBookmaker) return {};
-  const spreadMarket = firstBookmaker.markets?.find((market) => market.key === 'spreads');
-  if (!spreadMarket) return {};
-
-  const homeOutcome = spreadMarket.outcomes.find((item) => item.name === event.home_team);
-  const awayOutcome = spreadMarket.outcomes.find((item) => item.name === event.away_team);
-
-  return {
-    spread_home: homeOutcome?.point ?? null,
-    spread_away: awayOutcome?.point ?? null,
-    home_price: homeOutcome?.price ?? null,
-    away_price: awayOutcome?.price ?? null
-  };
 }
 
 function mapGame(event) {
-  const week = getWeekNumberFromDate(event.commence_time);
-  const season = getSeasonFromDate(event.commence_time) || DEFAULT_SEASON;
-  const spreads = parseMarketSpreads(event);
+  const competition = event.competitions[0];
+  const homeCompetitor = competition.competitors.find(c => c.homeAway === 'home');
+  const awayCompetitor = competition.competitors.find(c => c.homeAway === 'away');
+
+  const odds = competition.odds?.[0] || {};
+  const spread = odds.details ? parseFloat(odds.details.split(' ')[1]) : null;
+
+  let spread_home = null;
+  let spread_away = null;
+
+  if (spread !== null && !isNaN(spread)) {
+      if (odds.favorite?.homeAway === 'home') {
+          spread_home = spread;
+          spread_away = -spread;
+      } else if (odds.favorite?.homeAway === 'away') {
+          spread_away = spread;
+          spread_home = -spread;
+      }
+  }
+
   return {
     api_game_id: event.id,
-    week,
-    season,
-    commence_time: event.commence_time,
-    home_team: event.home_team,
-    away_team: event.away_team,
-    site: event.bookmakers?.[0]?.title || 'N/A',
-    is_televised: 0,
+    week: event.week.number,
+    season: event.season.year.toString(),
+    commence_time: event.date,
+    home_team: homeCompetitor.team.displayName,
+    away_team: awayCompetitor.team.displayName,
+    site: competition.venue?.fullName || 'N/A',
+    is_televised: competition.broadcasts?.length > 0 ? 1 : 0,
     is_mandatory: 0,
-    spread_home: spreads.spread_home,
-    spread_away: spreads.spread_away,
-    home_price: spreads.home_price,
-    away_price: spreads.away_price,
-    score_home: null,
-    score_away: null,
-    completed: false
+    spread_home,
+    spread_away,
+    home_price: null,
+    away_price: null,
+    score_home: homeCompetitor.score ? parseInt(homeCompetitor.score) : null,
+    score_away: awayCompetitor.score ? parseInt(awayCompetitor.score) : null,
+    completed: event.status.type.completed
   };
 }
 
 function mapScore(event) {
-  const scores = event.scores || [];
-  const homeScore = scores.find((item) => item.name === event.home_team)?.score;
-  const awayScore = scores.find((item) => item.name === event.away_team)?.score;
+  const competition = event.competitions[0];
+  const homeCompetitor = competition.competitors.find(c => c.homeAway === 'home');
+  const awayCompetitor = competition.competitors.find(c => c.homeAway === 'away');
 
   return {
     api_game_id: event.id,
-    score_home: homeScore ?? null,
-    score_away: awayScore ?? null,
-    completed: event.completed === true
+    score_home: homeCompetitor.score ? parseInt(homeCompetitor.score) : null,
+    score_away: awayCompetitor.score ? parseInt(awayCompetitor.score) : null,
+    completed: event.status.type.completed
   };
 }
 
@@ -77,15 +76,17 @@ function shuffle(array) {
   return copied;
 }
 
-async function fetchSeasonGames() {
-  const url = `${BASE_URL}/sports/${SPORT_KEY}/odds/?regions=us&markets=spreads&oddsFormat=american&dateFormat=iso&apiKey=${API_KEY}`;
+async function fetchSeasonGames(season = DEFAULT_SEASON) {
+  const url = `${BASE_URL}/scoreboard`;
   const data = await fetchJson(url);
-  return data.map(mapGame).filter((game) => game.week !== null);
+  return data.events.map(mapGame);
 }
 
 async function fetchWeekGames(week, season = DEFAULT_SEASON) {
-  const games = await fetchSeasonGames();
-  const weekGames = games.filter((game) => game.week === week && game.season === season);
+  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}`;
+  const data = await fetchJson(url);
+  const weekGames = data.events.map(mapGame);
+
   const selectedCount = Math.min(5, weekGames.length);
   const indices = shuffle([...Array(weekGames.length).keys()]).slice(0, selectedCount);
   const televisedSet = new Set(indices);
@@ -96,14 +97,40 @@ async function fetchWeekGames(week, season = DEFAULT_SEASON) {
   }));
 }
 
-async function fetchSeasonScores() {
-  const url = `${BASE_URL}/sports/${SPORT_KEY}/scores/?apiKey=${API_KEY}`;
+async function fetchSeasonScores(season = DEFAULT_SEASON) {
+  const url = `${BASE_URL}/scoreboard`;
   const data = await fetchJson(url);
-  return data.map(mapScore);
+  return data.events.map(mapScore);
+}
+
+async function fetchInjuries() {
+  const url = `${BASE_URL}/injuries`;
+  const data = await fetchJson(url);
+
+  const allInjuries = [];
+  if (data.injuries && Array.isArray(data.injuries)) {
+    for (const team of data.injuries) {
+      if (team.injuries && Array.isArray(team.injuries)) {
+        for (const injury of team.injuries) {
+          allInjuries.push({
+            team_id: team.id,
+            team_name: team.displayName,
+            player_name: injury.athlete?.displayName || 'Unknown',
+            status: injury.status,
+            date: injury.date,
+            short_comment: injury.shortComment,
+            long_comment: injury.longComment
+          });
+        }
+      }
+    }
+  }
+  return allInjuries;
 }
 
 module.exports = {
   fetchSeasonGames,
   fetchWeekGames,
-  fetchSeasonScores
+  fetchSeasonScores,
+  fetchInjuries
 };

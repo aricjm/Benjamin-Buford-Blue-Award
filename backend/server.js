@@ -283,6 +283,15 @@ app.get('/api/summary/alltime', async (req, res) => {
   }
 });
 
+app.get('/api/injuries', async (req, res) => {
+  try {
+    const injuries = await api.fetchInjuries();
+    res.json(injuries);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 (async () => {
   if (process.env.VERCEL !== '1') {
     try {
