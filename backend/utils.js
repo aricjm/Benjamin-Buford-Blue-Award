@@ -93,9 +93,26 @@ function determinePickResult(game, pick) {
   return selectedSide === winner ? 'win' : 'loss';
 }
 
+function determineTotalResult(game, pick) {
+  if (!game.completed || game.score_home === null || game.score_away === null) {
+    return 'pending';
+  }
+  if (!pick || !pick.selection_total) {
+    return 'pending';
+  }
+
+  const totalScore = Number(game.score_home) + Number(game.score_away);
+  const line = Number(pick.total_line ?? game.over_under ?? 0);
+
+  if (totalScore > line) return pick.selection_total === 'over' ? 'win' : 'loss';
+  if (totalScore < line) return pick.selection_total === 'under' ? 'win' : 'loss';
+  return 'push';
+}
+
 module.exports = {
   buildSeasonWeeks,
   getWeekNumberFromDate,
   getSeasonFromDate,
-  determinePickResult
+  determinePickResult,
+  determineTotalResult
 };

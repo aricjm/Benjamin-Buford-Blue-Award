@@ -2,6 +2,23 @@
 
 A full stack college football betting tracker for you, Nick, and Cisco. This app stores weekly picks, mandatory televised games, optional games, and automatically updates scores and bet results using The Odds API.
 
+Blue: #1F1F75
+Red: #EF3037
+Shrimp: #E8979F
+
+Local startup:
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\backend: npm start  OR npm run debug
+
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\frontend: npm run dev
+
+http://localhost:5173/
+
+C:\ProgramData\Development\Benjamin-Buford-Blue-Award\my-prisma-postgres-app
+npx prisma studio
+
+
+
+
 ## Stack
 - Backend: Node.js + Express
 - Database: SQLite for local/dev

@@ -1,0 +1,1 @@
+﻿require("dotenv").config(); const { Pool } = require("pg"); const pool = new Pool({ connectionString: process.env.POSTGRES_URL, ssl: { rejectUnauthorized: false } }); pool.query("SELECT id, home_team, away_team, over_under FROM games WHERE over_under IS NOT NULL LIMIT 5").then(res => { console.table(res.rows); pool.end(); });

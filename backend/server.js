@@ -61,12 +61,10 @@ app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    let games = await db.getWeekGames(week, season);
-    if (!games.length) {
-      const gamesFromApi = await api.fetchWeekGames(week, season);
-      await db.saveGamesForWeek(week, gamesFromApi, season);
-      games = await db.getWeekGames(week, season);
-    }
+    // Always fetch from the API to get the latest odds and scores
+    const gamesFromApi = await api.fetchWeekGames(week, season);
+    await db.saveGamesForWeek(week, gamesFromApi, season);
+    const games = await db.getWeekGames(week, season);
     const picks = await db.getPicksByWeek(week, season);
     const summary = await db.getWeekSummary(week, season);
     res.json({ games, picks, summary });
@@ -250,6 +248,21 @@ app.get('/api/season/:season/summary', async (req, res) => {
     const season = String(req.params.season);
     const summary = await db.getSeasonSummary(season);
     res.json(summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/leaders', async (req, res) => {
+  try {
+    const players = await db.getPlayers();
+    const allStats = await Promise.all(
+      players.map(async (p) => {
+        const stats = await db.getPlayerStats(p.name);
+        return { player: p.name, ...stats };
+      })
+    );
+    res.json(allStats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

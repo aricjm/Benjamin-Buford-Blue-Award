@@ -16,10 +16,13 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
   const [message, setMessage] = useState('');
   const [playerStats, setPlayerStats] = useState(null);
   const [conferenceStats, setConferenceStats] = useState(null);
+  const [allPlayerStats, setAllPlayerStats] = useState([]);
 
   // Action functions
   const loadStats = useCallback(async (player) => {
     if (!player) return;
+    setPlayerStats(null);
+    setConferenceStats(null);
     try {
       const res = await fetch(`/api/stats/${player}`);
       const data = await res.json();
@@ -47,6 +50,8 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
               selectionTeam: p.selection_team,
               selectionSide: p.selection_side,
               spread: p.spread,
+              selectionTotal: p.selection_total,
+              totalLine: p.total_line,
               isMandatory: !!p.is_mandatory
             };
           }
@@ -80,14 +85,16 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     async function loadMeta() {
       setLoading(true);
       try {
-        const [playersRes, seasonsRes, teamsRes] = await Promise.all([
+        const [playersRes, seasonsRes, teamsRes, leadersRes] = await Promise.all([
           fetch('/api/players'),
           fetch('/api/seasons'),
-          fetch('/api/teams')
+          fetch('/api/teams'),
+          fetch('/api/stats/leaders')
         ]);
         setPlayers(await playersRes.json());
         setSeasons(await seasonsRes.json());
         setTeams(await teamsRes.json());
+        setAllPlayerStats(await leadersRes.json());
       } catch (error) {
         setMessage('Unable to load initial metadata.');
       } finally {
@@ -140,19 +147,49 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
   const handlePickChange = (game, team) => {
     setPicks((prev) => {
       const key = game.id;
+      const existing = prev[key] || { gameId: game.id, isMandatory: game.is_mandatory };
+      
       if (!team) {
-        const next = { ...prev };
-        delete next[key];
-        return next;
+        if (!existing.selectionTotal) {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: { ...existing, selectionTeam: null, selectionSide: null, spread: null } };
       }
+      
       return {
         ...prev,
         [key]: {
-          gameId: game.id,
+          ...existing,
           selectionTeam: team,
           selectionSide: team === game.home_team ? 'home' : 'away',
-          spread: team === game.home_team ? game.spread_home : game.spread_away,
-          isMandatory: game.is_mandatory
+          spread: team === game.home_team ? game.spread_home : game.spread_away
+        }
+      };
+    });
+  };
+
+  const handleTotalChange = (game, totalPick) => {
+    setPicks((prev) => {
+      const key = game.id;
+      const existing = prev[key] || { gameId: game.id, isMandatory: game.is_mandatory };
+      
+      if (!totalPick) {
+        if (!existing.selectionTeam) {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: { ...existing, selectionTotal: null, totalLine: null } };
+      }
+      
+      return {
+        ...prev,
+        [key]: {
+          ...existing,
+          selectionTotal: totalPick,
+          totalLine: game.over_under
         }
       };
     });
@@ -194,11 +231,13 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     message,
     playerStats,
     conferenceStats,
+    allPlayerStats,
     setLoading,
     setMessage,
     loadStats,
     loadWeek,
     handlePickChange,
+    handleTotalChange,
     addManualGame,
     savePicks: async (playerPicks) => {
         setLoading(true);

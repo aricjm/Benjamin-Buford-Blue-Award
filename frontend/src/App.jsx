@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import logo from "./resources/images/benjamin_buford_blue_award_emblem_8.png";
+import logo from "./resources/images/benjamin_buford_blue_award_cutout.png";
 
 // Import Sub-Components
 import Sidebar from './components/Sidebar';
@@ -43,9 +43,9 @@ function App() {
   const {
     players, seasons, weeks, teams, games, picks,
     summary, seasonSummary, allTimeSummary,
-    loading, message, playerStats, conferenceStats,
+    loading, message, playerStats, conferenceStats, allPlayerStats,
     setLoading, setMessage, loadStats, loadWeek, 
-    handlePickChange, addManualGame, savePicks
+    handlePickChange, handleTotalChange, addManualGame, savePicks
   } = useBetData(selectedSeason, selectedWeek, selectedPlayer, selectedConference, statsTimeRange);
 
   const handlePageChange = (page) => {
@@ -83,14 +83,7 @@ function App() {
   // Combine mandatory and optional games into one list and deduplicate by ID
   const pickGames = games
     .filter((g, idx, arr) => idx === arr.findIndex(t => t.id === g.id))
-    .sort((a, b) => {
-      // Sort: Mandatory/Televised first, then by commence time
-      const aMandatory = a.is_mandatory || a.is_televised;
-      const bMandatory = b.is_mandatory || b.is_televised;
-      if (aMandatory && !bMandatory) return -1;
-      if (!aMandatory && bMandatory) return 1;
-      return new Date(a.commence_time) - new Date(b.commence_time);
-    });
+    .sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
 
   const isSummaryPage = activePage === 'summary';
   const isManualPage = activePage === 'manual';
@@ -145,7 +138,7 @@ function App() {
   // perform the actual save after confirmation
   const performSave = async () => {
     setShowConfirmSave(false);
-    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam);
+    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
     
     try {
       const result = await savePicks(playerPicks);
@@ -331,11 +324,12 @@ function App() {
           </section>
 
           {message && <div className="message">{message}</div>}
-          {loading && <div className="loading">Loading...</div>}
 
           {isStatsPage && (
             <StatsPage 
+              players={players}
               selectedPlayer={selectedPlayer}
+              setSelectedPlayer={setSelectedPlayer}
               playerStats={playerStats}
               selectedConference={selectedConference}
               setSelectedConference={setSelectedConference}
@@ -343,6 +337,7 @@ function App() {
               statsTimeRange={statsTimeRange}
               setStatsTimeRange={setStatsTimeRange}
               conferenceStats={conferenceStats}
+              allPlayerStats={allPlayerStats}
             />
           )}
 
@@ -365,11 +360,13 @@ function App() {
               pickGames={pickGames}
               picks={picks}
               handlePickChange={handlePickChange}
+              handleTotalChange={handleTotalChange}
               isGameLocked={isGameLocked}
               isGameLive={isGameLive}
               handleSubmit={handleSubmit}
               loading={loading}
               selectedWeek={selectedWeek}
+              teams={teams}
             />
           )}
 

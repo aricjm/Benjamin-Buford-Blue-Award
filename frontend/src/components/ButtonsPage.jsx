@@ -1,7 +1,23 @@
 import { useState } from 'react';
+import * as Lucide from 'lucide-react';
 
 function ButtonsPage() {
   const [selectedMeal, setSelectedMeal] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filter out non-component exports from lucide-react
+  // Lucide icons are typically functions (functional components) or forwardRef objects.
+  // We also want to exclude helper functions like `createLucideIcon` or context objects.
+  const iconNames = Object.keys(Lucide).filter(
+    (key) =>
+      /^[A-Z]/.test(key) && // Icon components start with an uppercase letter
+      typeof Lucide[key] === 'object' && 
+      Lucide[key].displayName // Lucide components have a displayName property
+  );
+
+  const filteredIcons = iconNames.filter((name) =>
+    name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <section className="panel buttons-panel">
@@ -109,6 +125,62 @@ function ButtonsPage() {
             />
           </div>
           <p className="switch-label">Selected: {selectedMeal || 'Neither'}</p>
+        </div>
+      </div>
+
+      <div className="control-card" style={{ marginTop: '2rem' }}>
+        <h3>Lucide Icons Reference</h3>
+        <div style={{ marginBottom: '1rem' }}>
+          <input
+            type="text"
+            placeholder="Search icons..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+              fontSize: '1rem'
+            }}
+          />
+        </div>
+        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd', background: '#f9f9f9' }}>
+                <th style={{ padding: '0.75rem' }}>Icon</th>
+                <th style={{ padding: '0.75rem' }}>Name</th>
+                <th style={{ padding: '0.75rem' }}>Usage Code</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredIcons.map((name) => {
+                const IconComponent = Lucide[name];
+                // Double check that it's a valid component before rendering
+                if (!IconComponent || typeof IconComponent === 'string') return null;
+                
+                return (
+                  <tr key={name} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '0.75rem' }}>
+                      <IconComponent size={24} />
+                    </td>
+                    <td style={{ padding: '0.75rem', fontWeight: 'bold' }}>{name}</td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <code>{`import { ${name} } from 'lucide-react';\n\n<${name} />`}</code>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredIcons.length === 0 && (
+                <tr>
+                  <td colSpan="3" style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>
+                    No icons found matching "{searchTerm}"
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

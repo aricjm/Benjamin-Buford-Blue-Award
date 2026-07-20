@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
 const formatSpread = (game, team) => {
@@ -49,6 +50,36 @@ const CountdownTimer = ({ commenceTime }) => {
   return <span className="countdown-timer" style={{ marginLeft: '10px', fontSize: '0.85em', color: '#ffcc00', fontWeight: 'bold' }}>({timeLeft})</span>;
 };
 
+const getWeatherIcon = (code, size = 28) => {
+  const props = { size, strokeWidth: 1.5 };
+  if (code === 0) return <Sun {...props} color="#FFD700" />;
+  if (code <= 2) return <Sun {...props} color="#FFD700" style={{ opacity: 0.7 }} />;
+  if (code === 3) return <Cloud {...props} color="#aaa" />;
+  if (code === 45 || code === 48) return <CloudFog {...props} color="#aaa" />;
+  if (code >= 51 && code <= 55) return <CloudDrizzle {...props} color="#7ec8e3" />;
+  if (code >= 61 && code <= 65) return <CloudRain {...props} color="#7ec8e3" />;
+  if (code >= 66 && code <= 67) return <CloudHail {...props} color="#b0d4e8" />;
+  if (code >= 71 && code <= 77) return <CloudSnow {...props} color="#c8e6f5" />;
+  if (code >= 80 && code <= 82) return <CloudRain {...props} color="#7ec8e3" />;
+  if (code >= 85 && code <= 86) return <CloudSnow {...props} color="#c8e6f5" />;
+  if (code >= 95) return <CloudLightning {...props} color="#FFD700" />;
+  return <Cloud {...props} color="#aaa" />;
+};
+
+const getWeatherLabel = (code) => {
+  if (code === 0) return 'Clear';
+  if (code <= 3) return 'Partly Cloudy';
+  if (code === 45 || code === 48) return 'Foggy';
+  if (code >= 51 && code <= 55) return 'Drizzle';
+  if (code >= 61 && code <= 65) return 'Rain';
+  if (code >= 66 && code <= 67) return 'Freezing Rain';
+  if (code >= 71 && code <= 77) return 'Snow';
+  if (code >= 80 && code <= 82) return 'Showers';
+  if (code >= 85 && code <= 86) return 'Snow Showers';
+  if (code >= 95) return 'Thunderstorms';
+  return 'Cloudy';
+};
+
 const GameIntel = ({ game }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -57,20 +88,39 @@ const GameIntel = ({ game }) => {
     const fetchWeather = async () => {
       const kickoff = new Date(game.commence_time);
       const now = new Date();
-      // Open-Meteo forecast is available for ~14 days.
       const daysUntil = (kickoff - now) / (1000 * 60 * 60 * 24);
 
       if (daysUntil > 14 || daysUntil < -1) {
-        setWeather({ unavailable: true, reason: daysUntil < 0 ? 'Game Finished' : 'Forecast N/A' });
+        // Mock weather for past/far-future games so the UI is visible during development
+        const mockOptions = [
+          { temp: 87, code: 0,  wind: 6,  precip: 5  },
+          { temp: 74, code: 2,  wind: 11, precip: 20 },
+          { temp: 91, code: 1,  wind: 4,  precip: 0  },
+          { temp: 68, code: 61, wind: 14, precip: 75 },
+          { temp: 82, code: 3,  wind: 9,  precip: 30 },
+          { temp: 95, code: 0,  wind: 3,  precip: 0  },
+          { temp: 71, code: 80, wind: 18, precip: 60 },
+          { temp: 78, code: 51, wind: 7,  precip: 40 },
+        ];
+        const mock = mockOptions[game.id % mockOptions.length];
+        setWeather({
+          ...mock,
+          city: game.home_stadium_city || 'Unknown City',
+          state: game.home_stadium_state || '',
+          success: true,
+          isMock: true,
+        });
         return;
       }
 
       setLoading(true);
       try {
-        // 1. Geocode the home team to find location coordinates.
-        // We clean the name slightly (e.g., "Miami (FL)" -> "Miami") for better search results.
-        const searchTerm = game.home_team.split('(')[0].trim();
-      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(game.home_stadium_city || searchTerm)}&count=1&language=en&format=json`;
+        // Geocode the stadium city for coordinates
+        const searchCity = game.home_stadium_city || game.home_team.split('(')[0].trim();
+        const searchQuery = game.home_stadium_state
+          ? `${searchCity}, ${game.home_stadium_state}`
+          : searchCity;
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchQuery)}&count=1&language=en&format=json`;
         const geoRes = await fetch(geoUrl);
         const geoData = await geoRes.json();
 
@@ -82,9 +132,7 @@ const GameIntel = ({ game }) => {
         const { latitude, longitude, name, admin1 } = geoData.results[0];
         const datePart = kickoff.toISOString().split('T')[0];
 
-        // 2. Fetch hourly forecast for the kickoff date.
-        // Using UTC timezone for both API and JS Date object to ensure alignment of the hourly index.
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=UTC&start_date=${datePart}&end_date=${datePart}`;
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&start_date=${datePart}&end_date=${datePart}`;
         const weatherRes = await fetch(weatherUrl);
         const weatherData = await weatherRes.json();
 
@@ -93,8 +141,10 @@ const GameIntel = ({ game }) => {
           setWeather({
             temp: Math.round(weatherData.hourly.temperature_2m[hour]),
             code: weatherData.hourly.weather_code[hour],
-            city: name,
-            state: admin1,
+            wind: Math.round(weatherData.hourly.wind_speed_10m[hour]),
+            precip: weatherData.hourly.precipitation_probability[hour],
+            city: game.home_stadium_city || name,
+            state: game.home_stadium_state || admin1,
             success: true
           });
         }
@@ -107,17 +157,7 @@ const GameIntel = ({ game }) => {
     };
 
     fetchWeather();
-  }, [game.id, game.home_team, game.commence_time, game.home_stadium_city]); // Add game.home_stadium_city to dependencies
-
-  const getWeatherLabel = (code) => {
-    if (code === 0) return 'Clear';
-    if (code <= 3) return 'Partly Cloudy';
-    if (code >= 51 && code <= 67) return 'Rain';
-    if (code >= 71 && code <= 77) return 'Snow';
-    if (code >= 80 && code <= 82) return 'Showers';
-    if (code >= 95) return 'T-Storms';
-    return 'Cloudy';
-  };
+  }, [game.id, game.commence_time, game.home_stadium_city, game.home_stadium_state, game.home_team]);
 
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -143,17 +183,41 @@ const GameIntel = ({ game }) => {
           <div style={{ fontSize: '0.85em' }}>{game.home_stadium_city && game.home_stadium_state ? `${game.home_stadium_city}, ${game.home_stadium_state}` : '--'}</div>
         </div>
       </div>
-      <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Weather</div>
-        <div style={{ fontSize: '0.85em', color: '#aaa' }}>
-          {loading ? 'Fetching forecast...' : (
-            weather?.success ? (
-              <span>{weather.city}, {weather.state}: {weather.temp}°F, {getWeatherLabel(weather.code)}</span>
-            ) : (
-              weather?.reason || 'Weather forecast unavailable'
-            )
-          )}
+      <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'start' }}>
+        <div>
+        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>Weather at Kickoff</div>
+        {loading ? (
+          <div style={{ fontSize: '0.85em', color: '#aaa' }}>Fetching forecast...</div>
+        ) : weather?.success ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ flexShrink: 0 }}>{getWeatherIcon(weather.code)}</div>
+            <div>
+              <div style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#fff' }}>
+                {weather.temp}°F &nbsp;
+                <span style={{ fontSize: '0.75em', fontWeight: 'normal', color: '#aaa' }}>{getWeatherLabel(weather.code)}</span>
+                {weather.isMock && <span style={{ fontSize: '0.65em', color: '#555', marginLeft: '6px' }}>(preview)</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78em', color: '#888', marginTop: '3px' }}>
+                <Wind size={12} strokeWidth={1.5} />
+                <span>{weather.wind} mph</span>
+                <span style={{ color: '#444' }}>·</span>
+                <Droplets size={12} strokeWidth={1.5} />
+                <span>{weather.precip}% precip</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.85em', color: '#666' }}>
+            {weather?.reason || 'Forecast unavailable'}
+          </div>
+        )}
         </div>
+        {game.tv_network && (
+          <div>
+            <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>TV</div>
+            <div style={{ fontSize: '1em', fontWeight: 'bold', color: '#fff' }}>{game.tv_network}</div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -164,23 +228,52 @@ const PicksPage = ({
   picks,
   games,
   handlePickChange,
+  handleTotalChange,
   isGameLocked,
   isGameLive,
   handleSubmit,
   loading,
-  selectedWeek
+  selectedWeek,
+  teams = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedConference, setSelectedConference] = useState('');
   const isMobile = useIsMobile();
+
+  // Build a lookup: school name -> conference
+  const teamConferenceMap = teams.reduce((acc, t) => {
+    if (t.school && t.conference) acc[t.school] = t.conference;
+    return acc;
+  }, {});
+
+  // Find the conference for a game team name by checking if any school name is a prefix
+  const getConference = (teamName) => {
+    if (!teamName) return null;
+    const match = teams.find((t) => teamName.startsWith(t.school));
+    return match?.conference || null;
+  };
+
+  // Only show conferences that have at least one team playing this week
+  const weekConferences = [...new Set(
+    pickGames.flatMap((game) => [
+      getConference(game.home_team),
+      getConference(game.away_team)
+    ].filter(Boolean))
+  )].sort();
 
   const filteredGames = pickGames.filter((game) => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = !term || (
       game.home_team.toLowerCase().includes(term) ||
       game.away_team.toLowerCase().includes(term) ||
       (game.home_nickname && game.home_nickname.toLowerCase().includes(term)) ||
       (game.away_nickname && game.away_nickname.toLowerCase().includes(term))
     );
+    const matchesConference = !selectedConference || (
+      getConference(game.home_team) === selectedConference ||
+      getConference(game.away_team) === selectedConference
+    );
+    return matchesSearch && matchesConference;
   });
 
   return (
@@ -189,7 +282,7 @@ const PicksPage = ({
         <article className="panel" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
             <h2>Pick Games</h2>
-            <div className="search-container">
+            <div className="search-container" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input
                 type="text"
                 placeholder="Search school or nickname..."
@@ -205,10 +298,28 @@ const PicksPage = ({
                   fontSize: '0.9em'
                 }}
               />
+              <select
+                value={selectedConference}
+                onChange={(e) => setSelectedConference(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  backgroundColor: '#1a1a2e',
+                  color: '#fff',
+                  fontSize: '0.9em',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="" style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>All Conferences</option>
+                {weekConferences.map((conf) => (
+                  <option key={conf} value={conf} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>{conf}</option>
+                ))}
+              </select>
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
-          {searchTerm && filteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching "{searchTerm}"</p>}
+          {(searchTerm || selectedConference) && filteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {filteredGames.map((game) => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
@@ -220,12 +331,11 @@ const PicksPage = ({
                 
                 {/* Left Column: Toggle and Game Info */}
                 <div className="pick-interface">
-                  <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px', flexWrap: 'nowrap', width: '100%', maxWidth: '540px', gap: 0 }}>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
                       <strong>{game.away_team}</strong>
                     </div>
-                    {/* <span style={{ fontSize: '0.9em', color: '#666' }}>@</span> */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
                       <strong>{game.home_team}</strong>
                     </div>
                   </div>
@@ -254,7 +364,7 @@ const PicksPage = ({
                       onClick={() => handlePickChange(game, null)}
                       disabled={isGameLocked(game)}
                     > 
-                      <span style={{ fontSize: '2.7em', color: '#394d81' }}>@</span>
+                      <span style={{ fontSize: '2.7em', color: '#1F1F75' }}>@</span>
                     </button>
                     <button
                       type="button"
@@ -283,10 +393,54 @@ const PicksPage = ({
                             : 'translateX(100%)',
                         backgroundColor: isHomeActive 
                           ? (game.home_color || '#4d7cff') 
-                          : (isAwayActive ? (game.away_color || '#4d7cff') : '#333333')
+                          : (isAwayActive ? (game.away_color || '#4d7cff') : '#E8979F')
                       }}
                     />
                   </div>
+
+                  {game.over_under != null && (
+                    <div className="game-switch" style={{ marginTop: '10px' }}>
+                      <button
+                        type="button"
+                        className={`game-switch-option ${picks[game.id]?.selectionTotal === 'under' ? 'active' : ''}`}
+                        onClick={() => handleTotalChange(game, 'under')}
+                        disabled={isGameLocked(game)}
+                      >
+                        <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Under</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`game-switch-option ${!picks[game.id]?.selectionTotal ? 'active' : ''}`}
+                        onClick={() => handleTotalChange(game, null)}
+                        disabled={isGameLocked(game)}
+                      > 
+                        <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`game-switch-option ${picks[game.id]?.selectionTotal === 'over' ? 'active' : ''}`}
+                        onClick={() => handleTotalChange(game, 'over')}
+                        disabled={isGameLocked(game)}
+                      >
+                        <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Over</span>
+                      </button>
+                      <span
+                        className="game-switch-slider"
+                        style={{
+                          transform: picks[game.id]?.selectionTotal === 'over'
+                            ? 'translateX(200%)' 
+                            : picks[game.id]?.selectionTotal === 'under'
+                              ? 'translateX(0)' 
+                              : 'translateX(100%)',
+                          backgroundColor: picks[game.id]?.selectionTotal === 'over'
+                            ? '#4caf50' 
+                            : picks[game.id]?.selectionTotal === 'under'
+                              ? '#f44336' 
+                              : '#E8979F'
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <div style={{ marginTop: '12px', fontSize: '0.85em', color: '#888' }}>
                     <span>{new Date(game.commence_time).toLocaleString()}</span>

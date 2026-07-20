@@ -18,21 +18,25 @@ function mapGame(event) {
   const homeCompetitor = competition.competitors.find(c => c.homeAway === 'home');
   const awayCompetitor = competition.competitors.find(c => c.homeAway === 'away');
 
-  const odds = competition.odds?.[0] || {};
-  const spread = odds.details ? parseFloat(odds.details.split(' ')[1]) : null;
+  // Find odds from a preferred provider, or take the first available.
+  const odds = competition.odds?.find(o => o.provider.name === 'ESPN BET') || competition.odds?.[0] || {};
 
   let spread_home = null;
   let spread_away = null;
 
-  if (spread !== null && !isNaN(spread)) {
-      if (odds.favorite?.homeAway === 'home') {
-          spread_home = spread;
-          spread_away = -spread;
-      } else if (odds.favorite?.homeAway === 'away') {
-          spread_away = spread;
-          spread_home = -spread;
-      }
+  // The `spread` from the API is for the favorite. A negative value means the home team is the favorite.
+  if (typeof odds.spread === 'number') {
+    spread_home = odds.spread;
+    spread_away = -odds.spread;
+  } else if (odds.details) {
+    // Fallback for older format if `spread` is not available
+    const spreadValue = parseFloat(odds.details.split(' ')[1]);
+    if (!isNaN(spreadValue)) {
+      spread_home = odds.favorite?.homeAway === 'home' ? -spreadValue : spreadValue;
+      spread_away = -spread_home;
+    }
   }
+
 
   return {
     api_game_id: event.id,
@@ -43,11 +47,13 @@ function mapGame(event) {
     away_team: awayCompetitor.team.displayName,
     site: competition.venue?.fullName || 'N/A',
     is_televised: competition.broadcasts?.length > 0 ? 1 : 0,
+    tv_network: competition.broadcasts?.[0]?.names?.[0] ?? competition.broadcasts?.[0]?.market?.shortName ?? null,
     is_mandatory: 0,
     spread_home,
     spread_away,
-    home_price: null,
-    away_price: null,
+    over_under: odds.overUnder ?? null,
+    home_price: odds.homeMoneyLine ?? null,
+    away_price: odds.awayMoneyLine ?? null,
     score_home: homeCompetitor.score ? parseInt(homeCompetitor.score) : null,
     score_away: awayCompetitor.score ? parseInt(awayCompetitor.score) : null,
     completed: event.status.type.completed

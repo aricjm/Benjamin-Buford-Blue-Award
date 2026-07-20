@@ -23,71 +23,130 @@ const Sidebar = ({
 
   return (
     <aside className={`sidebar ${menuOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-      <button 
-        onClick={toggleSidebar}
-        style={{ 
-          background: 'rgba(255,255,255,0.06)', 
-          border: 'none', 
-          color: '#f5f5f5', 
-          cursor: 'pointer', 
-          width: '100%', 
-          fontSize: '1.2rem', 
-          padding: '10px 0',
-          borderRadius: '12px',
-          marginBottom: '12px'
-        }}
-        title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-      >
-        {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-      </button>
+      <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', marginBottom: '12px' }}>
+        <button 
+          onClick={toggleSidebar}
+          style={{ 
+            background: 'rgba(255,255,255,0.06)', 
+            border: 'none', 
+            color: '#f5f5f5', 
+            cursor: 'pointer', 
+            width: '44px', 
+            height: '44px',
+            borderRadius: '12px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 0
+          }}
+          title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          className="sidebar-toggle-btn"
+        >
+          {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+        </button>
+      </div>
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <button
           className={activePage === 'picks' ? 'active' : ''}
           onClick={() => handlePageChange('picks')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
           title={isSidebarCollapsed ? "Picks" : ""}
         >
-          {isSidebarCollapsed ? <FootballIcon /> : 'Picks'}
+          <FootballIcon />
+          {!isSidebarCollapsed && <span>Picks</span>}
         </button>
         <button
           className={activePage === 'stats' ? 'active' : ''}
           onClick={() => handlePageChange('stats')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
-          title={isSidebarCollapsed ? "My Stats" : ""}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Stats" : ""}
         >
-          {isSidebarCollapsed ? <StatsIcon /> : 'My Stats'}
+          <StatsIcon />
+          {!isSidebarCollapsed && <span>Stats</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}
           onClick={() => handlePageChange('summary')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
           title={isSidebarCollapsed ? "Leaderboards" : ""}
         >
-          {isSidebarCollapsed ? <LeaderboardIcon /> : 'Leaderboards'}
+          <LeaderboardIcon />
+          {!isSidebarCollapsed && <span>Leaderboards</span>}
         </button>
         <button
           className={activePage === 'manual' ? 'active' : ''}
           onClick={() => handlePageChange('manual')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
           title={isSidebarCollapsed ? "Add Manual Game" : ""}
         >
-          {isSidebarCollapsed ? <AddIcon /> : 'Add Game Manually'}
+          <AddIcon />
+          {!isSidebarCollapsed && <span>Add Game Manually</span>}
         </button>
         <button
           className={activePage === 'admin' ? 'active' : ''}
           onClick={() => handlePageChange('admin')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
           title={isSidebarCollapsed ? "Admin" : ""}
         >
-          {isSidebarCollapsed ? <AdminIcon /> : 'Admin'}
+          <AdminIcon />
+          {!isSidebarCollapsed && <span>Admin</span>}
         </button>
         <button
           className={activePage === 'buttons' ? 'active' : ''}
           onClick={() => handlePageChange('buttons')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left' }}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
           title={isSidebarCollapsed ? "Buttons" : ""}
         >
-          {isSidebarCollapsed ? <ComponentsIcon /> : 'Buttons'}
+          <ComponentsIcon />
+          {!isSidebarCollapsed && <span>Buttons</span>}
         </button>
       </nav>
     </aside>
