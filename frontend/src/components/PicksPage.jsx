@@ -294,7 +294,7 @@ const PicksPage = ({
                   border: '1px solid rgba(255,255,255,0.1)',
                   backgroundColor: 'rgba(255,255,255,0.05)',
                   color: '#fff',
-                  width: isMobile ? '100%' : '250px',
+                  width: isMobile ? '100%' : '225px',
                   fontSize: '0.9em'
                 }}
               />

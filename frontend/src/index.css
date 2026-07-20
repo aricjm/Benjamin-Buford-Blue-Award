@@ -266,6 +266,10 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.mobile-close-btn {
+  display: none !important;
+}
+
 @media (max-width: 900px) {
   .app-layout {
     grid-template-columns: 1fr;
@@ -274,12 +278,22 @@ select {
   .sidebar {
     position: fixed;
     inset: 0 auto auto 0;
-    width: 260px;
+    width: 100%;
     height: 100%;
     transform: translateX(-100%);
     z-index: 20;
     box-shadow: 24px 0 60px rgba(0, 0, 0, 0.35);
     margin: 0;
+    background: #121212;
+    border-radius: 0;
+  }
+
+  .sidebar-toggle-btn {
+    display: none !important;
+  }
+
+  .mobile-close-btn {
+    display: block !important;
   }
 
   .sidebar.open {

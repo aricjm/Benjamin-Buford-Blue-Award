@@ -10,6 +10,7 @@ import ComponentsIcon from "../resources/icons/ComponentsIcon";
 
 const Sidebar = ({ 
   menuOpen, 
+  setMenuOpen,
   isSidebarCollapsed, 
   setIsSidebarCollapsed, 
   activePage, 
@@ -23,7 +24,7 @@ const Sidebar = ({
 
   return (
     <aside className={`sidebar ${menuOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-      <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <button 
           onClick={toggleSidebar}
           style={{ 
@@ -43,6 +44,21 @@ const Sidebar = ({
           className="sidebar-toggle-btn"
         >
           {isSidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+        </button>
+        <button 
+          onClick={() => setMenuOpen && setMenuOpen(false)}
+          className="mobile-close-btn"
+          style={{ 
+            background: 'transparent', 
+            border: 'none', 
+            color: '#f5f5f5', 
+            cursor: 'pointer', 
+            fontSize: '1.2em',
+            fontWeight: 'bold',
+            padding: '10px'
+          }}
+        >
+          ✕
         </button>
       </div>
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>

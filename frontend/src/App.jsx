@@ -283,6 +283,7 @@ function App() {
       <div className={`app-layout ${menuOpen ? 'menu-open' : ''} ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}> 
         <Sidebar 
           menuOpen={menuOpen}
+          setMenuOpen={setMenuOpen}
           isSidebarCollapsed={isSidebarCollapsed}
           setIsSidebarCollapsed={setIsSidebarCollapsed}
           activePage={activePage}
