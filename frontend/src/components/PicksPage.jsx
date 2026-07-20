@@ -295,7 +295,8 @@ const PicksPage = ({
                   backgroundColor: 'rgba(255,255,255,0.05)',
                   color: '#fff',
                   width: isMobile ? '100%' : '225px',
-                  fontSize: '0.9em'
+                  fontSize: '0.9em',
+                  boxSizing: 'border-box'
                 }}
               />
               <select
@@ -308,7 +309,8 @@ const PicksPage = ({
                   backgroundColor: '#1a1a2e',
                   color: '#fff',
                   fontSize: '0.9em',
-                  width: isMobile ? '100%' : 'auto'
+                  width: isMobile ? '100%' : 'auto',
+                  boxSizing: 'border-box'
                 }}
               >
                   cursor: 'pointer'
