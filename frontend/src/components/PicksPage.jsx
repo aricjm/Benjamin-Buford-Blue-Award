@@ -282,7 +282,7 @@ const PicksPage = ({
         <article className="panel" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
             <h2>Pick Games</h2>
-            <div className="search-container" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="search-container" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '8px', alignItems: isMobile ? 'stretch' : 'center', width: isMobile ? '100%' : 'auto' }}>
               <input
                 type="text"
                 placeholder="Search school or nickname..."
@@ -294,7 +294,7 @@ const PicksPage = ({
                   border: '1px solid rgba(255,255,255,0.1)',
                   backgroundColor: 'rgba(255,255,255,0.05)',
                   color: '#fff',
-                  width: '250px',
+                  width: isMobile ? '100%' : '250px',
                   fontSize: '0.9em'
                 }}
               />
@@ -308,6 +308,9 @@ const PicksPage = ({
                   backgroundColor: '#1a1a2e',
                   color: '#fff',
                   fontSize: '0.9em',
+                  width: isMobile ? '100%' : 'auto'
+                }}
+              >
                   cursor: 'pointer'
                 }}
               >
