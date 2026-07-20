@@ -20,7 +20,7 @@ function buildSeasonWeeks() {
     { week: 16, starts_on: '12-07T00:00:00Z', ends_on: '12-13T23:59:59Z' },
     { week: 17, starts_on: '12-14T00:00:00Z', ends_on: '12-20T23:59:59Z' }
   ];
-  const seasons = ['2025', '2026'];
+  const seasons = ['2022', '2023', '2024', '2025', '2026'];
   return seasons.flatMap((season) =>
     weekRanges.map((item) => ({
       week: item.week,
@@ -65,10 +65,10 @@ function getSeasonFromDate(dateIso) {
 }
 
 function determinePickResult(game, pick) {
-  if (!game || game.score_home === null || game.score_away === null || !game.completed) {
-    return 'pending';
-  }
   if (!pick || !pick.selection_team) {
+    return null;
+  }
+  if (!game || game.score_home === null || game.score_away === null || !game.completed) {
     return 'pending';
   }
 
@@ -87,17 +87,17 @@ function determinePickResult(game, pick) {
 
   const selectedSide = pick.selection_team === game.home_team ? 'home' : pick.selection_team === game.away_team ? 'away' : null;
   if (!selectedSide) {
-    return 'pending';
+    return null;
   }
 
   return selectedSide === winner ? 'win' : 'loss';
 }
 
 function determineTotalResult(game, pick) {
-  if (!game.completed || game.score_home === null || game.score_away === null) {
-    return 'pending';
-  }
   if (!pick || !pick.selection_total) {
+    return null;
+  }
+  if (!game.completed || game.score_home === null || game.score_away === null) {
     return 'pending';
   }
 

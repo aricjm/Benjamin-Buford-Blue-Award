@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
-const formatSpread = (game, team) => {
-  const spread = team === game.home_team ? game.spread_home : game.spread_away;
+const getEffectiveSpread = (game, team, pick) => {
+  if (pick && pick.selectionTeam && pick.spread !== null) {
+    if (team === pick.selectionTeam) {
+      return pick.spread;
+    } else {
+      return -pick.spread;
+    }
+  }
+  return team === game.home_team ? game.spread_home : game.spread_away;
+};
+
+const formatSpread = (game, team, pick) => {
+  const spread = getEffectiveSpread(game, team, pick);
   if (spread === null || spread === 0) return 'PK';
   return spread > 0 ? `+${spread}` : `${spread}`;
 };
 
-const getSpreadStyle = (game, team, isActive) => {
+const getSpreadStyle = (game, team, isActive, pick) => {
   if (isActive) return { color: '#fff' };
-  const spread = team === game.home_team ? game.spread_home : game.spread_away;
+  const spread = getEffectiveSpread(game, team, pick);
   if (spread === null || spread === 0) return {};
   return { color: spread < 0 ? '#4caf50' : '#fc6363', fontWeight: 'bold' };
 };
@@ -80,7 +91,7 @@ const getWeatherLabel = (code) => {
   return 'Cloudy';
 };
 
-const GameIntel = ({ game }) => {
+const GameIntel = ({ game, picks }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -162,6 +173,39 @@ const GameIntel = ({ game }) => {
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ fontSize: '0.75em', color: '#888', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
+      
+      {!!game.completed && picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal) && (
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '4px' }}>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '6px' }}>Your Pick Result</div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {picks[game.id].selectionTeam && picks[game.id].result && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75em', color: '#aaa', fontWeight: 'bold' }}>Spread:</span>
+                <span style={{
+                  fontSize: '0.75em',
+                  fontWeight: 'bold',
+                  color: picks[game.id].result === 'win' ? '#4caf50' : picks[game.id].result === 'loss' ? '#f44336' : '#888'
+                }}>
+                  {picks[game.id].result.toUpperCase()}
+                </span>
+              </div>
+            )}
+            {picks[game.id].selectionTotal && picks[game.id].result_total && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: '0.75em', color: '#aaa', fontWeight: 'bold' }}>O/U:</span>
+                <span style={{
+                  fontSize: '0.75em',
+                  fontWeight: 'bold',
+                  color: picks[game.id].result_total === 'win' ? '#4caf50' : picks[game.id].result_total === 'loss' ? '#f44336' : '#888'
+                }}>
+                  {picks[game.id].result_total.toUpperCase()}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div>
           <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Win Streak</div>
@@ -238,6 +282,7 @@ const PicksPage = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConference, setSelectedConference] = useState('');
+  const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
   const isMobile = useIsMobile();
 
   // Build a lookup: school name -> conference
@@ -273,7 +318,10 @@ const PicksPage = ({
       getConference(game.home_team) === selectedConference ||
       getConference(game.away_team) === selectedConference
     );
-    return matchesSearch && matchesConference;
+    const matchesMyPicks = !showOnlyMyPicks || (
+      picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal)
+    );
+    return matchesSearch && matchesConference && matchesMyPicks;
   });
 
   return (
@@ -310,9 +358,7 @@ const PicksPage = ({
                   color: '#fff',
                   fontSize: '0.9em',
                   width: isMobile ? '100%' : 'auto',
-                  boxSizing: 'border-box'
-                }}
-              >
+                  boxSizing: 'border-box',
                   cursor: 'pointer'
                 }}
               >
@@ -321,6 +367,25 @@ const PicksPage = ({
                   <option key={conf} value={conf} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>{conf}</option>
                 ))}
               </select>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                color: '#fff', 
+                fontSize: '0.9em', 
+                cursor: 'pointer',
+                userSelect: 'none',
+                marginLeft: isMobile ? '0' : '8px',
+                marginTop: isMobile ? '4px' : '0'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showOnlyMyPicks}
+                  onChange={(e) => setShowOnlyMyPicks(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                My Picks
+              </label>
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
@@ -345,65 +410,67 @@ const PicksPage = ({
                     </div>
                   </div>
 
-                  <div className="game-switch">
-                    <button
-                      type="button"
-                      className={`game-switch-option ${isAwayActive ? 'active' : ''}`}
-                      onClick={() => handlePickChange(game, game.away_team)}
-                      disabled={isGameLocked(game)}
-                    >
-                      {game.away_logo ? (
-                        <img src={game.away_logo} alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
-                      ) : isMobile ? (
-                        <img src="/logos/iowa.png" alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
-                      ) : (
-                        game.away_team
-                      )}
-                      <span className="switch-option-label" style={getSpreadStyle(game, game.away_team, isAwayActive)}>
-                        {formatSpread(game, game.away_team)}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`game-switch-option ${!picks[game.id] ? 'active' : ''}`}
-                      onClick={() => handlePickChange(game, null)}
-                      disabled={isGameLocked(game)}
-                    > 
-                      <span style={{ fontSize: '2.7em', color: '#1F1F75' }}>@</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`game-switch-option ${isHomeActive ? 'active' : ''}`}
-                      onClick={() => handlePickChange(game, game.home_team)}
-                      disabled={isGameLocked(game)}
-                    >
-                      {game.home_logo ? (
-                        <img src={game.home_logo} alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
-                      ) : isMobile ? (
-                        <img src="/logos/iowa.png" alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
-                      ) : (
-                        game.home_team
-                      )}
-                      <span className="switch-option-label" style={getSpreadStyle(game, game.home_team, isHomeActive)}>
-                        {formatSpread(game, game.home_team)}
-                      </span>
-                    </button>
-                    <span
-                      className="game-switch-slider"
-                      style={{
-                        transform: isHomeActive 
-                          ? 'translateX(200%)' 
-                          : isAwayActive 
-                            ? 'translateX(0)' 
-                            : 'translateX(100%)',
-                        backgroundColor: isHomeActive 
-                          ? (game.home_color || '#4d7cff') 
-                          : (isAwayActive ? (game.away_color || '#4d7cff') : '#E8979F')
-                      }}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="game-switch">
+                      <button
+                        type="button"
+                        className={`game-switch-option ${isAwayActive ? 'active' : ''}`}
+                        onClick={() => handlePickChange(game, game.away_team)}
+                        disabled={isGameLocked(game)}
+                      >
+                        {game.away_logo ? (
+                          <img src={game.away_logo} alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                        ) : isMobile ? (
+                          <img src="/logos/iowa.png" alt={game.away_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                        ) : (
+                          game.away_team
+                        )}
+                        <span className="switch-option-label" style={getSpreadStyle(game, game.away_team, isAwayActive, picks[game.id])}>
+                          {formatSpread(game, game.away_team, picks[game.id])}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`game-switch-option ${!picks[game.id] ? 'active' : ''}`}
+                        onClick={() => handlePickChange(game, null)}
+                        disabled={isGameLocked(game)}
+                      > 
+                        <span style={{ fontSize: '2.7em', color: '#1F1F75' }}>@</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`game-switch-option ${isHomeActive ? 'active' : ''}`}
+                        onClick={() => handlePickChange(game, game.home_team)}
+                        disabled={isGameLocked(game)}
+                      >
+                        {game.home_logo ? (
+                          <img src={game.home_logo} alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                        ) : isMobile ? (
+                          <img src="/logos/iowa.png" alt={game.home_team} style={{ height: '41px', width: '41px', objectFit: 'contain' }} />
+                        ) : (
+                          game.home_team
+                        )}
+                        <span className="switch-option-label" style={getSpreadStyle(game, game.home_team, isHomeActive, picks[game.id])}>
+                          {formatSpread(game, game.home_team, picks[game.id])}
+                        </span>
+                      </button>
+                      <span
+                        className="game-switch-slider"
+                        style={{
+                          transform: isHomeActive 
+                            ? 'translateX(200%)' 
+                            : isAwayActive 
+                              ? 'translateX(0)' 
+                              : 'translateX(100%)',
+                          backgroundColor: isHomeActive 
+                            ? (game.home_color || '#4d7cff') 
+                            : (isAwayActive ? (game.away_color || '#4d7cff') : '#E8979F')
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  {game.over_under != null && (
+                  {(game.over_under != null || picks[game.id]?.totalLine != null) && (
                     <div className="game-switch" style={{ marginTop: '10px' }}>
                       <button
                         type="button"
@@ -419,7 +486,7 @@ const PicksPage = ({
                         onClick={() => handleTotalChange(game, null)}
                         disabled={isGameLocked(game)}
                       > 
-                        <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under}</span>
+                        <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under ?? picks[game.id]?.totalLine}</span>
                       </button>
                       <button
                         type="button"
@@ -451,18 +518,76 @@ const PicksPage = ({
                     <span>{new Date(game.commence_time).toLocaleString()}</span>
                     {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
                     {isGameLive(game) && <span className="game-status-live" style={{ marginLeft: '10px' }}>LIVE</span>}
-                    {!isGameLive(game) && isGameLocked(game) && <span className="game-status-locked" style={{ marginLeft: '10px' }}>LOCKED</span>}
+                    {!isGameLive(game) && isGameLocked(game) && (
+                      <span className="game-status-locked" style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <Lock size={12} /> LOCKED
+                      </span>
+                    )}
                   </div>
 
                   {!!game.completed && (
-                    <div className="game-result" style={{ marginTop: '15px' }}>
-                      Score: {game.away_team} {game.score_away} — {game.home_team} {game.score_home}
+                    <div className="scoreboard-box" style={{
+                      marginTop: '15px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>FINAL</span>
+                        {game.score_home !== null && game.score_away !== null && (
+                          <span>Total: {game.score_home + game.score_away}</span>
+                        )}
+                      </div>
+                      
+                      {/* Away Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontWeight: game.score_away > game.score_home ? 'bold' : 'normal',
+                            color: game.score_away > game.score_home ? '#fff' : '#aaa'
+                          }}>
+                            {game.away_team}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.2em', 
+                          fontWeight: 'bold',
+                          color: game.score_away > game.score_home ? '#4caf50' : '#fff'
+                        }}>
+                          {game.score_away}
+                        </span>
+                      </div>
+
+                      {/* Home Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontWeight: game.score_home > game.score_away ? 'bold' : 'normal',
+                            color: game.score_home > game.score_away ? '#fff' : '#aaa'
+                          }}>
+                            {game.home_team}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.2em', 
+                          fontWeight: 'bold',
+                          color: game.score_home > game.score_away ? '#4caf50' : '#fff'
+                        }}>
+                          {game.score_home}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Right Column: Statistics */}
-                <GameIntel game={game} />
+                <GameIntel game={game} picks={picks} />
               </div>
             )})}
           </div>

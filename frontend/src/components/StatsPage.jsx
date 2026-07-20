@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Trophy, Flame, TrendingUp, TrendingDown, Users, BarChart2, ArrowLeftRight } from 'lucide-react';
+import { Trophy, Flame, TrendingUp, TrendingDown, Users, BarChart2, ArrowLeftRight, Hash } from 'lucide-react';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -162,6 +162,11 @@ const PlayerStatsPanel = ({ playerName, playerStats, selectedConference, setSele
           value={`${playerStats.record.wins}-${playerStats.record.losses}-${playerStats.record.pushes}`}
           sub={`Win %: ${winPct(playerStats.record.wins, playerStats.record.losses)}`}
           icon={<BarChart2 size={40} />}
+        />
+        <StatCard label="Total Picks" color="#fff"
+          value={playerStats.record.total || 0}
+          sub="Spread & O/U combined"
+          icon={<Hash size={40} />}
         />
         <StatCard
           label={playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Current Spread Streak'}

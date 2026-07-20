@@ -45,14 +45,17 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
       if (data.picks && player) {
         data.picks.forEach((p) => {
           if (p.player === player) {
+            const existing = picksObj[p.game_id] || {};
             picksObj[p.game_id] = {
               gameId: p.game_id,
-              selectionTeam: p.selection_team,
-              selectionSide: p.selection_side,
-              spread: p.spread,
-              selectionTotal: p.selection_total,
-              totalLine: p.total_line,
-              isMandatory: !!p.is_mandatory
+              selectionTeam: p.selection_team !== null ? p.selection_team : existing.selectionTeam,
+              selectionSide: p.selection_side !== null ? p.selection_side : existing.selectionSide,
+              spread: p.spread !== null ? p.spread : existing.spread,
+              selectionTotal: p.selection_total !== null ? p.selection_total : existing.selectionTotal,
+              totalLine: p.total_line !== null ? p.total_line : existing.totalLine,
+              isMandatory: p.is_mandatory ? true : existing.isMandatory,
+              result: p.result !== null ? p.result : existing.result,
+              result_total: p.result_total !== null ? p.result_total : existing.result_total
             };
           }
         });

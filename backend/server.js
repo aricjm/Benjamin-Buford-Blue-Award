@@ -61,9 +61,11 @@ app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    // Always fetch from the API to get the latest odds and scores
-    const gamesFromApi = await api.fetchWeekGames(week, season);
-    await db.saveGamesForWeek(week, gamesFromApi, season);
+    // Only fetch live from ESPN for the current season — historical seasons are already in the DB
+    if (season === DEFAULT_SEASON) {
+      const gamesFromApi = await api.fetchWeekGames(week, season);
+      await db.saveGamesForWeek(week, gamesFromApi, season);
+    }
     const games = await db.getWeekGames(week, season);
     const picks = await db.getPicksByWeek(week, season);
     const summary = await db.getWeekSummary(week, season);
@@ -157,6 +159,39 @@ app.post('/api/sync-all', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Import historical seasons from ESPN API (regular season weeks 1-15)
+app.post('/api/import-historical', async (req, res) => {
+  const { seasons = [2022, 2023, 2024, 2025], weeks = Array.from({ length: 15 }, (_, i) => i + 1) } = req.body;
+
+  const results = [];
+  let totalGames = 0;
+  const failed = [];
+
+  for (const season of seasons) {
+    for (const week of weeks) {
+      try {
+        const games = await api.fetchWeekGames(week, season.toString());
+        if (games.length > 0) {
+          // Ensure week row exists
+          await db.ensureWeekRow(season.toString(), week);
+          const saved = await db.saveGamesForWeek(week, games, season.toString());
+          totalGames += saved;
+          results.push({ season, week, saved });
+        } else {
+          results.push({ season, week, saved: 0 });
+        }
+        // Small delay to be polite to ESPN API
+        await new Promise((r) => setTimeout(r, 400));
+      } catch (err) {
+        failed.push({ season, week, error: err.message });
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  }
+
+  res.json({ totalGames, results, failed });
 });
 
 app.get('/api/week/:week/summary', async (req, res) => {

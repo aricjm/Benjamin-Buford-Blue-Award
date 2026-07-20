@@ -172,6 +172,30 @@ const AdminPage = ({
     }
   };
 
+  const handleImportHistorical = async () => {
+    if (!window.confirm('This will import all games for seasons 2022–2025 from ESPN. This may take a few minutes. Continue?')) return;
+    setLoading(true);
+    setMessage('Importing historical data (2022–2025)... this may take a few minutes.');
+    try {
+      const response = await fetch('/api/import-historical', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seasons: [2022, 2023, 2024, 2025] })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const failedMsg = data.failed?.length > 0 ? ` (${data.failed.length} weeks failed)` : '';
+        setMessage(`Historical import complete: ${data.totalGames} games imported.${failedMsg}`);
+      } else {
+        setMessage(data.error || 'Historical import failed.');
+      }
+    } catch (error) {
+      setMessage('Unable to import historical data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdatePick = async (pickId) => {
     if (!editingPickData.selection_team) {
       setMessage('Selection team is required.');
@@ -215,8 +239,9 @@ const AdminPage = ({
           </button>
           <button onClick={handleSyncScores} disabled={loading}>
             Sync Scores & Odds
-          </button>
-          {lastSynced && (
+          </button>          <button onClick={handleImportHistorical} disabled={loading} style={{ background: '#5a3e8a' }}>
+            Import Historical (2022–2025)
+          </button>          {lastSynced && (
             <span style={{ fontSize: '0.9em', color: '#888', fontStyle: 'italic', marginLeft: '10px' }}>
               Last Synced: {lastSynced.toLocaleString()}
             </span>

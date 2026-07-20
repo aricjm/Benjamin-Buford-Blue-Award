@@ -116,13 +116,18 @@ async function init() {
       selection_side TEXT,
       spread REAL,
       is_mandatory INTEGER DEFAULT 0,
-      result TEXT DEFAULT 'pending',
+      result TEXT,
       picked_at TEXT,
       updated_at TEXT
     )
   `);
 
-  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_unique ON picks(week, player, game_id)`);
+  // Drop the old unique index if it exists
+  await pool.query(`DROP INDEX IF EXISTS idx_picks_unique`);
+
+  // Create partial unique indexes to allow separate rows for spread and total picks
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_spread_unique ON picks(week, player, game_id) WHERE selection_team IS NOT NULL`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_total_unique ON picks(week, player, game_id) WHERE selection_total IS NOT NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS team_mappings (
@@ -320,6 +325,21 @@ async function seedWeeks() {
     `, [item.week, item.season, item.label, item.starts_on, item.ends_on]);
   }
   return weeks.length;
+}
+
+async function ensureWeekRow(season, week) {
+  await pool.query(
+    `INSERT INTO weeks (week, season, label, starts_on, ends_on)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (season, week) DO NOTHING`,
+    [
+      week,
+      season,
+      `${season} Week ${week}`,
+      `${season}-08-01T00:00:00Z`,
+      `${season}-12-31T23:59:59Z`
+    ]
+  );
 }
 
 async function getPlayers() {
@@ -559,40 +579,69 @@ async function savePick(week, player, pick) {
   if (!game) {
     throw new Error(`Game ${pick.gameId} not found`);
   }
-  const result = determinePickResult(game, {
-    selection_team: pick.selectionTeam,
-    selection_side: pick.selectionSide,
-    spread: pick.spread
-  });
-  const result_total = determineTotalResult(game, {
-    selection_total: pick.selectionTotal,
-    total_line: pick.totalLine
-  });
 
-  await pool.query(`
-    INSERT INTO picks (
-      week, player, game_id, selection_team, selection_side, spread,
-      selection_total, total_line, result_total,
-      is_mandatory, result, picked_at, updated_at
-    ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-    )
-    ON CONFLICT(week, player, game_id) DO UPDATE SET
-      selection_team = EXCLUDED.selection_team,
-      selection_side = EXCLUDED.selection_side,
-      spread = EXCLUDED.spread,
-      selection_total = EXCLUDED.selection_total,
-      total_line = EXCLUDED.total_line,
-      result_total = EXCLUDED.result_total,
-      is_mandatory = EXCLUDED.is_mandatory,
-      result = EXCLUDED.result,
-      updated_at = EXCLUDED.updated_at
-  `, [week, player, pick.gameId, pick.selectionTeam, pick.selectionSide, pick.spread,
-      pick.selectionTotal, pick.totalLine, result_total,
-      pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString()]);
+  const savedPicks = [];
 
-  const { rows } = await pool.query('SELECT * FROM picks WHERE week = $1 AND player = $2 AND game_id = $3', [week, player, pick.gameId]);
-  return rows[0];
+  // 1. Save Spread Pick if present
+  if (pick.selectionTeam) {
+    const result = determinePickResult(game, {
+      selection_team: pick.selectionTeam,
+      selection_side: pick.selectionSide,
+      spread: pick.spread
+    });
+
+    const { rows } = await pool.query(`
+      INSERT INTO picks (
+        week, player, game_id, selection_team, selection_side, spread,
+        is_mandatory, result, picked_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      )
+      ON CONFLICT (week, player, game_id) WHERE selection_team IS NOT NULL DO UPDATE SET
+        selection_team = EXCLUDED.selection_team,
+        selection_side = EXCLUDED.selection_side,
+        spread = EXCLUDED.spread,
+        is_mandatory = EXCLUDED.is_mandatory,
+        result = EXCLUDED.result,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *
+    `, [
+      week, player, pick.gameId, pick.selectionTeam, pick.selectionSide, pick.spread,
+      pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString()
+    ]);
+    savedPicks.push(rows[0]);
+  }
+
+  // 2. Save Total Pick if present
+  if (pick.selectionTotal) {
+    const result_total = determineTotalResult(game, {
+      selection_total: pick.selectionTotal,
+      total_line: pick.totalLine
+    });
+
+    const { rows } = await pool.query(`
+      INSERT INTO picks (
+        week, player, game_id, selection_total, total_line, result_total,
+        is_mandatory, result, picked_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      )
+      ON CONFLICT (week, player, game_id) WHERE selection_total IS NOT NULL DO UPDATE SET
+        selection_total = EXCLUDED.selection_total,
+        total_line = EXCLUDED.total_line,
+        result_total = EXCLUDED.result_total,
+        is_mandatory = EXCLUDED.is_mandatory,
+        result = EXCLUDED.result,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *
+    `, [
+      week, player, pick.gameId, pick.selectionTotal, pick.totalLine, result_total,
+      pick.isMandatory ? 1 : 0, null, new Date().toISOString(), new Date().toISOString()
+    ]);
+    savedPicks.push(rows[0]);
+  }
+
+  return savedPicks[0] || null;
 }
 
 async function getWeekSummary(week, season) {
@@ -603,8 +652,24 @@ async function getWeekSummary(week, season) {
   }
 
   const { rows } = season
-    ? await pool.query('SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 GROUP BY player, result', [week, season])
-    : await pool.query('SELECT player, result, COUNT(*) AS count FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 GROUP BY player, result', [week]);
+    ? await pool.query(`
+        SELECT player, res as result, COUNT(*) AS count
+        FROM (
+          SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result IS NOT NULL
+          UNION ALL
+          SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result_total IS NOT NULL
+        ) sub
+        GROUP BY player, res
+      `, [week, season])
+    : await pool.query(`
+        SELECT player, res as result, COUNT(*) AS count
+        FROM (
+          SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result IS NOT NULL
+          UNION ALL
+          SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result_total IS NOT NULL
+        ) sub
+        GROUP BY player, res
+      `, [week]);
 
   for (const row of rows) {
     const current = summary[row.player];
@@ -626,11 +691,13 @@ async function getSeasonSummary(season) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
   const { rows } = await pool.query(`
-    SELECT p.player, p.result, COUNT(*) AS count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    WHERE g.season = $1
-    GROUP BY p.player, p.result
+    SELECT player, res as result, COUNT(*) AS count
+    FROM (
+      SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result IS NOT NULL
+      UNION ALL
+      SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result_total IS NOT NULL
+    ) sub
+    GROUP BY player, res
   `, [season]);
   for (const row of rows) {
     const current = summary[row.player];
@@ -651,7 +718,15 @@ async function getAllTimeSummary() {
   for (const player of players) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
-  const { rows } = await pool.query('SELECT player, result, COUNT(*) AS count FROM picks GROUP BY player, result');
+  const { rows } = await pool.query(`
+    SELECT player, res as result, COUNT(*) AS count
+    FROM (
+      SELECT player, result as res FROM picks WHERE result IS NOT NULL
+      UNION ALL
+      SELECT player, result_total as res FROM picks WHERE result_total IS NOT NULL
+    ) sub
+    GROUP BY player, res
+  `);
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
@@ -708,14 +783,16 @@ async function getPlayerStats(player) {
   `, [player]);
 
   const { rows: trendRows } = await pool.query(`
-    SELECT g.season, p.week, 
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1
-    GROUP BY g.season, p.week
-    ORDER BY g.season DESC, p.week DESC
+    SELECT season, week, 
+           SUM(CASE WHEN res = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN res = 'loss' THEN 1 ELSE 0 END) as losses
+    FROM (
+      SELECT g.season, p.week, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL
+      UNION ALL
+      SELECT g.season, p.week, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result_total IS NOT NULL
+    ) sub
+    GROUP BY season, week
+    ORDER BY season DESC, week DESC
     LIMIT 10
   `, [player]);
   const trend = trendRows.reverse();
@@ -742,13 +819,16 @@ async function getPlayerStats(player) {
 
   const { rows: [record] } = await pool.query(`
     SELECT 
-      COALESCE(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END), 0) as wins,
-      COALESCE(SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
-      COALESCE(SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
-      COALESCE(SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+      COALESCE(SUM(CASE WHEN res = 'win' THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN res = 'loss' THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN res = 'push' THEN 1 ELSE 0 END), 0) as pushes,
+      COALESCE(SUM(CASE WHEN res = 'pending' THEN 1 ELSE 0 END), 0) as pending,
       COUNT(*) as total
-    FROM picks
-    WHERE player = $1
+    FROM (
+      SELECT player, result as res FROM picks WHERE player = $1 AND result IS NOT NULL
+      UNION ALL
+      SELECT player, result_total as res FROM picks WHERE player = $1 AND result_total IS NOT NULL
+    ) sub
   `, [player]);
 
   const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
@@ -1046,5 +1126,6 @@ module.exports = {
   updateTeamColor,
   getTeamMappings,
   addTeamMapping,
-  deleteTeamMapping
+  deleteTeamMapping,
+  ensureWeekRow
 };

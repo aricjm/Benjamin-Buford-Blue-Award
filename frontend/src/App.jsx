@@ -60,6 +60,16 @@ function App() {
     if (players.length && !selectedPlayer) setSelectedPlayer(players[0].name);
   }, [seasons, weeks, players, selectedSeason, selectedWeek, selectedPlayer]);
 
+  // Auto-adjust selectedWeek when the weeks list changes (e.g., when switching seasons)
+  useEffect(() => {
+    if (weeks.length > 0) {
+      const hasCurrentWeek = weeks.some((w) => w.week === selectedWeek);
+      if (!hasCurrentWeek) {
+        setSelectedWeek(weeks[0].week);
+      }
+    }
+  }, [weeks, selectedWeek]);
+
   const conferenceList = Array.from(new Set(teams.map(t => t.conference))).sort();
 
   const isGameLocked = (game) => {
