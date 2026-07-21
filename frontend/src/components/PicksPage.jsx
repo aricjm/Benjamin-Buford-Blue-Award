@@ -190,15 +190,15 @@ const GameIntel = ({ game, picks }) => {
                 </span>
               </div>
             )}
-            {picks[game.id].selectionTotal && picks[game.id].result_total && (
+            {picks[game.id].selectionTotal && picks[game.id].result && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <span style={{ fontSize: '0.75em', color: '#aaa', fontWeight: 'bold' }}>O/U:</span>
                 <span style={{
                   fontSize: '0.75em',
                   fontWeight: 'bold',
-                  color: picks[game.id].result_total === 'win' ? '#4caf50' : picks[game.id].result_total === 'loss' ? '#f44336' : '#888'
+                  color: picks[game.id].result === 'win' ? '#4caf50' : picks[game.id].result === 'loss' ? '#f44336' : '#888'
                 }}>
-                  {picks[game.id].result_total.toUpperCase()}
+                  {picks[game.id].result.toUpperCase()}
                 </span>
               </div>
             )}

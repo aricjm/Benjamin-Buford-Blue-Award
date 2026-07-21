@@ -621,22 +621,21 @@ async function savePick(week, player, pick) {
 
     const { rows } = await pool.query(`
       INSERT INTO picks (
-        week, player, game_id, selection_total, total_line, result_total,
-        is_mandatory, result, picked_at, updated_at
+        week, player, game_id, selection_total, total_line, result,
+        is_mandatory, picked_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        $1, $2, $3, $4, $5, $6, $7, $8, $9
       )
       ON CONFLICT (week, player, game_id) WHERE selection_total IS NOT NULL DO UPDATE SET
         selection_total = EXCLUDED.selection_total,
         total_line = EXCLUDED.total_line,
-        result_total = EXCLUDED.result_total,
-        is_mandatory = EXCLUDED.is_mandatory,
         result = EXCLUDED.result,
+        is_mandatory = EXCLUDED.is_mandatory,
         updated_at = EXCLUDED.updated_at
       RETURNING *
     `, [
       week, player, pick.gameId, pick.selectionTotal, pick.totalLine, result_total,
-      pick.isMandatory ? 1 : 0, null, new Date().toISOString(), new Date().toISOString()
+      pick.isMandatory ? 1 : 0, new Date().toISOString(), new Date().toISOString()
     ]);
     savedPicks.push(rows[0]);
   }
@@ -653,22 +652,14 @@ async function getWeekSummary(week, season) {
 
   const { rows } = season
     ? await pool.query(`
-        SELECT player, res as result, COUNT(*) AS count
-        FROM (
-          SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result IS NOT NULL
-          UNION ALL
-          SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result_total IS NOT NULL
-        ) sub
-        GROUP BY player, res
+        SELECT player, result, COUNT(*) AS count
+        FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result IS NOT NULL
+        GROUP BY player, result
       `, [week, season])
     : await pool.query(`
-        SELECT player, res as result, COUNT(*) AS count
-        FROM (
-          SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result IS NOT NULL
-          UNION ALL
-          SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result_total IS NOT NULL
-        ) sub
-        GROUP BY player, res
+        SELECT player, result, COUNT(*) AS count
+        FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result IS NOT NULL
+        GROUP BY player, result
       `, [week]);
 
   for (const row of rows) {
@@ -691,13 +682,9 @@ async function getSeasonSummary(season) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
   const { rows } = await pool.query(`
-    SELECT player, res as result, COUNT(*) AS count
-    FROM (
-      SELECT p.player, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result IS NOT NULL
-      UNION ALL
-      SELECT p.player, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result_total IS NOT NULL
-    ) sub
-    GROUP BY player, res
+    SELECT player, result, COUNT(*) AS count
+    FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result IS NOT NULL
+    GROUP BY player, result
   `, [season]);
   for (const row of rows) {
     const current = summary[row.player];
@@ -718,14 +705,17 @@ async function getAllTimeSummary() {
   for (const player of players) {
     summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
   }
+
+  if (players.length === 0) {
+    return [];
+  }
+
   const { rows } = await pool.query(`
     SELECT player, res as result, COUNT(*) AS count
     FROM (
-      SELECT player, result as res FROM picks WHERE result IS NOT NULL
-      UNION ALL
-      SELECT player, result_total as res FROM picks WHERE result_total IS NOT NULL
+      SELECT player, result as res FROM picks WHERE result IS NOT NULL AND result != ''
     ) sub
-    GROUP BY player, res
+    GROUP BY player, result
   `);
   for (const row of rows) {
     const current = summary[row.player];
@@ -734,7 +724,9 @@ async function getAllTimeSummary() {
       if (row.result === 'win') current.wins += Number(row.count);
       else if (row.result === 'loss') current.losses += Number(row.count);
       else if (row.result === 'push') current.pushes += Number(row.count);
-      else current.pending += Number(row.count);
+      else if (row.result === 'pending') {
+        current.pending += Number(row.count);
+      }
     }
   }
   return Object.values(summary);
@@ -784,13 +776,9 @@ async function getPlayerStats(player) {
 
   const { rows: trendRows } = await pool.query(`
     SELECT season, week, 
-           SUM(CASE WHEN res = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN res = 'loss' THEN 1 ELSE 0 END) as losses
-    FROM (
-      SELECT g.season, p.week, p.result as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL
-      UNION ALL
-      SELECT g.season, p.week, p.result_total as res FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result_total IS NOT NULL
-    ) sub
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses
+    FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL
     GROUP BY season, week
     ORDER BY season DESC, week DESC
     LIMIT 10
@@ -819,16 +807,12 @@ async function getPlayerStats(player) {
 
   const { rows: [record] } = await pool.query(`
     SELECT 
-      COALESCE(SUM(CASE WHEN res = 'win' THEN 1 ELSE 0 END), 0) as wins,
-      COALESCE(SUM(CASE WHEN res = 'loss' THEN 1 ELSE 0 END), 0) as losses,
-      COALESCE(SUM(CASE WHEN res = 'push' THEN 1 ELSE 0 END), 0) as pushes,
-      COALESCE(SUM(CASE WHEN res = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+      COALESCE(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
+      COALESCE(SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
       COUNT(*) as total
-    FROM (
-      SELECT player, result as res FROM picks WHERE player = $1 AND result IS NOT NULL
-      UNION ALL
-      SELECT player, result_total as res FROM picks WHERE player = $1 AND result_total IS NOT NULL
-    ) sub
+    FROM picks WHERE player = $1 AND result IS NOT NULL
   `, [player]);
 
   const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
@@ -858,10 +842,10 @@ async function getPlayerStats(player) {
   `, [player]);
 
   const { rows: recentResults } = await pool.query(`
-    SELECT p.result, p.result_total
+    SELECT p.result
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND (p.result IN ('win', 'loss', 'push') OR p.result_total IN ('win', 'loss', 'push'))
+    WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push')
     ORDER BY g.commence_time ASC, g.id ASC
   `, [player]);
 
@@ -869,11 +853,6 @@ async function getPlayerStats(player) {
   let currentLossStreak = 0;
   let winStreakActive = true;
   let lossStreakActive = true;
-
-  let currentTotalWinStreak = 0;
-  let currentTotalLossStreak = 0;
-  let totalWinStreakActive = true;
-  let totalLossStreakActive = true;
 
   const reversedResults = [...recentResults].reverse();
   for (const r of reversedResults) {
@@ -887,28 +866,12 @@ async function getPlayerStats(player) {
         else if (r.result === 'win') lossStreakActive = false;
       }
     }
-    
-    if (r.result_total === 'win' || r.result_total === 'loss') {
-      if (totalWinStreakActive) {
-        if (r.result_total === 'win') currentTotalWinStreak++;
-        else if (r.result_total === 'loss') totalWinStreakActive = false;
-      }
-      if (totalLossStreakActive) {
-        if (r.result_total === 'loss') currentTotalLossStreak++;
-        else if (r.result_total === 'win') totalLossStreakActive = false;
-      }
-    }
   }
 
   let longestWinStreak = 0;
   let longestLossStreak = 0;
   let tempWinStreak = 0;
   let tempLossStreak = 0;
-
-  let longestTotalWinStreak = 0;
-  let longestTotalLossStreak = 0;
-  let tempTotalWinStreak = 0;
-  let tempTotalLossStreak = 0;
 
   for (const r of recentResults) {
     if (r.result === 'win') {
@@ -919,16 +882,6 @@ async function getPlayerStats(player) {
       tempLossStreak++;
       tempWinStreak = 0;
       if (tempLossStreak > longestLossStreak) longestLossStreak = tempLossStreak;
-    }
-
-    if (r.result_total === 'win') {
-      tempTotalWinStreak++;
-      tempTotalLossStreak = 0;
-      if (tempTotalWinStreak > longestTotalWinStreak) longestTotalWinStreak = tempTotalWinStreak;
-    } else if (r.result_total === 'loss') {
-      tempTotalLossStreak++;
-      tempTotalWinStreak = 0;
-      if (tempTotalLossStreak > longestTotalLossStreak) longestTotalLossStreak = tempTotalLossStreak;
     }
   }
 
@@ -945,8 +898,7 @@ async function getPlayerStats(player) {
 
   return { 
     favConf, bestConf, worstConf, topWinSchool, topLossSchool, record: safeRecord, trend, mostBetsFor, mostBetsAgainst, 
-    currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form,
-    currentTotalWinStreak, currentTotalLossStreak, longestTotalWinStreak, longestTotalLossStreak
+    currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form
   };
 }
 
