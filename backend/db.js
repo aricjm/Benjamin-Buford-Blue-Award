@@ -743,111 +743,167 @@ async function seedTestData() {
   `, [weekNum, season, 'Week 0 (Test Data)', new Date(Date.now() - 86400000 * 7).toISOString(), new Date(Date.now() + 86400000 * 7).toISOString()]);
 }
 
-async function getPlayerStats(player) {
-  const { rows: [favConf] } = await pool.query(`
+async function getPlayerStats(player, timeRange, week, season) {
+  function buildQuery(baseQuery) {
+    let timeFilter = '';
+    const params = [player];
+
+    if (timeRange === 'Week') {
+      timeFilter = 'AND g.week = $2 AND g.season = $3';
+      params.push(week, season);
+    } else if (timeRange === 'Season') {
+      timeFilter = 'AND g.season = $2';
+      params.push(season);
+    } else if (timeRange === 'Last Season') {
+      timeFilter = 'AND g.season = $2';
+      params.push(String(Number(season) - 1));
+    } else if (/^\d{4}$/.test(timeRange)) {
+      timeFilter = 'AND g.season = $2';
+      params.push(timeRange);
+    } else if (timeRange === 'Last 5 Weeks') {
+      timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 4 AND $2';
+      params.push(week, season);
+    } else if (timeRange === 'Last 10 Weeks') {
+      timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 9 AND $2';
+      params.push(week, season);
+    } else if (timeRange === 'Last 30 Days') {
+      timeFilter = "AND g.commence_time >= NOW() - INTERVAL '30 days'";
+    }
+
+    const query = baseQuery.replace('__TIME_FILTER__', timeFilter);
+    return { query, params };
+  }
+
+  const favConfQ = buildQuery(`
     SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: [bestConf] } = await pool.query(`
-    SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'win'
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: [worstConf] } = await pool.query(`
-    SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'loss'
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: trendRows } = await pool.query(`
-    SELECT season, week, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses
-    FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL
-    GROUP BY season, week
-    ORDER BY season DESC, week DESC
-    LIMIT 10
-  `, [player]);
-  const trend = trendRows.reverse();
-
-  const { rows: [topWinSchool] } = await pool.query(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
-    FROM picks p
-    LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'win'
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: [topLossSchool] } = await pool.query(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
-    FROM picks p
-    LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'loss'
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: [record] } = await pool.query(`
-    SELECT 
-      COALESCE(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END), 0) as wins,
-      COALESCE(SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
-      COALESCE(SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
-      COALESCE(SUM(CASE WHEN result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
-      COUNT(*) as total
-    FROM picks WHERE player = $1 AND result IS NOT NULL
-  `, [player]);
-
-  const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
-
-  const { rows: [mostBetsFor] } = await pool.query(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
-    FROM picks p
-    LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `, [player]);
-
-  const { rows: [mostBetsAgainst] } = await pool.query(`
-    SELECT 
-      CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
-      t.logo,
-      COUNT(*) as count
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    LEFT JOIN teams t ON t.school = (CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END)
-    WHERE p.player = $1
-    GROUP BY school, t.logo, p.selection_side, g.away_team, g.home_team
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 __TIME_FILTER__
+    GROUP BY t.conference
     ORDER BY count DESC
     LIMIT 1
-  `, [player]);
+  `);
+  const { rows: [favConf] } = await pool.query(favConfQ.query, favConfQ.params);
 
-  const { rows: recentResults } = await pool.query(`
+  const bestConfQ = buildQuery(`
+    SELECT t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'win' __TIME_FILTER__
+    GROUP BY t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [bestConf] } = await pool.query(bestConfQ.query, bestConfQ.params);
+
+  const worstConfQ = buildQuery(`
+    SELECT t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'loss' __TIME_FILTER__
+    GROUP BY t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [worstConf] } = await pool.query(worstConfQ.query, worstConfQ.params);
+
+  const trendQ = buildQuery(`
+    SELECT g.season, g.week, 
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
+    FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
+    GROUP BY g.season, g.week
+    ORDER BY g.season DESC, g.week DESC
+    LIMIT 10
+  `);
+  const { rows: trendRows } = await pool.query(trendQ.query, trendQ.params);
+  const trend = trendRows.reverse();
+
+  const topWinSchoolQ = buildQuery(`
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'win' AND p.selection_team IS NOT NULL __TIME_FILTER__
+    GROUP BY p.selection_team, t.logo
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [topWinSchool] } = await pool.query(topWinSchoolQ.query, topWinSchoolQ.params);
+
+  const topLossSchoolQ = buildQuery(`
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'loss' AND p.selection_team IS NOT NULL __TIME_FILTER__
+    GROUP BY p.selection_team, t.logo
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [topLossSchool] } = await pool.query(topLossSchoolQ.query, topLossSchoolQ.params);
+
+  const recordQ = buildQuery(`
+    SELECT 
+      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
+      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+      COUNT(*) as total
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
+  `);
+  const { rows: [record] } = await pool.query(recordQ.query, recordQ.params);
+  const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+
+  const mostBetsForQ = buildQuery(`
+    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.selection_team IS NOT NULL __TIME_FILTER__
+    GROUP BY p.selection_team, t.logo
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [mostBetsFor] } = await pool.query(mostBetsForQ.query, mostBetsForQ.params);
+
+  const mostBetsAgainstQ = buildQuery(`
+    SELECT sub.school, t.logo, COUNT(*) as count
+    FROM (
+      SELECT CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school
+      FROM picks p
+      JOIN games g ON p.game_id = g.id
+      WHERE p.player = $1 AND p.selection_side IS NOT NULL __TIME_FILTER__
+    ) sub
+    LEFT JOIN teams t ON t.school = sub.school
+    GROUP BY sub.school, t.logo
+    ORDER BY count DESC
+    LIMIT 1
+  `);
+  const { rows: [mostBetsAgainst] } = await pool.query(mostBetsAgainstQ.query, mostBetsAgainstQ.params);
+
+  const recentResultsQ = buildQuery(`
     SELECT p.result
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push')
+    WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push') __TIME_FILTER__
     ORDER BY g.commence_time ASC, g.id ASC
-  `, [player]);
+  `);
+  const { rows: recentResults } = await pool.query(recentResultsQ.query, recentResultsQ.params);
+
+  const recentTotalResultsQ = buildQuery(`
+    SELECT p.result
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = $1 AND p.selection_total IS NOT NULL AND p.result IN ('win', 'loss', 'push') __TIME_FILTER__
+    ORDER BY g.commence_time ASC, g.id ASC
+  `);
+  const { rows: recentTotalResults } = await pool.query(recentTotalResultsQ.query, recentTotalResultsQ.params);
 
   let currentWinStreak = 0;
   let currentLossStreak = 0;
@@ -885,6 +941,43 @@ async function getPlayerStats(player) {
     }
   }
 
+  // O/U streaks
+  let currentTotalWinStreak = 0;
+  let currentTotalLossStreak = 0;
+  let totalWinStreakActive = true;
+  let totalLossStreakActive = true;
+
+  const reversedTotalResults = [...recentTotalResults].reverse();
+  for (const r of reversedTotalResults) {
+    if (r.result === 'win' || r.result === 'loss') {
+      if (totalWinStreakActive) {
+        if (r.result === 'win') currentTotalWinStreak++;
+        else totalWinStreakActive = false;
+      }
+      if (totalLossStreakActive) {
+        if (r.result === 'loss') currentTotalLossStreak++;
+        else totalLossStreakActive = false;
+      }
+    }
+  }
+
+  let longestTotalWinStreak = 0;
+  let longestTotalLossStreak = 0;
+  let tempTotalWinStreak = 0;
+  let tempTotalLossStreak = 0;
+
+  for (const r of recentTotalResults) {
+    if (r.result === 'win') {
+      tempTotalWinStreak++;
+      tempTotalLossStreak = 0;
+      if (tempTotalWinStreak > longestTotalWinStreak) longestTotalWinStreak = tempTotalWinStreak;
+    } else if (r.result === 'loss') {
+      tempTotalLossStreak++;
+      tempTotalWinStreak = 0;
+      if (tempTotalLossStreak > longestTotalLossStreak) longestTotalLossStreak = tempTotalLossStreak;
+    }
+  }
+
   const last10Form = recentResults
     .filter(r => r.result === 'win' || r.result === 'loss' || r.result === 'push')
     .slice(-10)
@@ -896,9 +989,51 @@ async function getPlayerStats(player) {
     })
     .join('-');
 
+  const bestConfByPctQ = buildQuery(`
+    SELECT t.conference,
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(
+             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
+             NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
+             2
+           ) as win_pct
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result IN ('win', 'loss') __TIME_FILTER__
+    GROUP BY t.conference
+    HAVING SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END) >= 5
+    ORDER BY win_pct DESC
+    LIMIT 1
+  `);
+  const { rows: [bestConfByPct] } = await pool.query(bestConfByPctQ.query, bestConfByPctQ.params);
+
+  const worstConfByPctQ = buildQuery(`
+    SELECT t.conference,
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(
+             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
+             NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
+             2
+           ) as win_pct
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result IN ('win', 'loss') __TIME_FILTER__
+    GROUP BY t.conference
+    HAVING SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END) >= 5
+    ORDER BY win_pct ASC
+    LIMIT 1
+  `);
+  const { rows: [worstConfByPct] } = await pool.query(worstConfByPctQ.query, worstConfByPctQ.params);
+
   return { 
-    favConf, bestConf, worstConf, topWinSchool, topLossSchool, record: safeRecord, trend, mostBetsFor, mostBetsAgainst, 
-    currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak, last10Form
+    favConf, bestConf, worstConf, bestConfByPct, worstConfByPct, topWinSchool, topLossSchool, record: safeRecord, trend, mostBetsFor, mostBetsAgainst, 
+    currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak,
+    currentTotalWinStreak, currentTotalLossStreak, longestTotalWinStreak, longestTotalLossStreak,
+    last10Form
   };
 }
 
@@ -907,11 +1042,25 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
   const params = [player, conference];
 
   if (timeRange === 'Week') {
-    timeFilter = 'AND p.week = $3 AND g.season = $4';
+    timeFilter = 'AND g.week = $3 AND g.season = $4';
     params.push(week, season);
   } else if (timeRange === 'Season') {
     timeFilter = 'AND g.season = $3';
     params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND g.season = $3';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND g.season = $3';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND g.season = $4 AND g.week BETWEEN $3 - 4 AND $3';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND g.season = $4 AND g.week BETWEEN $3 - 9 AND $3';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND g.commence_time >= NOW() - INTERVAL '30 days'";
   }
 
   const { rows: [bestTeam] } = await pool.query(`
@@ -961,17 +1110,42 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
     SELECT 
       t.school,
       t.logo,
-      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'win' THEN 1 ELSE 0 END) as wins,
-      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'loss' THEN 1 ELSE 0 END) as losses,
-      SUM(CASE WHEN g.id IS NOT NULL AND p.result = 'push' THEN 1 ELSE 0 END) as pushes,
-      COUNT(p.id) as total
+      -- Direct record (betting FOR the team)
+      COALESCE(SUM(CASE WHEN p.selection_team = t.school AND p.result = 'win' THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN p.selection_team = t.school AND p.result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN p.selection_team = t.school AND p.result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
+      COALESCE(SUM(CASE WHEN p.selection_team = t.school THEN 1 ELSE 0 END), 0) as total,
+      
+      -- Faded record (betting AGAINST the team)
+      COALESCE(SUM(CASE WHEN p.selection_team != t.school AND p.result = 'win' THEN 1 ELSE 0 END), 0) as fade_wins,
+      COALESCE(SUM(CASE WHEN p.selection_team != t.school AND p.result = 'loss' THEN 1 ELSE 0 END), 0) as fade_losses,
+      COALESCE(SUM(CASE WHEN p.selection_team != t.school AND p.result = 'push' THEN 1 ELSE 0 END), 0) as fade_pushes,
+      COALESCE(SUM(CASE WHEN p.selection_team != t.school THEN 1 ELSE 0 END), 0) as fade_total,
+
+      -- Average Spread Taken
+      ROUND(COALESCE(AVG(p.spread), 0)::numeric, 1) as avg_spread,
+
+      -- Net Units Won (flat 1-unit bet with -110 vig)
+      ROUND(
+        (
+          COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1.0 ELSE 0 END), 0) - 
+          COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1.1 ELSE 0 END), 0)
+        )::numeric,
+        2
+      ) as net_units,
+
+      -- Involved record (betting FOR or AGAINST the team)
+      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0) as inv_wins,
+      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0) as inv_losses,
+      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0) as inv_pushes,
+      COALESCE(COALESCE(COUNT(p.id), 0), 0) as inv_total
     FROM teams t
-    LEFT JOIN picks p ON t.school = p.selection_team AND p.player = $1
-    LEFT JOIN games g ON p.game_id = g.id AND t.conference = $2 ${timeFilter}
+    LEFT JOIN games g ON (g.home_team = t.school OR g.away_team = t.school) ${timeFilter}
+    LEFT JOIN picks p ON p.game_id = g.id AND p.player = $1 AND p.selection_team IS NOT NULL
     WHERE t.conference = $2
     GROUP BY t.school, t.logo
     ORDER BY wins DESC, total DESC
-  `, [player, conference, ...params.slice(2)]);
+  `, params);
 
   const { rows: [sosResult] } = await pool.query(`
     SELECT AVG(ABS(p.spread)) as "avgSpread"
@@ -984,6 +1158,688 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
   const strengthOfSchedule = parseFloat(sosResult?.avgSpread || 0);
 
   return { bestTeam, worstTeam, mostBetsFor, mostBetsAgainst, schoolRecords, strengthOfSchedule };
+}
+
+async function getAllyNemesisByConference(player, conference) {
+  const confFilter = conference ? 'AND t.conference = $2' : '';
+  const params = conference ? [player, conference] : [player];
+
+  const { rows: [ally] } = await pool.query(`
+    SELECT p.selection_team as school, t.logo, t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'win' AND p.selection_team IS NOT NULL ${confFilter}
+    GROUP BY p.selection_team, t.logo, t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `, params);
+
+  const { rows: [nemesis] } = await pool.query(`
+    SELECT p.selection_team as school, t.logo, t.conference, COUNT(*) as count
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result = 'loss' AND p.selection_team IS NOT NULL ${confFilter}
+    GROUP BY p.selection_team, t.logo, t.conference
+    ORDER BY count DESC
+    LIMIT 1
+  `, params);
+
+  return { ally, nemesis };
+}
+
+async function getPlayerConferenceStats(player) {
+  const { rows } = await pool.query(`
+    SELECT t.conference,
+           COUNT(*) as total_picks,
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END) as pushes,
+           ROUND(
+             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
+             NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
+             2
+           ) as win_pct
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.selection_team IS NOT NULL
+    GROUP BY t.conference
+    ORDER BY total_picks DESC
+  `, [player]);
+  return rows;
+}
+
+async function getPlayerTeamStats(player, conference) {
+  const confFilter = conference ? 'AND t.conference = $2' : '';
+  const params = conference ? [player, conference] : [player];
+  const { rows } = await pool.query(`
+    SELECT p.selection_team as school,
+           t.logo,
+           t.conference,
+           COUNT(*) as total_picks,
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END) as pushes
+    FROM picks p
+    JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.selection_team IS NOT NULL ${confFilter}
+    GROUP BY p.selection_team, t.logo, t.conference
+    ORDER BY total_picks DESC
+    LIMIT 15
+  `, params);
+  return rows;
+}
+
+async function getPlayerFadedTeamStats(player, conference) {
+  const confFilter = conference ? 'AND t.conference = $2' : '';
+  const params = conference ? [player, conference] : [player];
+  const { rows } = await pool.query(`
+    SELECT sub.school,
+           t.logo,
+           t.conference,
+           COUNT(*) as total_picks,
+           SUM(CASE WHEN sub.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN sub.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           SUM(CASE WHEN sub.result = 'push' THEN 1 ELSE 0 END) as pushes
+    FROM (
+      SELECT 
+        CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school,
+        p.result
+      FROM picks p
+      JOIN games g ON p.game_id = g.id
+      WHERE p.player = $1 AND p.selection_side IS NOT NULL
+    ) sub
+    LEFT JOIN teams t ON t.school = sub.school
+    WHERE 1=1 ${confFilter}
+    GROUP BY sub.school, t.logo, t.conference
+    ORDER BY total_picks DESC
+    LIMIT 15
+  `, params);
+  return rows;
+}
+
+async function getPlayerTrend(player, timeRange, week, season, conference) {
+  let timeFilter = '';
+  const params = [player];
+
+  if (timeRange === 'Week') {
+    timeFilter = 'AND g.week = $2 AND g.season = $3';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND g.season = $2';
+    params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND g.season = $2';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND g.season = $2';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 4 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 9 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND g.commence_time >= NOW() - INTERVAL '30 days'";
+  }
+
+  let confFilter = '';
+  if (conference) {
+    confFilter = `AND t.conference = $${params.length + 1}`;
+    params.push(conference);
+  }
+
+  const query = `
+    SELECT g.season, g.week, 
+           COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0) as wins,
+           COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0) as losses
+    FROM picks p 
+    JOIN games g ON p.game_id = g.id 
+    LEFT JOIN teams t ON p.selection_team = t.school
+    WHERE p.player = $1 AND p.result IS NOT NULL ${timeFilter} ${confFilter}
+    GROUP BY g.season, g.week
+    ORDER BY g.season DESC, g.week DESC
+  `;
+
+  const { rows } = await pool.query(query, params);
+  return (!timeRange || timeRange === 'All-Time') ? rows.reverse() : rows.sort((a, b) => {
+    if (a.season !== b.season) return a.season - b.season;
+    return a.week - b.week;
+  });
+}
+
+async function getTeamResearchStats(teamName, timeRange, week, season) {
+  let timeFilter = '';
+  const params = [teamName];
+
+  if (timeRange === 'Week') {
+    timeFilter = 'AND week = $2 AND season = $3';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND season = $2';
+    params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND season = $2';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND season = $2';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND season = $3 AND week BETWEEN $2 - 4 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND season = $3 AND week BETWEEN $2 - 9 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND commence_time >= NOW() - INTERVAL '30 days'";
+  }
+
+  const { rows: games } = await pool.query(`
+    SELECT * FROM games
+    WHERE (home_team = $1 OR away_team = $1) AND completed = 1 ${timeFilter}
+    ORDER BY season DESC, week DESC, commence_time DESC
+  `, params);
+
+  const stats = {
+    su: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHome: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAway: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHomeFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHomeDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAwayFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAwayDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    
+    ats: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHome: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAway: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHomeFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHomeDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAwayFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAwayDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+
+    ou: { overs: 0, unders: 0, pushes: 0, total: 0 },
+    ouHome: { overs: 0, unders: 0, pushes: 0, total: 0 },
+    ouAway: { overs: 0, unders: 0, pushes: 0, total: 0 },
+
+    recent: []
+  };
+
+  for (const g of games) {
+    const isHome = g.home_team === teamName;
+    const opponent = isHome ? g.away_team : g.home_team;
+    const teamScore = isHome ? g.score_home : g.score_away;
+    const oppScore = isHome ? g.score_away : g.score_home;
+    const teamSpread = isHome ? g.spread_home : g.spread_away;
+
+    if (teamScore === null || oppScore === null) continue;
+
+    // SU
+    let suResult = 'push';
+    if (teamScore > oppScore) suResult = 'win';
+    else if (teamScore < oppScore) suResult = 'loss';
+
+    // Favorite / Dog
+    const isFav = teamSpread !== null && teamSpread < 0;
+    const isDog = teamSpread !== null && teamSpread > 0;
+
+    // ATS
+    let atsResult = 'push';
+    if (teamSpread !== null) {
+      const coveredScore = teamScore + teamSpread;
+      if (coveredScore > oppScore) atsResult = 'win';
+      else if (coveredScore < oppScore) atsResult = 'loss';
+    }
+
+    // O/U
+    let ouResult = 'push';
+    const totalScore = teamScore + oppScore;
+    if (g.over_under !== null) {
+      if (totalScore > g.over_under) ouResult = 'over';
+      else if (totalScore < g.over_under) ouResult = 'under';
+    }
+
+    // Aggregate SU
+    stats.su.total++;
+    stats.su[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+    if (isHome) {
+      stats.suHome.total++;
+      stats.suHome[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      if (isFav) {
+        stats.suHomeFav.total++;
+        stats.suHomeFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      } else if (isDog) {
+        stats.suHomeDog.total++;
+        stats.suHomeDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      }
+    } else {
+      stats.suAway.total++;
+      stats.suAway[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      if (isFav) {
+        stats.suAwayFav.total++;
+        stats.suAwayFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      } else if (isDog) {
+        stats.suAwayDog.total++;
+        stats.suAwayDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      }
+    }
+    if (isFav) {
+      stats.suFav.total++;
+      stats.suFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+    } else if (isDog) {
+      stats.suDog.total++;
+      stats.suDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+    }
+
+    // Aggregate ATS
+    if (teamSpread !== null) {
+      stats.ats.total++;
+      stats.ats[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+      if (isHome) {
+        stats.atsHome.total++;
+        stats.atsHome[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        if (isFav) {
+          stats.atsHomeFav.total++;
+          stats.atsHomeFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        } else if (isDog) {
+          stats.atsHomeDog.total++;
+          stats.atsHomeDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        }
+      } else {
+        stats.atsAway.total++;
+        stats.atsAway[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        if (isFav) {
+          stats.atsAwayFav.total++;
+          stats.atsAwayFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        } else if (isDog) {
+          stats.atsAwayDog.total++;
+          stats.atsAwayDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        }
+      }
+      if (isFav) {
+        stats.atsFav.total++;
+        stats.atsFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+      } else if (isDog) {
+        stats.atsDog.total++;
+        stats.atsDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+      }
+    }
+
+    // Aggregate O/U
+    if (g.over_under !== null) {
+      stats.ou.total++;
+      stats.ou[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+      if (isHome) {
+        stats.ouHome.total++;
+        stats.ouHome[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+      } else {
+        stats.ouAway.total++;
+        stats.ouAway[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+      }
+    }
+
+    // Recent Games (limit to 10)
+    if (stats.recent.length < 10) {
+      stats.recent.push({
+        season: g.season,
+        week: g.week,
+        commence_time: g.commence_time,
+        isHome,
+        opponent,
+        teamScore,
+        oppScore,
+        spread: teamSpread,
+        overUnder: g.over_under,
+        suResult,
+        atsResult,
+        ouResult
+      });
+    }
+  }
+
+  return stats;
+}
+
+async function getConferenceResearchStats(conferenceName, timeRange, week, season) {
+  // Find all teams in this conference
+  const { rows: teams } = await pool.query(`
+    SELECT school FROM teams WHERE conference = $1
+  `, [conferenceName]);
+
+  const schoolNames = teams.map(t => t.school);
+  if (schoolNames.length === 0) {
+    return null;
+  }
+
+  let timeFilter = '';
+  const params = [schoolNames];
+
+  if (timeRange === 'Week') {
+    timeFilter = 'AND week = $2 AND season = $3';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND season = $2';
+    params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND season = $2';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND season = $2';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND season = $3 AND week BETWEEN $2 - 4 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND season = $3 AND week BETWEEN $2 - 9 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND commence_time >= NOW() - INTERVAL '30 days'";
+  }
+
+  // Query all completed games involving these teams
+  const { rows: games } = await pool.query(`
+    SELECT * FROM games
+    WHERE (home_team = ANY($1) OR away_team = ANY($1)) AND completed = 1 ${timeFilter}
+    ORDER BY season DESC, week DESC, commence_time DESC
+  `, params);
+
+  const stats = {
+    su: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHome: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAway: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHomeFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suHomeDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAwayFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    suAwayDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    
+    ats: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHome: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAway: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHomeFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsHomeDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAwayFav: { wins: 0, losses: 0, pushes: 0, total: 0 },
+    atsAwayDog: { wins: 0, losses: 0, pushes: 0, total: 0 },
+
+    ou: { overs: 0, unders: 0, pushes: 0, total: 0 },
+    ouHome: { overs: 0, unders: 0, pushes: 0, total: 0 },
+    ouAway: { overs: 0, unders: 0, pushes: 0, total: 0 },
+
+    recent: []
+  };
+
+  for (const g of games) {
+    const homeInConf = schoolNames.includes(g.home_team);
+    const awayInConf = schoolNames.includes(g.away_team);
+
+    const perspectives = [];
+    if (homeInConf) perspectives.push({ teamName: g.home_team, isHome: true });
+    if (awayInConf) perspectives.push({ teamName: g.away_team, isHome: false });
+
+    for (const p of perspectives) {
+      const isHome = p.isHome;
+      const teamName = p.teamName;
+      const opponent = isHome ? g.away_team : g.home_team;
+      const teamScore = isHome ? g.score_home : g.score_away;
+      const oppScore = isHome ? g.score_away : g.score_home;
+      const teamSpread = isHome ? g.spread_home : g.spread_away;
+
+      if (teamScore === null || oppScore === null) continue;
+
+      // SU
+      let suResult = 'push';
+      if (teamScore > oppScore) suResult = 'win';
+      else if (teamScore < oppScore) suResult = 'loss';
+
+      // Favorite / Dog
+      const isFav = teamSpread !== null && teamSpread < 0;
+      const isDog = teamSpread !== null && teamSpread > 0;
+
+      // ATS
+      let atsResult = 'push';
+      if (teamSpread !== null) {
+        const coveredScore = teamScore + teamSpread;
+        if (coveredScore > oppScore) atsResult = 'win';
+        else if (coveredScore < oppScore) atsResult = 'loss';
+      }
+
+      // O/U
+      let ouResult = 'push';
+      const totalScore = teamScore + oppScore;
+      if (g.over_under !== null) {
+        if (totalScore > g.over_under) ouResult = 'over';
+        else if (totalScore < g.over_under) ouResult = 'under';
+      }
+
+      // Aggregate SU
+      stats.su.total++;
+      stats.su[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      if (isHome) {
+        stats.suHome.total++;
+        stats.suHome[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        if (isFav) {
+          stats.suHomeFav.total++;
+          stats.suHomeFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        } else if (isDog) {
+          stats.suHomeDog.total++;
+          stats.suHomeDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        }
+      } else {
+        stats.suAway.total++;
+        stats.suAway[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        if (isFav) {
+          stats.suAwayFav.total++;
+          stats.suAwayFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        } else if (isDog) {
+          stats.suAwayDog.total++;
+          stats.suAwayDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+        }
+      }
+      if (isFav) {
+        stats.suFav.total++;
+        stats.suFav[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      } else if (isDog) {
+        stats.suDog.total++;
+        stats.suDog[suResult === 'win' ? 'wins' : suResult === 'loss' ? 'losses' : 'pushes']++;
+      }
+
+      // Aggregate ATS
+      if (teamSpread !== null) {
+        stats.ats.total++;
+        stats.ats[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        if (isHome) {
+          stats.atsHome.total++;
+          stats.atsHome[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          if (isFav) {
+            stats.atsHomeFav.total++;
+            stats.atsHomeFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          } else if (isDog) {
+            stats.atsHomeDog.total++;
+            stats.atsHomeDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          }
+        } else {
+          stats.atsAway.total++;
+          stats.atsAway[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          if (isFav) {
+            stats.atsAwayFav.total++;
+            stats.atsAwayFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          } else if (isDog) {
+            stats.atsAwayDog.total++;
+            stats.atsAwayDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+          }
+        }
+        if (isFav) {
+          stats.atsFav.total++;
+          stats.atsFav[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        } else if (isDog) {
+          stats.atsDog.total++;
+          stats.atsDog[atsResult === 'win' ? 'wins' : atsResult === 'loss' ? 'losses' : 'pushes']++;
+        }
+      }
+
+      // Aggregate O/U
+      if (g.over_under !== null) {
+        stats.ou.total++;
+        stats.ou[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+        if (isHome) {
+          stats.ouHome.total++;
+          stats.ouHome[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+        } else {
+          stats.ouAway.total++;
+          stats.ouAway[ouResult === 'over' ? 'overs' : ouResult === 'under' ? 'unders' : 'pushes']++;
+        }
+      }
+
+      // Recent Games (limit to 10)
+      if (stats.recent.length < 10) {
+        stats.recent.push({
+          season: g.season,
+          week: g.week,
+          commence_time: g.commence_time,
+          teamName,
+          isHome,
+          opponent,
+          teamScore,
+          oppScore,
+          spread: teamSpread,
+          overUnder: g.over_under,
+          suResult,
+          atsResult,
+          ouResult
+        });
+      }
+    }
+  }
+
+  return stats;
+}
+
+
+async function getResearchRankings(entity, stat, location, role, timeRange, week, season) {
+  let timeFilter = '';
+  const params = [];
+
+  if (timeRange === 'Week') {
+    timeFilter = 'AND season = $2 AND week = $1';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND season = $1';
+    params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND season = $1';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND season = $1';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND season = $2 AND week BETWEEN $1 - 4 AND $1';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND season = $2 AND week BETWEEN $1 - 9 AND $1';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND commence_time >= NOW() - INTERVAL '30 days'";
+  }
+
+  let locationFilter = '';
+  if (location === 'home') {
+    locationFilter = 'AND is_home = TRUE';
+  } else if (location === 'away') {
+    locationFilter = 'AND is_home = FALSE';
+  }
+
+  let roleFilter = '';
+  if (role === 'favorite') {
+    roleFilter = 'AND team_spread < 0';
+  } else if (role === 'underdog') {
+    roleFilter = 'AND team_spread > 0';
+  }
+
+  let statCondition = '';
+  if (stat === 'ats') {
+    statCondition = 'AND team_spread IS NOT NULL';
+  }
+
+  const winExpr = stat === 'su'
+    ? 'CASE WHEN team_score > opp_score THEN 1 ELSE 0 END'
+    : 'CASE WHEN team_spread IS NOT NULL AND team_score + team_spread > opp_score THEN 1 ELSE 0 END';
+
+  const lossExpr = stat === 'su'
+    ? 'CASE WHEN team_score < opp_score THEN 1 ELSE 0 END'
+    : 'CASE WHEN team_spread IS NOT NULL AND team_score + team_spread < opp_score THEN 1 ELSE 0 END';
+
+  const pushExpr = stat === 'su'
+    ? 'CASE WHEN team_score = opp_score THEN 1 ELSE 0 END'
+    : 'CASE WHEN team_spread IS NOT NULL AND team_score + team_spread = opp_score THEN 1 ELSE 0 END';
+
+  const groupField = entity === 'school' ? 'team, conference' : 'conference';
+  const selectField = entity === 'school' ? 'team AS name, conference' : 'conference AS name';
+
+  const query = `
+    WITH team_games AS (
+      SELECT 
+        g.id,
+        g.season,
+        g.week,
+        g.commence_time,
+        g.home_team AS team,
+        g.away_team AS opponent,
+        g.score_home AS team_score,
+        g.score_away AS opp_score,
+        g.spread_home AS team_spread,
+        TRUE AS is_home,
+        t.conference,
+        t.logo
+      FROM games g
+      JOIN teams t ON g.home_team = t.school
+      WHERE g.completed = 1
+
+      UNION ALL
+
+      SELECT 
+        g.id,
+        g.season,
+        g.week,
+        g.commence_time,
+        g.away_team AS team,
+        g.home_team AS opponent,
+        g.score_away AS team_score,
+        g.score_home AS opp_score,
+        g.spread_away AS team_spread,
+        FALSE AS is_home,
+        t.conference,
+        t.logo
+      FROM games g
+      JOIN teams t ON g.away_team = t.school
+      WHERE g.completed = 1
+    )
+    SELECT 
+      ${selectField},
+      ${entity === 'school' ? 'MAX(logo) as logo,' : ''}
+      COALESCE(SUM(${winExpr}), 0) as wins,
+      COALESCE(SUM(${lossExpr}), 0) as losses,
+      COALESCE(SUM(${pushExpr}), 0) as pushes,
+      COUNT(*) as total,
+      ROUND(
+        COALESCE(SUM(${winExpr}), 0)::numeric / 
+        NULLIF(COALESCE(SUM(${winExpr}), 0) + COALESCE(SUM(${lossExpr}), 0), 0) * 100,
+        2
+      ) as win_pct
+    FROM team_games
+    WHERE 1=1 ${timeFilter} ${locationFilter} ${roleFilter} ${statCondition}
+    GROUP BY ${groupField}
+    HAVING COUNT(*) >= 1
+    ORDER BY win_pct DESC, wins DESC, total DESC
+  `;
+
+  const { rows } = await pool.query(query, params);
+  return rows;
 }
 
 async function updateGameLine(gameId, updates) {
@@ -1066,6 +1922,14 @@ module.exports = {
   deletePicksForPlayerWeek,
   getConferenceStats,
   getPlayerStats,
+  getAllyNemesisByConference,
+  getPlayerConferenceStats,
+  getPlayerTeamStats,
+  getPlayerTrend,
+  getTeamResearchStats,
+  getConferenceResearchStats,
+  getResearchRankings,
+  getPlayerFadedTeamStats,
   seedTestData,
   savePick,
   updateGameLine,

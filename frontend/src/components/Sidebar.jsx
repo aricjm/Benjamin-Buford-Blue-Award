@@ -1,4 +1,5 @@
 import React from 'react';
+import { Library } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -95,6 +96,23 @@ const Sidebar = ({
         >
           <StatsIcon />
           {!isSidebarCollapsed && <span>Stats</span>}
+        </button>
+        <button
+          className={activePage === 'research' ? 'active' : ''}
+          onClick={() => handlePageChange('research')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Research" : ""}
+        >
+          <Library size={20} />
+          {!isSidebarCollapsed && <span>Research</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}

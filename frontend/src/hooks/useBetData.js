@@ -24,13 +24,13 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     setPlayerStats(null);
     setConferenceStats(null);
     try {
-      const res = await fetch(`/api/stats/${player}`);
+      const res = await fetch(`/api/stats/${player}?range=${statsTimeRange}&week=${selectedWeek}&season=${selectedSeason}`);
       const data = await res.json();
       setPlayerStats(data);
     } catch (error) {
       console.error('Failed to load stats', error);
     }
-  }, []);
+  }, [statsTimeRange, selectedWeek, selectedSeason]);
 
   const loadWeek = useCallback(async (week, season, player) => {
     setLoading(true);

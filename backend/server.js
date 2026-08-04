@@ -290,10 +290,11 @@ app.get('/api/season/:season/summary', async (req, res) => {
 
 app.get('/api/stats/leaders', async (req, res) => {
   try {
+    const { range, week, season } = req.query;
     const players = await db.getPlayers();
     const allStats = await Promise.all(
       players.map(async (p) => {
-        const stats = await db.getPlayerStats(p.name);
+        const stats = await db.getPlayerStats(p.name, range || null, Number(week) || null, season || null);
         return { player: p.name, ...stats };
       })
     );
@@ -305,7 +306,8 @@ app.get('/api/stats/leaders', async (req, res) => {
 
 app.get('/api/stats/:player', async (req, res) => {
   try {
-    const stats = await db.getPlayerStats(req.params.player);
+    const { range, week, season } = req.query;
+    const stats = await db.getPlayerStats(req.params.player, range || null, Number(week) || null, season || null);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -317,6 +319,93 @@ app.get('/api/stats/:player/conference', async (req, res) => {
     const { conference, range, week, season } = req.query;
     const stats = await db.getConferenceStats(req.params.player, conference, range, Number(week), season);
     res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/ally-nemesis', async (req, res) => {
+  try {
+    const { conference } = req.query;
+    const result = await db.getAllyNemesisByConference(req.params.player, conference || null);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/conferences', async (req, res) => {
+  try {
+    const result = await db.getPlayerConferenceStats(req.params.player);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/teams', async (req, res) => {
+  try {
+    const { conference } = req.query;
+    const result = await db.getPlayerTeamStats(req.params.player, conference || null);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/faded-teams', async (req, res) => {
+  try {
+    const { conference } = req.query;
+    const result = await db.getPlayerFadedTeamStats(req.params.player, conference || null);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stats/:player/trend', async (req, res) => {
+  try {
+    const { range, week, season, conference } = req.query;
+    const result = await db.getPlayerTrend(req.params.player, range || null, Number(week) || null, season || null, conference || null);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/research/rankings', async (req, res) => {
+  try {
+    const { entity, stat, location, role, range, week, season } = req.query;
+    const result = await db.getResearchRankings(
+      entity || 'school',
+      stat || 'su',
+      location || 'both',
+      role || 'either',
+      range || null,
+      Number(week) || null,
+      season || null
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/research/conference/:conference', async (req, res) => {
+  try {
+    const { range, week, season } = req.query;
+    const result = await db.getConferenceResearchStats(req.params.conference, range || null, Number(week) || null, season || null);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/research/:team', async (req, res) => {
+  try {
+    const { range, week, season } = req.query;
+    const result = await db.getTeamResearchStats(req.params.team, range || null, Number(week) || null, season || null);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

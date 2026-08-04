@@ -1,5 +1,7 @@
 import React from 'react';
 
+const winPct = (w, t) => { const wins = Number(w); const total = Number(t); return total > 0 ? ((wins / total) * 100).toFixed(2) + '%' : 'N/A'; };
+
 const LeaderboardPage = ({ 
   summary, 
   seasonSummary, 
@@ -32,7 +34,7 @@ const LeaderboardPage = ({
                   <tr key={row.player}>
                     <td>{row.player}</td>
                     <td>{row.wins}</td>
-                    <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>{winPct(row.wins, row.total)}</td>
                     <td>{row.losses}</td>
                     <td>{row.pushes}</td>
                     <td>{row.pending}</td>
@@ -68,7 +70,7 @@ const LeaderboardPage = ({
                   <tr key={row.player}>
                     <td>{row.player}</td>
                     <td>{row.wins}</td>
-                    <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>{winPct(row.wins, row.total)}</td>
                     <td>{row.losses}</td>
                     <td>{row.pushes}</td>
                     <td>{row.pending}</td>
@@ -104,7 +106,7 @@ const LeaderboardPage = ({
                   <tr key={row.player}>
                     <td>{row.player}</td>
                     <td>{row.wins}</td>
-                    <td>{row.total > 0 ? ((row.wins / row.total) * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>{winPct(row.wins, row.total)}</td>
                     <td>{row.losses}</td>
                     <td>{row.pushes}</td>
                     <td>{row.pending}</td>

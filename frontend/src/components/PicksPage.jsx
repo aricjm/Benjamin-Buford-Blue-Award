@@ -278,11 +278,13 @@ const PicksPage = ({
   handleSubmit,
   loading,
   selectedWeek,
+  message,
   teams = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConference, setSelectedConference] = useState('');
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
+  const [copyButtonText, setCopyButtonText] = useState('Copy My Picks');
   const isMobile = useIsMobile();
 
   // Build a lookup: school name -> conference
@@ -323,6 +325,43 @@ const PicksPage = ({
     );
     return matchesSearch && matchesConference && matchesMyPicks;
   });
+
+  const handleCopyPicks = () => {
+    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
+
+    if (playerPicks.length === 0) {
+      setCopyButtonText('No Picks to Copy');
+      setTimeout(() => setCopyButtonText('Copy My Picks'), 2000);
+      return;
+    }
+
+    const picksAsText = playerPicks.map(pick => {
+      const game = pickGames.find(g => g.id === pick.gameId);
+      if (!game) return null;
+
+      const pickDetails = [];
+
+      // Format spread pick
+      if (pick.selectionTeam) {
+        const spread = pick.spread ?? (pick.selection_side === 'home' ? game.spread_home : game.spread_away);
+        const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
+        pickDetails.push(`${pick.selectionTeam} (${spreadText})`);
+      }
+
+      // Format total pick
+      if (pick.selectionTotal) {
+        pickDetails.push(`${game.away_team} @ ${game.home_team} ${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`);
+      }
+
+      return pickDetails.join('\n');
+    }).filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(picksAsText).then(() => {
+      setCopyButtonText('Copied!');
+      setTimeout(() => setCopyButtonText('Copy My Picks'), 2000);
+    });
+  };
+
 
   return (
     <>
@@ -595,7 +634,12 @@ const PicksPage = ({
       </section>
 
       <div className="actions">
-        <button disabled={loading || selectedWeek === null} onClick={handleSubmit}>Save Picks</button>
+        {message && <div className="message" style={{ color: '#EF3037', fontWeight: 'bold', padding: '8px', border: '1px solid #EF3037', borderRadius: '4px', backgroundColor: '#FADBD8', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
+
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="secondary" onClick={handleCopyPicks} disabled={loading}>{copyButtonText}</button>
+          <button disabled={loading || selectedWeek === null} onClick={handleSubmit} style={{ marginLeft: 'auto' }}>Save Picks</button>
+        </div>
       </div>
     </>
   );

@@ -4,12 +4,14 @@ import logo from "./resources/images/benjamin_buford_blue_award_cutout.png";
 // Import Sub-Components
 import Sidebar from './components/Sidebar';
 import StatsPage from './components/StatsPage';
+import ResearchPage from './components/ResearchPage';
 import AdminPage from './components/AdminPage';
 import PicksPage from './components/PicksPage';
 import ButtonsPage from './components/ButtonsPage';
 import LeaderboardPage from './components/LeaderboardPage';
 import ManualGamePage from './components/ManualGamePage';
 
+import LoadingAnimation from './components/LoadingAnimation';
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
 import useIsMobile from './hooks/useIsMobile';
@@ -31,6 +33,7 @@ function App() {
   const [showSaveResult, setShowSaveResult] = useState(false);
   const [saveResult, setSaveResult] = useState({ success: false, message: '' });
   const [savedPicksList, setSavedPicksList] = useState([]);
+  const [picksToConfirm, setPicksToConfirm] = useState([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -101,6 +104,7 @@ function App() {
   const isButtonsPage = activePage === 'buttons';
   const isAdminPage = activePage === 'admin';
   const isStatsPage = activePage === 'stats';
+  const isResearchPage = activePage === 'research';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -133,13 +137,41 @@ function App() {
     //   return;
     // }
 
-    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam);
+    const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
     if (!playerPicks.length) {
       setMessage('Choose at least one game before saving picks.');
       setAlertMessage('Choose at least one game before saving picks.');
       setShowAlertModal(true);
       return;
     }
+
+    const confirmationList = playerPicks.map(pick => {
+      const game = pickGames.find(g => g.id === pick.gameId);
+      if (!game) return null;
+
+      const pickDetails = [];
+
+      // Format spread pick
+      if (pick.selectionTeam) {
+        const spread = pick.spread ?? (pick.selection_side === 'home' ? game.spread_home : game.spread_away);
+        const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
+        pickDetails.push(`${pick.selectionTeam} (${spreadText})`);
+      }
+      
+      // Format total pick
+      if (pick.selectionTotal) {
+        pickDetails.push(`${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`);
+      }
+
+      return {
+        key: pick.gameId,
+        game: `${game.away_team} @ ${game.home_team}`,
+        details: pickDetails.join(' | ')
+      };
+    }).filter(Boolean);
+
+    setPicksToConfirm(confirmationList);
+
 
     // open confirmation modal
     setShowConfirmSave(true);
@@ -186,6 +218,8 @@ function App() {
 
   return (
     <div className="app-shell">
+      {loading && <LoadingAnimation message={message || 'Loading...'} />}
+
       <header className="page-header">
         <div>
           <h1 className="image-title">
@@ -252,6 +286,19 @@ function App() {
               <div className="player-modal-content">
                 <h2>Confirm Save</h2>
                 <p>Are you sure you want to save your picks for week {selectedWeek} as <strong>{selectedPlayer}</strong>?</p>
+                {picksToConfirm.length > 0 && (
+                  <div style={{ marginTop: 12, textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px' }}>
+                    <h4 style={{ marginTop: 0, marginBottom: '8px' }}>Your Picks:</h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {picksToConfirm.map((p) => (
+                        <li key={p.key} style={{ marginBottom: '6px' }}>
+                          <div>{p.game}</div>
+                          <strong style={{ color: '#2196f3' }}>{p.details}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                   <button className="continue-button" onClick={() => performSave()} disabled={loading}>Yes, save</button>
                   <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
@@ -268,7 +315,7 @@ function App() {
               <div className="player-modal-content">
                 <h2>{saveResult.success ? 'Save Successful' : 'Save Failed'}</h2>
                 <p>{saveResult.message}</p>
-                {saveResult.success && savedPicksList.length > 0 && (
+              {saveResult.success && picksToConfirm.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <h4>Saved Picks</h4>
                     <ul>
@@ -332,13 +379,12 @@ function App() {
                 ))}
               </select>
             </label>
-          </section>
-
-          {message && <div className="message">{message}</div>}
+          </section>          
 
           {isStatsPage && (
             <StatsPage 
               players={players}
+              seasons={seasons}
               selectedPlayer={selectedPlayer}
               setSelectedPlayer={setSelectedPlayer}
               playerStats={playerStats}
@@ -349,6 +395,18 @@ function App() {
               setStatsTimeRange={setStatsTimeRange}
               conferenceStats={conferenceStats}
               allPlayerStats={allPlayerStats}
+              selectedWeek={selectedWeek}
+              selectedSeason={selectedSeason}
+            />
+          )}
+
+          {isResearchPage && (
+            <ResearchPage 
+              teams={teams}
+              conferenceList={conferenceList}
+              seasons={seasons}
+              selectedWeek={selectedWeek}
+              selectedSeason={selectedSeason}
             />
           )}
 
@@ -377,6 +435,7 @@ function App() {
               handleSubmit={handleSubmit}
               loading={loading}
               selectedWeek={selectedWeek}
+              message={message}
               teams={teams}
             />
           )}
