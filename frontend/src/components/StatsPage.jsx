@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Trophy, Flame, TrendingUp, TrendingDown, Users, BarChart2, ArrowLeftRight, Hash, Star, Crown } from 'lucide-react';
+import useIsMobile from '../hooks/useIsMobile';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ const AllyNemesisCards = ({ playerName, defaultAlly, defaultNemesis, conferenceL
 
 const StatLeaders = ({ allPlayerStats, timeRange }) => {
   const [selectedLeader, setSelectedLeader] = useState(null);
+  const isMobile = useIsMobile();
 
   if (!Array.isArray(allPlayerStats) || allPlayerStats.length === 0) return null;
 
@@ -346,29 +348,34 @@ const StatLeaders = ({ allPlayerStats, timeRange }) => {
               {parsedEntries.map((e, idx) => {
                 const pct = (e.numericValue / maxVal) * 100;
                 return (
-                  <div key={e.player} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span style={{ width: '80px', fontWeight: idx === 0 ? 'bold' : 'normal', color: idx === 0 ? activeLeader.color : '#ccc', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {e.player} {idx === 0 && <Crown size={14} fill={activeLeader.color} stroke={activeLeader.color} />}
-                    </span>
-                    <div style={{ flex: 1, height: '28px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{
-                        width: `${pct}%`,
-                        height: '100%',
-                        backgroundColor: activeLeader.color,
-                        opacity: idx === 0 ? 1 : 0.6,
-                        borderRadius: '6px',
-                        transition: 'width 0.6s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        paddingRight: '12px',
-                        boxSizing: 'border-box'
-                      }}>
-                        {pct > 15 && <span style={{ fontSize: '0.85em', fontWeight: 'bold', color: '#000' }}>{e.value}</span>}
-                      </div>
+                  <div key={e.player} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '6px' : '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                      <span style={{ width: isMobile ? 'auto' : '80px', fontWeight: idx === 0 ? 'bold' : 'normal', color: idx === 0 ? activeLeader.color : '#ccc', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {e.player} {idx === 0 && <Crown size={14} fill={activeLeader.color} stroke={activeLeader.color} />}
+                      </span>
+                      {isMobile && <span style={{ fontSize: '0.8em', color: '#666' }}>{e.sub}</span>}
                     </div>
-                    {pct <= 15 && <span style={{ fontWeight: 'bold', color: '#fff' }}>{e.value}</span>}
-                    <span style={{ fontSize: '0.8em', color: '#666', width: '120px' }}>{e.sub}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                      <div style={{ flex: 1, height: '28px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          backgroundColor: activeLeader.color,
+                          opacity: idx === 0 ? 1 : 0.6,
+                          borderRadius: '6px',
+                          transition: 'width 0.6s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          paddingRight: '12px',
+                          boxSizing: 'border-box'
+                        }}>
+                          {pct > 15 && !isMobile && <span style={{ fontSize: '0.85em', fontWeight: 'bold', color: '#000' }}>{e.value}</span>}
+                        </div>
+                      </div>
+                      {(pct <= 15 || isMobile) && <span style={{ fontWeight: 'bold', color: '#fff', minWidth: '45px', textAlign: 'right' }}>{e.value}</span>}
+                    </div>
+                    {!isMobile && <span style={{ fontSize: '0.8em', color: '#666', width: '120px' }}>{e.sub}</span>}
                   </div>
                 );
               })}

@@ -492,7 +492,7 @@ const PicksPage = ({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', gap: isMobile ? '4px' : '10px' }}>
                     <div className="game-switch">
                       <button
                         type="button"
@@ -578,7 +578,7 @@ const PicksPage = ({
                   </div>
 
                   {(game.over_under != null || picks[game.id]?.totalLine != null) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', gap: isMobile ? '4px' : '10px', marginTop: '10px' }}>
                       <div className="game-switch" style={{ marginTop: 0 }}>
                         <button
                           type="button"
