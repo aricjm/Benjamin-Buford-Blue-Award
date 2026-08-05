@@ -239,7 +239,7 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
     <div>
       <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
         {/* Team A Selectors */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '140px' }}>
           <label style={{ fontSize: '0.85em', color: '#888' }}>Team A Conference:</label>
           <select value={confA} onChange={e => setConfA(e.target.value)} style={{ padding: '8px 12px', borderRadius: '6px', background: '#1e1e2e', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}>
             <option value="">All Conferences</option>
@@ -254,7 +254,7 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
         <ArrowLeftRight size={24} color="#555" style={{ marginTop: '24px' }} />
 
         {/* Team B Selectors */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '140px' }}>
           <label style={{ fontSize: '0.85em', color: '#888' }}>Team B Conference:</label>
           <select value={confB} onChange={e => setConfB(e.target.value)} style={{ padding: '8px 12px', borderRadius: '6px', background: '#1e1e2e', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}>
             <option value="">All Conferences</option>
@@ -270,7 +270,8 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
       {statsA && statsB ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="panel" style={{ background: 'rgba(0,0,0,0.15)', padding: '20px' }}>
-            <table style={{ width: '100%' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '400px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
                   <th style={{ textAlign: 'right', padding: '12px', color: '#4d7cff', fontSize: '1.2em', width: '40%' }}>
@@ -380,6 +381,7 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
                   bText={`${statsB.ouAway.overs}-${statsB.ouAway.unders}-${statsB.ouAway.pushes} (${winPct(statsB.ouAway.overs, statsB.ouAway.unders)})`} />
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Head to Head Games */}
@@ -388,7 +390,8 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
             {h2hGames.length === 0 ? (
               <p style={{ color: '#666', margin: '10px 0 0' }}>No head-to-head games found in the database.</p>
             ) : (
-              <table style={{ width: '100%', marginTop: '10px' }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', marginTop: '10px', minWidth: '480px' }}>
                 <thead>
                   <tr>
                     <th>Season/Week</th>
@@ -430,6 +433,7 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -476,7 +480,7 @@ const ConferencePanel = ({ conferenceList }) => {
         <div>
           {/* SU Section */}
           <h3 style={{ marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>Straight Up (SU) Records</h3>
-          <div className="manual-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="manual-grid research-grid-3" style={{ marginBottom: '24px' }}>
             <StatCard label="SU Overall" value={`${stats.su.wins}-${stats.su.losses}-${stats.su.pushes}`}
               sub={`Win %: ${winPct(stats.su.wins, stats.su.losses)}`} icon={<BarChart2 size={40} />}
               onClick={() => setSelectedStat('SU Overall')} active={selectedStat === 'SU Overall'} />
@@ -508,7 +512,7 @@ const ConferencePanel = ({ conferenceList }) => {
 
           {/* ATS Section */}
           <h3 style={{ marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>Against the Spread (ATS) Records</h3>
-          <div className="manual-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="manual-grid research-grid-3" style={{ marginBottom: '24px' }}>
             <StatCard label="ATS Overall" value={`${stats.ats.wins}-${stats.ats.losses}-${stats.ats.pushes}`}
               sub={`Cover %: ${winPct(stats.ats.wins, stats.ats.losses)}`} icon={<BarChart2 size={40} />} color="#ffcc00"
               onClick={() => setSelectedStat('ATS Overall')} active={selectedStat === 'ATS Overall'} />
@@ -558,7 +562,8 @@ const ConferencePanel = ({ conferenceList }) => {
           {/* Recent Games Table */}
           <div className="panel" style={{ marginTop: '32px', background: 'rgba(0,0,0,0.2)' }}>
             <h4>Recent Games involving ${selectedConf} teams</h4>
-            <table style={{ width: '100%', marginTop: '10px' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', marginTop: '10px', minWidth: '560px' }}>
               <thead>
                 <tr>
                   <th>Season/Week</th>
@@ -605,6 +610,7 @@ const ConferencePanel = ({ conferenceList }) => {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -779,7 +785,7 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
     <div>
       <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
         {/* Conference A Selector */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '140px' }}>
           <label style={{ fontSize: '0.85em', color: '#888' }}>Conference A:</label>
           <select value={confA} onChange={e => setConfA(e.target.value)} style={{ padding: '8px 12px', borderRadius: '6px', background: '#1e1e2e', color: '#4d7cff', border: '1px solid rgba(255,255,255,0.15)', fontWeight: 'bold' }}>
             {conferenceList.map(c => <option key={c} value={c}>{c}</option>)}
@@ -789,7 +795,7 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
         <ArrowLeftRight size={24} color="#555" style={{ marginTop: '24px' }} />
 
         {/* Conference B Selector */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '140px' }}>
           <label style={{ fontSize: '0.85em', color: '#888' }}>Conference B:</label>
           <select value={confB} onChange={e => setConfB(e.target.value)} style={{ padding: '8px 12px', borderRadius: '6px', background: '#1e1e2e', color: '#fc6363', border: '1px solid rgba(255,255,255,0.15)', fontWeight: 'bold' }}>
             {conferenceList.map(c => <option key={c} value={c}>{c}</option>)}
@@ -800,7 +806,8 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
       {statsA && statsB ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="panel" style={{ background: 'rgba(0,0,0,0.15)', padding: '20px' }}>
-            <table style={{ width: '100%' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '400px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
                   <th style={{ textAlign: 'right', padding: '12px', color: '#4d7cff', fontSize: '1.2em', width: '40%' }}>
@@ -872,6 +879,7 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
                   bText={`${statsB.ouAway.overs}-${statsB.ouAway.unders}-${statsB.ouAway.pushes} (${winPct(statsB.ouAway.overs, statsB.ouAway.unders)})`} />
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Head to Head Games */}
@@ -880,7 +888,8 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
             {h2hGames.length === 0 ? (
               <p style={{ color: '#666', margin: '10px 0 0' }}>No head-to-head games found in the database.</p>
             ) : (
-              <table style={{ width: '100%', marginTop: '10px' }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', marginTop: '10px', minWidth: '520px' }}>
                 <thead>
                   <tr>
                     <th>Season/Week</th>
@@ -927,6 +936,7 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -991,7 +1001,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
         <h2 style={{ margin: 0 }}>Team Research Library</h2>
 
         {/* Time Range Dropdown aligned to the right */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <span style={{ fontSize: '0.9em', color: '#888' }}>Time Range:</span>
           <select 
             value={researchTimeRange} 
@@ -1066,7 +1076,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
             <div>
               {/* SU Section */}
               <h3 style={{ marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>Straight Up (SU) Records</h3>
-              <div className="manual-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <div className="manual-grid research-grid-3" style={{ marginBottom: '24px' }}>
                 <StatCard label="SU Overall" value={`${stats.su.wins}-${stats.su.losses}-${stats.su.pushes}`}
                   sub={`Win %: ${winPct(stats.su.wins, stats.su.losses)}`} icon={<BarChart2 size={40} />}
                   onClick={() => setSelectedStat('SU Overall')} active={selectedStat === 'SU Overall'} />
@@ -1098,7 +1108,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
 
               {/* ATS Section */}
               <h3 style={{ marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '6px' }}>Against the Spread (ATS) Records</h3>
-              <div className="manual-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <div className="manual-grid research-grid-3" style={{ marginBottom: '24px' }}>
                 <StatCard label="ATS Overall" value={`${stats.ats.wins}-${stats.ats.losses}-${stats.ats.pushes}`}
                   sub={`Cover %: ${winPct(stats.ats.wins, stats.ats.losses)}`} icon={<BarChart2 size={40} />} color="#ffcc00"
                   onClick={() => setSelectedStat('ATS Overall')} active={selectedStat === 'ATS Overall'} />
@@ -1148,7 +1158,8 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
               {/* Recent Games Table */}
               <div className="panel" style={{ marginTop: '32px', background: 'rgba(0,0,0,0.2)' }}>
                 <h4>Recent Games</h4>
-                <table style={{ width: '100%', marginTop: '10px' }}>
+                <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', marginTop: '10px', minWidth: '520px' }}>
                   <thead>
                     <tr>
                       <th>Season/Week</th>
@@ -1193,6 +1204,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}

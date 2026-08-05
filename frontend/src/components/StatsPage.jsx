@@ -45,6 +45,7 @@ const AllyNemesisCards = ({ playerName, defaultAlly, defaultNemesis, conferenceL
   const [ally, setAlly] = useState(defaultAlly);
   const [nemesis, setNemesis] = useState(defaultNemesis);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   // Reset to defaults when player changes
   useEffect(() => { setAlly(defaultAlly); setNemesis(defaultNemesis); }, [playerName, defaultAlly, defaultNemesis]);
@@ -77,7 +78,7 @@ const AllyNemesisCards = ({ playerName, defaultAlly, defaultNemesis, conferenceL
           {conferenceList.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', opacity: loading ? 0.5 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', opacity: loading ? 0.5 : 1 }}>
         {/* Reliable Ally */}
         <div 
           style={{ 
@@ -393,6 +394,7 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
   const [confData, setConfData] = useState([]);
   const [teamData, setTeamData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!playerName || !selectedStat) return;
@@ -485,7 +487,7 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
   }
 
   // 2. Player Comparison Bar Chart (Total Picks & Streaks)
-  const isComparisonStat = ['Total Picks', 'Active Spread Win Streak', 'Active Spread Loss Streak', 'Longest Spread Win Streak', 'Longest Spread Loss Streak', 'Active O/U Win Streak', 'Active O/U Loss Streak', 'Longest O/U Win Streak', 'Longest O/U Loss Streak'].includes(selectedStat);
+  const isComparisonStat = ['Total Picks', 'Lock Record', 'Lock Win %', 'Active Spread Win Streak', 'Active Spread Loss Streak', 'Longest Spread Win Streak', 'Longest Spread Loss Streak', 'Active O/U Win Streak', 'Active O/U Loss Streak', 'Longest O/U Win Streak', 'Longest O/U Loss Streak'].includes(selectedStat);
   if (isComparisonStat) {
     const chartData = allPlayerStats.map(s => {
       let val = 0;
@@ -493,6 +495,14 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
       if (selectedStat === 'Total Picks') {
         val = Number(s.record?.total || 0);
         sub = 'picks';
+      } else if (selectedStat === 'Lock Record') {
+        val = Number(s.lockRecord?.wins || 0);
+        sub = `${s.lockRecord?.wins || 0}W - ${s.lockRecord?.losses || 0}L`;
+      } else if (selectedStat === 'Lock Win %') {
+        const wins = Number(s.lockRecord?.wins || 0);
+        const losses = Number(s.lockRecord?.losses || 0);
+        val = wins + losses > 0 ? Number(((wins / (wins + losses)) * 100).toFixed(2)) : 0;
+        sub = `${wins}W - ${losses}L`;
       } else if (selectedStat.includes('Active Spread Win')) {
         val = Number(s.currentWinStreak || 0);
         sub = 'wins';
@@ -523,7 +533,8 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
 
     const maxVal = Math.max(...chartData.map(d => d.value), 1);
     const isLossStreak = selectedStat.includes('Loss');
-    const barColor = isLossStreak ? '#f44336' : '#4caf50';
+    const barColor = selectedStat.includes('Lock') ? '#f1c40f' : (isLossStreak ? '#f44336' : '#4caf50');
+    const valueSuffix = selectedStat === 'Lock Win %' ? '%' : '';
 
     return (
       <div className="control-card" style={{ marginTop: '20px', padding: '24px' }}>
@@ -535,28 +546,33 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
             const pct = (d.value / maxVal) * 100;
             const isCurrentPlayer = d.player === playerName;
             return (
-              <div key={d.player} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <span style={{ width: '80px', fontWeight: isCurrentPlayer ? 'bold' : 'normal', color: isCurrentPlayer ? '#2196f3' : '#ccc' }}>
-                  {d.player} {isCurrentPlayer && '★'}
-                </span>
-                <div style={{ flex: 1, height: '24px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`,
-                    height: '100%',
-                    backgroundColor: isCurrentPlayer ? '#2196f3' : barColor,
-                    borderRadius: '4px',
-                    transition: 'width 0.6s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    paddingRight: '8px',
-                    boxSizing: 'border-box'
-                  }}>
-                    {pct > 10 && <span style={{ fontSize: '0.8em', fontWeight: 'bold', color: '#fff' }}>{d.value}</span>}
-                  </div>
+              <div key={d.player} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '6px' : '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                  <span style={{ width: isMobile ? 'auto' : '80px', fontWeight: isCurrentPlayer ? 'bold' : 'normal', color: isCurrentPlayer ? '#2196f3' : '#ccc' }}>
+                    {d.player} {isCurrentPlayer && '★'}
+                  </span>
+                  {isMobile && <span style={{ fontSize: '0.8em', color: '#666' }}>{d.sub}</span>}
                 </div>
-                {pct <= 10 && <span style={{ fontWeight: 'bold', color: '#fff' }}>{d.value}</span>}
-                <span style={{ fontSize: '0.8em', color: '#666', width: '60px' }}>{d.sub}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <div style={{ flex: 1, height: '24px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${pct}%`,
+                      height: '100%',
+                      backgroundColor: isCurrentPlayer ? '#2196f3' : barColor,
+                      borderRadius: '4px',
+                      transition: 'width 0.6s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      paddingRight: '8px',
+                      boxSizing: 'border-box'
+                    }}>
+                      {pct > 10 && !isMobile && <span style={{ fontSize: '0.8em', fontWeight: 'bold', color: '#fff' }}>{d.value}{valueSuffix}</span>}
+                    </div>
+                  </div>
+                  {(pct <= 10 || isMobile) && <span style={{ fontWeight: 'bold', color: '#fff', minWidth: '30px', textAlign: 'right' }}>{d.value}{valueSuffix}</span>}
+                </div>
+                {!isMobile && <span style={{ fontSize: '0.8em', color: '#666', width: '120px' }}>{d.sub}</span>}
               </div>
             );
           })}
@@ -608,30 +624,37 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
             const barColor = isWinPct ? (val >= 50 ? '#4caf50' : '#f44336') : '#2196f3';
 
             return (
-              <div key={d.conference} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <span style={{ width: '120px', fontSize: '0.9em', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.conference}>
-                  {d.conference}
-                </span>
-                <div style={{ flex: 1, height: '20px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`,
-                    height: '100%',
-                    backgroundColor: barColor,
-                    borderRadius: '4px',
-                    transition: 'width 0.6s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    paddingRight: '8px',
-                    boxSizing: 'border-box'
-                  }}>
-                    {pct > 15 && <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#fff' }}>{val}{valueSuffix}</span>}
-                  </div>
+              <div key={d.conference} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '6px' : '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                  <span style={{ width: isMobile ? 'auto' : '120px', fontSize: '0.9em', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.conference}>
+                    {d.conference}
+                  </span>
+                  {isMobile && <span style={{ fontSize: '0.75em', color: '#666' }}>{d.wins}W - {d.losses}L</span>}
                 </div>
-                {pct <= 15 && <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.85em' }}>{val}{valueSuffix}</span>}
-                <span style={{ fontSize: '0.75em', color: '#666', width: '80px', textAlign: 'right' }}>
-                  {d.wins}W - {d.losses}L
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <div style={{ flex: 1, height: '20px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${pct}%`,
+                      height: '100%',
+                      backgroundColor: barColor,
+                      borderRadius: '4px',
+                      transition: 'width 0.6s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      paddingRight: '8px',
+                      boxSizing: 'border-box'
+                    }}>
+                      {pct > 15 && !isMobile && <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#fff' }}>{val}{valueSuffix}</span>}
+                    </div>
+                  </div>
+                  {(pct <= 15 || isMobile) && <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.85em', minWidth: '45px', textAlign: 'right' }}>{val}{valueSuffix}</span>}
+                </div>
+                {!isMobile && (
+                  <span style={{ fontSize: '0.75em', color: '#666', width: '80px', textAlign: 'right' }}>
+                    {d.wins}W - {d.losses}L
+                  </span>
+                )}
               </div>
             );
           })}
@@ -672,60 +695,67 @@ const InteractiveStatChart = ({ selectedStat, playerName, playerStats, allPlayer
             const winPct = ((wins / total) * 100).toFixed(0);
 
             return (
-              <div key={d.school} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '160px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {d.logo && <img src={d.logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
-                  <span style={{ fontSize: '0.85em', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {d.school}
-                  </span>
+              <div key={d.school} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '6px' : '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: isMobile ? '100%' : '160px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    {d.logo && <img src={d.logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain', flexShrink: 0 }} />}
+                    <span style={{ fontSize: '0.85em', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.school}
+                    </span>
+                  </div>
+                  {isMobile && <span style={{ fontSize: '0.8em', color: '#888' }}>{winPct}%</span>}
                 </div>
-                <div style={{ flex: 1, height: '20px', display: 'flex', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                  {wins > 0 && (
-                    <div style={{
-                      width: `${(wins / maxPicks) * 100}%`,
-                      backgroundColor: '#4caf50',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '0.7em',
-                      fontWeight: 'bold'
-                    }} title={`${wins} Wins`}>
-                      {wins}W
-                    </div>
-                  )}
-                  {losses > 0 && (
-                    <div style={{
-                      width: `${(losses / maxPicks) * 100}%`,
-                      backgroundColor: '#f44336',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '0.7em',
-                      fontWeight: 'bold'
-                    }} title={`${losses} Losses`}>
-                      {losses}L
-                    </div>
-                  )}
-                  {pushes > 0 && (
-                    <div style={{
-                      width: `${(pushes / maxPicks) * 100}%`,
-                      backgroundColor: '#ff9800',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '0.7em',
-                      fontWeight: 'bold'
-                    }} title={`${pushes} Pushes`}>
-                      {pushes}P
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <div style={{ flex: 1, height: '20px', display: 'flex', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                    {wins > 0 && (
+                      <div style={{
+                        width: `${(wins / maxPicks) * 100}%`,
+                        backgroundColor: '#4caf50',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '0.7em',
+                        fontWeight: 'bold'
+                      }} title={`${wins} Wins`}>
+                        {wins}W
+                      </div>
+                    )}
+                    {losses > 0 && (
+                      <div style={{
+                        width: `${(losses / maxPicks) * 100}%`,
+                        backgroundColor: '#f44336',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '0.7em',
+                        fontWeight: 'bold'
+                      }} title={`${losses} Losses`}>
+                        {losses}L
+                      </div>
+                    )}
+                    {pushes > 0 && (
+                      <div style={{
+                        width: `${(pushes / maxPicks) * 100}%`,
+                        backgroundColor: '#ff9800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '0.7em',
+                        fontWeight: 'bold'
+                      }} title={`${pushes} Pushes`}>
+                        {pushes}P
+                      </div>
+                    )}
+                  </div>
+                  {!isMobile && (
+                    <span style={{ fontSize: '0.8em', color: '#888', width: '40px', textAlign: 'right' }}>
+                      {winPct}%
+                    </span>
                   )}
                 </div>
-                <span style={{ fontSize: '0.8em', color: '#888', width: '40px', textAlign: 'right' }}>
-                  {winPct}%
-                </span>
               </div>
             );
           })}

@@ -214,7 +214,8 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
           flexDirection: 'column',
           alignItems: 'center',
           position: 'relative',
-          margin: '20px auto'
+          margin: '20px auto',
+          transformOrigin: 'top center',
         }}>
           {/* Left Handle */}
           <div style={{
