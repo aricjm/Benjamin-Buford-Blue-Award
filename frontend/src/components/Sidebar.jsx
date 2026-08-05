@@ -1,11 +1,10 @@
 import React from 'react';
-import { Library } from 'lucide-react';
+import { Library, Award } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
 import StatsIcon from "../resources/icons/StatsIcon";
 import LeaderboardIcon from "../resources/icons/LeaderboardIcon";
-import AddIcon from "../resources/icons/AddIcon";
 import AdminIcon from "../resources/icons/AdminIcon";
 import ComponentsIcon from "../resources/icons/ComponentsIcon";
 
@@ -132,8 +131,8 @@ const Sidebar = ({
           {!isSidebarCollapsed && <span>Leaderboards</span>}
         </button>
         <button
-          className={activePage === 'manual' ? 'active' : ''}
-          onClick={() => handlePageChange('manual')}
+          className={activePage === 'awards' ? 'active' : ''}
+          onClick={() => handlePageChange('awards')}
           style={{ 
             padding: '8px 16px', 
             fontSize: '0.9rem', 
@@ -143,10 +142,10 @@ const Sidebar = ({
             justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
             gap: '10px'
           }}
-          title={isSidebarCollapsed ? "Add Manual Game" : ""}
+          title={isSidebarCollapsed ? "Awards" : ""}
         >
-          <AddIcon />
-          {!isSidebarCollapsed && <span>Add Game Manually</span>}
+          <Award size={20} />
+          {!isSidebarCollapsed && <span>Awards</span>}
         </button>
         <button
           className={activePage === 'admin' ? 'active' : ''}

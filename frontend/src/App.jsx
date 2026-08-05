@@ -9,7 +9,7 @@ import AdminPage from './components/AdminPage';
 import PicksPage from './components/PicksPage';
 import ButtonsPage from './components/ButtonsPage';
 import LeaderboardPage from './components/LeaderboardPage';
-import ManualGamePage from './components/ManualGamePage';
+import AwardsPage from './components/AwardsPage';
 
 import LoadingAnimation from './components/LoadingAnimation';
 // Import Custom Hooks
@@ -99,12 +99,12 @@ function App() {
     .sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
 
   const isSummaryPage = activePage === 'summary';
-  const isManualPage = activePage === 'manual';
   const isPicksPage = activePage === 'picks';
   const isButtonsPage = activePage === 'buttons';
   const isAdminPage = activePage === 'admin';
   const isStatsPage = activePage === 'stats';
   const isResearchPage = activePage === 'research';
+  const isAwardsPage = activePage === 'awards';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -348,38 +348,40 @@ function App() {
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          <section className="controls">
-            <label>
-              Season:
-              <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)}>
-                {seasons.map((season) => (
-                  <option key={season} value={season}>{season}</option>
-                ))}
-              </select>
-            </label>
+          {!isAwardsPage && !isResearchPage && (
+            <section className="controls">
+              <label>
+                Season:
+                <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)}>
+                  {seasons.map((season) => (
+                    <option key={season} value={season}>{season}</option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              Pick as:
-              <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
-                {players.map((player) => (
-                  <option key={player.id} value={player.name}>{player.name}</option>
-                ))}
-              </select>
-            </label>
+              <label>
+                Pick as:
+                <select value={selectedPlayer} onChange={(e) => setSelectedPlayer(e.target.value)}>
+                  {players.map((player) => (
+                    <option key={player.id} value={player.name}>{player.name}</option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              Week:
-              <select
-                value={selectedWeek ?? ''}
-                onChange={(e) => setSelectedWeek(Number(e.target.value))}
-                disabled={!weekOptions.length}
-              >
-                {weekOptions.map((week) => (
-                  <option key={`${week.season}-${week.week}`} value={week.week}>{week.displayLabel}</option>
-                ))}
-              </select>
-            </label>
-          </section>          
+              <label>
+                Week:
+                <select
+                  value={selectedWeek ?? ''}
+                  onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                  disabled={!weekOptions.length}
+                >
+                  {weekOptions.map((week) => (
+                    <option key={`${week.season}-${week.week}`} value={week.week}>{week.displayLabel}</option>
+                  ))}
+                </select>
+              </label>
+            </section>
+          )}          
 
           {isStatsPage && (
             <StatsPage 
@@ -440,19 +442,6 @@ function App() {
             />
           )}
 
-          {isManualPage && (
-            <ManualGamePage 
-              teams={teams}
-              selectedWeek={selectedWeek}
-              selectedSeason={selectedSeason}
-              addManualGame={addManualGame}
-              setMessage={setMessage}
-              setAlertMessage={setAlertMessage}
-              setShowAlertModal={setShowAlertModal}
-              loading={loading}
-            />
-          )}
-
           {isSummaryPage && (
             <LeaderboardPage 
               summary={summary}
@@ -460,7 +449,13 @@ function App() {
               allTimeSummary={allTimeSummary}
               selectedWeek={selectedWeek}
               selectedSeason={selectedSeason}
+              seasons={seasons}
+              weeks={weeks}
             />
+          )}
+
+          {isAwardsPage && (
+            <AwardsPage seasons={seasons} />
           )}
 
           {isButtonsPage && <ButtonsPage />}
