@@ -49,6 +49,8 @@ async function init() {
     )
   `);
 
+  await addColumnIfMissing('players', 'full_name', 'TEXT');
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
       id SERIAL PRIMARY KEY,
@@ -141,9 +143,17 @@ async function init() {
 }
 
 async function seedPlayers() {
-  const defaultPlayers = ['Aric', 'Nick', 'Cisco'];
-  for (const name of defaultPlayers) {
-    await pool.query('INSERT INTO players (name) VALUES ($1) ON CONFLICT DO NOTHING', [name]);
+  const defaultPlayers = [
+    { name: 'Aric', full_name: 'Aric Myers' },
+    { name: 'Nick', full_name: 'Nicholas Wood' },
+    { name: 'Cisco', full_name: 'Andrew Cisco' }
+  ];
+  for (const p of defaultPlayers) {
+    await pool.query(`
+      INSERT INTO players (name, full_name) 
+      VALUES ($1, $2) 
+      ON CONFLICT (name) DO UPDATE SET full_name = EXCLUDED.full_name
+    `, [p.name, p.full_name]);
   }
   return defaultPlayers.length;
 }
@@ -363,7 +373,7 @@ async function setHistoricalLock(player, week, season, gameId, lockType) {
 }
 
 async function getPlayers() {
-  const { rows } = await pool.query('SELECT id, name FROM players ORDER BY id');
+  const { rows } = await pool.query('SELECT id, name, full_name FROM players ORDER BY id');
   return rows;
 }
 
@@ -2113,20 +2123,22 @@ async function getSeasonAwards(season) {
 
   // 9. Champion of the selected season
   const { rows: [champion] } = await pool.query(`
-    SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
-                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
-    FROM picks p JOIN games g ON p.game_id = g.id
+    SELECT p.player, pl.full_name,
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p 
+    JOIN games g ON p.game_id = g.id
+    LEFT JOIN players pl ON p.player = pl.name
     WHERE g.season = $1 AND p.result IN ('win', 'loss')
-    GROUP BY player ORDER BY win_pct DESC, wins DESC LIMIT 1
+    GROUP BY p.player, pl.full_name ORDER BY win_pct DESC, wins DESC LIMIT 1
   `, [season]);
 
   // 10. All-time champions list for the base of the trophy
   const { rows: allTimeChamps } = await pool.query(`
     WITH season_standings AS (
-      SELECT g.season, p.player, 
+      SELECT g.season, p.player, pl.full_name,
              SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
              SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses,
              ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
@@ -2136,11 +2148,13 @@ async function getSeasonAwards(season) {
                      NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) DESC,
                SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) DESC
              ) as rank
-      FROM picks p JOIN games g ON p.game_id = g.id
+      FROM picks p 
+      JOIN games g ON p.game_id = g.id
+      LEFT JOIN players pl ON p.player = pl.name
       WHERE p.result IN ('win', 'loss')
-      GROUP BY g.season, p.player
+      GROUP BY g.season, p.player, pl.full_name
     )
-    SELECT season, player, wins, losses, win_pct
+    SELECT season, player, full_name, wins, losses, win_pct
     FROM season_standings
     WHERE rank = 1
     ORDER BY season DESC

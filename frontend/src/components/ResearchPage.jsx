@@ -466,7 +466,7 @@ const ConferencePanel = ({ conferenceList }) => {
       <div className="controls" style={{ padding: 0, marginBottom: '24px' }}>
         <label>
           Select Conference:
-          <select value={selectedConf} onChange={(e) => setSelectedConf(e.target.value)} style={{ minWidth: '200px' }}>
+          <select value={selectedConf} onChange={(e) => setSelectedConf(e.target.value)} style={{ minWidth: '160px', maxWidth: '100%' }}>
             {conferenceList.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
@@ -1053,7 +1053,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
           <div className="controls" style={{ padding: 0, marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <label>
               Conference:
-              <select value={selectedConference} onChange={(e) => setSelectedConference(e.target.value)} style={{ minWidth: '200px' }}>
+              <select value={selectedConference} onChange={(e) => setSelectedConference(e.target.value)} style={{ minWidth: '160px', maxWidth: '100%' }}>
                 <option value="">All Conferences</option>
                 {conferenceList.map(c => (
                   <option key={c} value={c}>{c}</option>
@@ -1062,7 +1062,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
             </label>
             <label>
               Select Team:
-              <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ minWidth: '200px' }}>
+              <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ minWidth: '160px', maxWidth: '100%' }}>
                 {sortedTeams.map(t => (
                   <option key={t.id} value={t.school}>{t.school}</option>
                 ))}

@@ -11,8 +11,9 @@ datasource db {
 }
 
 model Player {
-  id   Int    @id @default(autoincrement())
-  name String @unique
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  full_name String?
 
   @@map("players")
 }

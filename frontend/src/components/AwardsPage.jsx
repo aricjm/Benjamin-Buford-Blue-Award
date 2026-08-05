@@ -197,7 +197,7 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
       </div>
 
       {/* Main Trophy Section */}
-      <div style={{ 
+      <div className="main-trophy-section" style={{ 
         background: 'rgba(255,255,255,0.02)', 
         border: '1px solid rgba(255,255,255,0.08)', 
         borderRadius: '16px', 
@@ -206,7 +206,9 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+        boxSizing: 'border-box',
+        width: '100%'
       }}>
         {/* Trophy Visual */}
         <div className="trophy-container" style={{
@@ -345,7 +347,7 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
               lineHeight: '1.2',
               fontFamily: '"Baskerville Old Face", Baskerville, serif'
             }}>
-              {champion ? champion.player : "No Champion"}
+              {champion ? (champion.full_name || champion.player) : "No Champion"}
             </div>
           </div>
 
@@ -381,7 +383,7 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
               padding: '0 10px'
             }}>
               {allTimeChamps.map(c => (
-                <div key={c.season}>{c.season}: {c.player}</div>
+                <div key={c.season}>{c.season}: {c.full_name || c.player}</div>
               ))}
               {allTimeChamps.length === 0 && <div>No champions yet</div>}
             </div>
