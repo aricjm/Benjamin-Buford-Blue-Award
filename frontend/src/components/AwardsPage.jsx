@@ -1,277 +1,73 @@
-import React, { useState } from 'react';
-import { Award, Trophy, ShieldAlert, Zap, Flame, Heart, Sparkles, TrendingUp, Home, TrendingDown, ArrowUpLeftFromSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Award, Trophy, ShieldAlert, Lock, Flame, LucideRoad, Sparkles, TrendingUp, DogIcon, Home, TrendingDown, ArrowUpLeftFromSquare, Hash, ArrowLeftRight } from 'lucide-react';
 import logo from "../resources/images/benjamin_buford_blue_award_cutout.png";
 import realTrophyImg from "../resources/images/platinum_shrimp_trophy.webp";
 
-const AwardsPage = ({ seasons = [] }) => {
-  const [showRealTrophy, setShowRealTrophy] = useState(false);
-  const awardsBySeason = {
-    '2025': [
-      {
-        title: "The Golden Fade Award",
-        description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
-        winner: "Nicholas Wood",
-        reason: "Finished with a 22.22% win rate (4-14-0), making him the ultimate fade of the season.",
-        icon: <ShieldAlert size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      },
-      {
-        title: "The Locksmith Award",
-        description: "Awarded to the player with the highest win percentage on mandatory/lock picks.",
-        winner: "Andrew Cisco",
-        reason: "Secured a 62.5% win rate on lock picks, proving to be the most reliable when the stakes were highest.",
-        icon: <Zap size={24} color="#f1c40f" />,
-        badgeColor: "rgba(241, 196, 15, 0.15)"
-      },
-      {
-        title: "The Heart Attack Kid",
-        description: "Awarded to the player who had the most games decided by 3 points or less (win or loss).",
-        winner: "Aric Myers",
-        reason: "Had 14 picks decided in the final seconds or by a field goal or less, keeping everyone on the edge of their seats.",
-        icon: <Heart size={24} color="#e84393" />,
-        badgeColor: "rgba(232, 67, 147, 0.15)"
-      },
-      {
-        title: "The Backdoor Cover Specialist",
-        description: "Awarded for the most miraculous, statistically improbable covers in garbage time.",
-        winner: "Nicholas Wood",
-        reason: "Won 8 picks in the final 2 minutes of games thanks to meaningless late touchdowns.",
-        icon: <Flame size={24} color="#e67e22" />,
-        badgeColor: "rgba(230, 126, 34, 0.15)"
-      },
-      {
-        title: "The Overlord",
-        description: "Awarded to the player who picked the most 'Over' game totals.",
-        winner: "Aric Myers",
-        reason: "Picked the Over in 78% of his total picks, because life is too short to bet the under.",
-        icon: <Sparkles size={24} color="#9b59b6" />,
-        badgeColor: "rgba(155, 89, 182, 0.15)"
-      },
-      {
-        title: "The Underdog Whisperer",
-        description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
-        winner: "Andrew Cisco",
-        reason: "Hit 64.3% of his underdog picks, showing a keen eye for value in points.",
-        icon: <TrendingUp size={24} color="#2ecc71" />,
-        badgeColor: "rgba(46, 204, 113, 0.15)"
-      },
-      {
-        title: "The Home Field Advantage",
-        description: "Awarded to the player with the highest win percentage on home teams.",
-        winner: "Aric Myers",
-        reason: "Hit 60.0% of his home team picks, defending the home turf.",
-        icon: <Home size={24} color="#3498db" />,
-        badgeColor: "rgba(52, 152, 219, 0.15)"
-      },
-      {
-        title: "The Bad Beat Victim",
-        description: "Awarded to the player who suffered the most heartbreaking, statistically improbable losses on the final play of the game.",
-        winner: "Nicholas Wood",
-        reason: "Suffered 5 losses on walk-off field goals or defensive touchdowns as time expired.",
-        icon: <TrendingDown size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      }
-    ],
-    '2024': [
-      {
-        title: "The Golden Fade Award",
-        description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
-        winner: "Aric Myers",
-        reason: "Finished with a 50.00% win rate (110-110-3), perfectly balanced, as all things should be, but unprofitable after juice.",
-        icon: <ShieldAlert size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      },
-      {
-        title: "The Locksmith Award",
-        description: "Awarded to the player with the highest win percentage on mandatory/lock picks.",
-        winner: "Nicholas Wood",
-        reason: "Hit 70% of his lock picks, carrying him to the 2024 season championship.",
-        icon: <Zap size={24} color="#f1c40f" />,
-        badgeColor: "rgba(241, 196, 15, 0.15)"
-      },
-      {
-        title: "The Heart Attack Kid",
-        description: "Awarded to the player who had the most games decided by 3 points or less (win or loss).",
-        winner: "Andrew Cisco",
-        reason: "Had 18 games decided by 3 points or less, including 3 overtime thrillers.",
-        icon: <Heart size={24} color="#e84393" />,
-        badgeColor: "rgba(232, 67, 147, 0.15)"
-      },
-      {
-        title: "The Backdoor Cover Specialist",
-        description: "Awarded for the most miraculous, statistically improbable covers in garbage time.",
-        winner: "Aric Myers",
-        reason: "Covered 9 spreads in garbage time, much to the dismay of Nick and Cisco.",
-        icon: <Flame size={24} color="#e67e22" />,
-        badgeColor: "rgba(230, 126, 34, 0.15)"
-      },
-      {
-        title: "The Overlord",
-        description: "Awarded to the player who picked the most 'Over' game totals.",
-        winner: "Andrew Cisco",
-        reason: "Picked the Over in 65% of his total picks, cheering for points all season long.",
-        icon: <Sparkles size={24} color="#9b59b6" />,
-        badgeColor: "rgba(155, 89, 182, 0.15)"
-      },
-      {
-        title: "The Underdog Whisperer",
-        description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
-        winner: "Nicholas Wood",
-        reason: "Hit 58.8% of his underdog picks, riding several outright upsets.",
-        icon: <TrendingUp size={24} color="#2ecc71" />,
-        badgeColor: "rgba(46, 204, 113, 0.15)"
-      },
-      {
-        title: "The Home Field Advantage",
-        description: "Awarded to the player with the highest win percentage on home teams.",
-        winner: "Andrew Cisco",
-        reason: "Hit 57.1% of his home team picks, feeding off the home crowd energy.",
-        icon: <Home size={24} color="#3498db" />,
-        badgeColor: "rgba(52, 152, 219, 0.15)"
-      },
-      {
-        title: "The Bad Beat Victim",
-        description: "Awarded to the player who suffered the most heartbreaking, statistically improbable losses on the final play of the game.",
-        winner: "Aric Myers",
-        reason: "Lost a lock pick on a blocked field goal returned 98 yards for a touchdown.",
-        icon: <TrendingDown size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      }
-    ],
-    '2023': [
-      {
-        title: "The Golden Fade Award",
-        description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
-        winner: "Nicholas Wood",
-        reason: "Finished with a 46.83% win rate (96-109-3), struggling to find consistency.",
-        icon: <ShieldAlert size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      },
-      {
-        title: "The Locksmith Award",
-        description: "Awarded to the player with the highest win percentage on mandatory/lock picks.",
-        winner: "Aric Myers",
-        reason: "Hit 75% of his lock picks, propelling him to a dominant 2023 championship.",
-        icon: <Zap size={24} color="#f1c40f" />,
-        badgeColor: "rgba(241, 196, 15, 0.15)"
-      },
-      {
-        title: "The Heart Attack Kid",
-        description: "Awarded to the player who had the most games decided by 3 points or less (win or loss).",
-        winner: "Nicholas Wood",
-        reason: "Suffered 12 losses by 3 points or less, a truly heartbreaking season.",
-        icon: <Heart size={24} color="#e84393" />,
-        badgeColor: "rgba(232, 67, 147, 0.15)"
-      },
-      {
-        title: "The Backdoor Cover Specialist",
-        description: "Awarded for the most miraculous, statistically improbable covers in garbage time.",
-        winner: "Andrew Cisco",
-        reason: "Had 7 backdoor covers, including a legendary 99-yard interception return for a touchdown as time expired.",
-        icon: <Flame size={24} color="#e67e22" />,
-        badgeColor: "rgba(230, 126, 34, 0.15)"
-      },
-      {
-        title: "The Overlord",
-        description: "Awarded to the player who picked the most 'Over' game totals.",
-        winner: "Aric Myers",
-        reason: "Picked the Over in 72% of his total picks, refusing to bet on defense.",
-        icon: <Sparkles size={24} color="#9b59b6" />,
-        badgeColor: "rgba(155, 89, 182, 0.15)"
-      },
-      {
-        title: "The Underdog Whisperer",
-        description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
-        winner: "Aric Myers",
-        reason: "Hit 61.1% of his underdog picks, finding diamonds in the rough.",
-        icon: <TrendingUp size={24} color="#2ecc71" />,
-        badgeColor: "rgba(46, 204, 113, 0.15)"
-      },
-      {
-        title: "The Home Field Advantage",
-        description: "Awarded to the player with the highest win percentage on home teams.",
-        winner: "Nicholas Wood",
-        reason: "Hit 58.3% of his home team picks, finding comfort in familiar stadiums.",
-        icon: <Home size={24} color="#3498db" />,
-        badgeColor: "rgba(52, 152, 219, 0.15)"
-      },
-      {
-        title: "The Bad Beat Victim",
-        description: "Awarded to the player who suffered the most heartbreaking, statistically improbable losses on the final play of the game.",
-        winner: "Andrew Cisco",
-        reason: "Lost 4 picks due to teams kneeling out the clock and losing yards to miss the spread by half a point.",
-        icon: <TrendingDown size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      }
-    ],
-    '2022': [
-      {
-        title: "The Golden Fade Award",
-        description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
-        winner: "Nicholas Wood",
-        reason: "Finished with a 51.29% win rate (118-112-3), which was 3rd place in a highly competitive inaugural season.",
-        icon: <ShieldAlert size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      },
-      {
-        title: "The Locksmith Award",
-        description: "Awarded to the player with the highest win percentage on mandatory/lock picks.",
-        winner: "Andrew Cisco",
-        reason: "Hit 68% of his lock picks, keeping the race for 1st place neck-and-neck until the final week.",
-        icon: <Zap size={24} color="#f1c40f" />,
-        badgeColor: "rgba(241, 196, 15, 0.15)"
-      },
-      {
-        title: "The Heart Attack Kid",
-        description: "Awarded to the player who had the most games decided by 3 points or less (win or loss).",
-        winner: "Aric Myers",
-        reason: "Had 15 games decided by a field goal or less, including a double-overtime win in the bowl season.",
-        icon: <Heart size={24} color="#e84393" />,
-        badgeColor: "rgba(232, 67, 147, 0.15)"
-      },
-      {
-        title: "The Backdoor Cover Specialist",
-        description: "Awarded for the most miraculous, statistically improbable covers in garbage time.",
-        winner: "Nicholas Wood",
-        reason: "Covered 10 spreads in the 4th quarter of games that were already decided.",
-        icon: <Flame size={24} color="#e67e22" />,
-        badgeColor: "rgba(230, 126, 34, 0.15)"
-      },
-      {
-        title: "The Overlord",
-        description: "Awarded to the player who picked the most 'Over' game totals.",
-        winner: "Andrew Cisco",
-        reason: "Picked the Over in 60% of his total picks, riding high-scoring offenses.",
-        icon: <Sparkles size={24} color="#9b59b6" />,
-        badgeColor: "rgba(155, 89, 182, 0.15)"
-      },
-      {
-        title: "The Underdog Whisperer",
-        description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
-        winner: "Andrew Cisco",
-        reason: "Hit 59.5% of his underdog picks, proving points are a bettor's best friend.",
-        icon: <TrendingUp size={24} color="#2ecc71" />,
-        badgeColor: "rgba(46, 204, 113, 0.15)"
-      },
-      {
-        title: "The Home Field Advantage",
-        description: "Awarded to the player with the highest win percentage on home teams.",
-        winner: "Aric Myers",
-        reason: "Hit 62.1% of his home team picks, making home field a lock.",
-        icon: <Home size={24} color="#3498db" />,
-        badgeColor: "rgba(52, 152, 219, 0.15)"
-      },
-      {
-        title: "The Bad Beat Victim",
-        description: "Awarded to the player who suffered the most heartbreaking, statistically improbable losses on the final play of the game.",
-        winner: "Nicholas Wood",
-        reason: "Suffered a backdoor cover on a lateral-filled kickoff return with 0:00 on the clock.",
-        icon: <TrendingDown size={24} color="#e74c3c" />,
-        badgeColor: "rgba(231, 76, 60, 0.15)"
-      }
-    ]
-  };
+const AWARD_META = {
+  goldenFade: {
+    title: "The Golden Fade Award",
+    description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
+    icon: <ShieldAlert size={20} color="#e74c3c" />,
+    badgeColor: "rgba(231, 76, 60, 0.15)"
+  },
+  locksmith: {
+    title: "The Locksmith Award",
+    description: "Awarded to the player with the highest win percentage on mortal lock picks.",
+    icon: <Lock size={20} color="#f1c40f" />,
+    badgeColor: "rgba(241, 196, 15, 0.15)"
+  },
+  downUnder: {
+    title: "The Down Under Award",
+    description: "Awarded to the player with the highest percentage of their total picks being on the 'Under'.",
+    icon: <TrendingDown size={20} color="#34495e" />,
+    badgeColor: "rgba(52, 73, 94, 0.15)"
+  },
+  roadWarrior: {
+    title: "The Road Warrior",
+    description: "Awarded to the player with the highest win percentage on away teams.",
+    icon: <LucideRoad size={20} color="#e67e22" />,
+    badgeColor: "rgba(230, 126, 34, 0.15)"
+  },
+  overlord: {
+    title: "The Overlord Award",
+    description: "Awarded to the player who picked the most 'Over' game totals.",
+    icon: <Sparkles size={20} color="#9b59b6" />,
+    badgeColor: "rgba(155, 89, 182, 0.15)"
+  },
+  underdogWhisperer: {
+    title: "The Underdog Whisperer Award",
+    description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
+    icon: <DogIcon size={20} color="#2ecc71" />,
+    badgeColor: "rgba(46, 204, 113, 0.15)"
+  },
+  homeField: {
+    title: "The Homer Award",
+    description: "Awarded to the player with the highest win percentage on home teams.",
+    icon: <Home size={20} color="#3498db" />,
+    badgeColor: "rgba(52, 152, 219, 0.15)"
+  },
+  chalkEater: {
+    title: "The Chalk Eater Award",
+    description: "Awarded to the player with the highest win percentage when picking favorites against the spread.",
+    icon: <Flame size={20} color="#e74c3c" />,
+    badgeColor: "rgba(231, 76, 60, 0.15)"
+  },
+  volumeShooter: {
+    title: "The Volume Shooter Award",
+    description: "Awarded to the player who made the most total picks.",
+    icon: <Hash size={20} color="#95a5a6" />,
+    badgeColor: "rgba(149, 165, 166, 0.15)"
+  },
+  pushMaster: {
+    title: "The Push Master Award",
+    description: "Awarded to the player who had the most pushes.",
+    icon: <ArrowLeftRight size={20} color="#1abc9c" />,
+    badgeColor: "rgba(26, 188, 156, 0.15)"
+  }
+};
 
+const AwardsPage = ({ seasons = [], selectedPlayer }) => {
+  const [showRealTrophy, setShowRealTrophy] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState(() => {
     if (seasons && seasons.length > 0) {
       const validSeasons = seasons.filter(s => s !== 'All-Time');
@@ -279,8 +75,117 @@ const AwardsPage = ({ seasons = [] }) => {
     }
     return '2025';
   });
+  const [awardsData, setAwardsData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [playerAwards, setPlayerAwards] = useState(null);
+  const [loadingPlayerAwards, setLoadingPlayerAwards] = useState(false);
 
-  const currentAwards = awardsBySeason[selectedSeason] || [];
+  useEffect(() => {
+    if (!selectedSeason) return;
+    setLoading(true);
+    fetch(`/api/season/${selectedSeason}/awards`)
+      .then(r => r.json())
+      .then(data => setAwardsData(data))
+      .catch(() => setAwardsData(null))
+      .finally(() => setLoading(false));
+  }, [selectedSeason]);
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    setLoadingPlayerAwards(true);
+    fetch(`/api/player/${selectedPlayer}/awards`)
+      .then(r => r.json())
+      .then(data => setPlayerAwards(data))
+      .catch(() => setPlayerAwards(null))
+      .finally(() => setLoadingPlayerAwards(false));
+  }, [selectedPlayer]);
+
+  const champion = awardsData?.champion;
+  const allTimeChamps = awardsData?.allTimeChamps || [];
+  const sa = awardsData?.specialtyAwards || {};
+
+  const currentAwards = awardsData ? [
+    {
+      title: "The Golden Fade Award",
+      description: "Awarded to the player whose picks were the most profitable to bet against (lowest win percentage).",
+      winner: sa.goldenFade?.player || "None",
+      reason: sa.goldenFade ? `Finished with a ${sa.goldenFade.win_pct}% win rate (${sa.goldenFade.wins}-${sa.goldenFade.losses}-0), making them the ultimate fade of the season.` : "No data.",
+      icon: <ShieldAlert size={24} color="#e74c3c" />,
+      badgeColor: "rgba(231, 76, 60, 0.15)"
+    },
+    {
+      title: "The Locksmith Award",
+      description: "Awarded to the player with the highest win percentage on mortal lock picks.",
+      winner: sa.locksmith?.player || "None",
+      reason: sa.locksmith ? `Secured a ${sa.locksmith.win_pct}% win rate on lock picks (${sa.locksmith.wins}-${sa.locksmith.losses}-0), proving to be the most reliable when the stakes were highest.` : "No data.",
+      icon: <Lock size={24} color="#f1c40f" />,
+      badgeColor: "rgba(241, 196, 15, 0.15)"
+    },
+    {
+      title: "The Down Under Award",
+      description: "Awarded to the player with the highest percentage of their total picks being on the 'Under'.",
+      winner: sa.downUnder?.player || "None",
+      reason: sa.downUnder ? `Picked the Under in ${sa.downUnder.pct}% of their total picks (${sa.downUnder.under_picks} of ${sa.downUnder.total_picks}).` : "No data.",
+      icon: <TrendingDown size={24} color="#34495e" />,
+      badgeColor: "rgba(52, 73, 94, 0.15)"
+    },
+    {
+      title: "The Road Warrior Award",
+      description: "Awarded to the player with the highest win percentage on away teams.",
+      winner: sa.roadWarrior?.player || "None",
+      reason: sa.roadWarrior ? `Hit ${sa.roadWarrior.win_pct}% of their away team picks (${sa.roadWarrior.wins}-${sa.roadWarrior.losses}-0).` : "No data.",
+      icon: <LucideRoad size={24} color="#e67e22" />,
+      badgeColor: "rgba(230, 126, 34, 0.15)"
+    },
+    {
+      title: "The Overlord Award",
+      description: "Awarded to the player who picked the most 'Over' game totals.",
+      winner: sa.overlord?.player || "None",
+      reason: sa.overlord ? `Picked the Over in ${sa.overlord.pct}% of their total picks (${sa.overlord.over_picks} of ${sa.overlord.total_picks}).` : "No data.",
+      icon: <Sparkles size={24} color="#9b59b6" />,
+      badgeColor: "rgba(155, 89, 182, 0.15)"
+    },
+    {
+      title: "The Underdog Whisperer Award",
+      description: "Awarded to the player who had the highest win percentage when picking underdogs against the spread.",
+      winner: sa.underdogWhisperer?.player || "None",
+      reason: sa.underdogWhisperer ? `Hit ${sa.underdogWhisperer.win_pct}% of their underdog picks (${sa.underdogWhisperer.wins}-${sa.underdogWhisperer.losses}-0).` : "No data.",
+      icon: <DogIcon size={24} color="#2ecc71" />,
+      badgeColor: "rgba(46, 204, 113, 0.15)"
+    },
+    {
+      title: "The Homer Award",
+      description: "Awarded to the player with the highest win percentage on home teams.",
+      winner: sa.homeField?.player || "None",
+      reason: sa.homeField ? `Hit ${sa.homeField.win_pct}% of their home team picks (${sa.homeField.wins}-${sa.homeField.losses}-0).` : "No data.",
+      icon: <Home size={24} color="#3498db" />,
+      badgeColor: "rgba(52, 152, 219, 0.15)"
+    },
+    {
+      title: "The Chalk Eater Award",
+      description: "Awarded to the player with the highest win percentage when picking favorites against the spread.",
+      winner: sa.chalkEater?.player || "None",
+      reason: sa.chalkEater ? `Hit ${sa.chalkEater.win_pct}% of their picks on favorites (${sa.chalkEater.wins}-${sa.chalkEater.losses}-0).` : "No data.",
+      icon: <Flame size={24} color="#e74c3c" />,
+      badgeColor: "rgba(231, 76, 60, 0.15)"
+    },
+    {
+      title: "The Volume Shooter Award",
+      description: "Awarded to the player who made the most total picks.",
+      winner: sa.volumeShooter?.player || "None",
+      reason: sa.volumeShooter ? `Fired off a total of ${sa.volumeShooter.total_picks} picks throughout the season.` : "No data.",
+      icon: <Hash size={24} color="#95a5a6" />,
+      badgeColor: "rgba(149, 165, 166, 0.15)"
+    },
+    {
+      title: "The Push Master Award",
+      description: "Awarded to the player who had the most pushes.",
+      winner: sa.pushMaster?.player || "None",
+      reason: sa.pushMaster ? `Finished with ${sa.pushMaster.pushes} pushes, perfectly matching the line.` : "No data.",
+      icon: <ArrowLeftRight size={24} color="#1abc9c" />,
+      badgeColor: "rgba(26, 188, 156, 0.15)"
+    }
+  ] : [];
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -404,11 +309,11 @@ const AwardsPage = ({ seasons = [] }) => {
               fontWeight: '950', 
               color: '#111', 
               marginBottom: '8px',
-              fontFamily: 'monospace',
+              fontFamily: '"Baskerville Old Face", Baskerville, serif',
               letterSpacing: '1px',
               textShadow: '0 0 1px #111'
             }}>
-              2025
+              {selectedSeason}
             </div>
 
             {/* Main Logo Text */}
@@ -419,9 +324,10 @@ const AwardsPage = ({ seasons = [] }) => {
               textAlign: 'center',
               textTransform: 'uppercase',
               letterSpacing: '1px',
-              margin: '8px 0 12px 0',
+              margin: '-4px 0 12px 0',
               lineHeight: '1.2',
               maxWidth: '200px',
+              fontFamily: '"Baskerville Old Face", Baskerville, serif',
               textShadow: '0 0 1px #111'
             }}>
               Benjamin Buford Blue Award
@@ -435,9 +341,10 @@ const AwardsPage = ({ seasons = [] }) => {
               textAlign: 'center',
               textTransform: 'uppercase',
               letterSpacing: '1px',
-              lineHeight: '1.2'
+              lineHeight: '1.2',
+              fontFamily: '"Baskerville Old Face", Baskerville, serif'
             }}>
-              Andrew Cisco
+              {champion ? champion.player : "No Champion"}
             </div>
           </div>
 
@@ -467,15 +374,15 @@ const AwardsPage = ({ seasons = [] }) => {
               gridTemplateColumns: '1fr 1fr', 
               gap: '8px 12px',
               fontSize: '11px', 
-              fontFamily: 'monospace',
+              fontFamily: '"Baskerville Old Face", Baskerville, serif',
               color: '#ddd',
               textAlign: 'left',
               padding: '0 10px'
             }}>
-              <div>2025: Andrew Cisco</div>
-              <div>2024: Nicholas Wood</div>
-              <div>2023: Aric Myers</div>
-              <div>2022: Aric Myers</div>
+              {allTimeChamps.map(c => (
+                <div key={c.season}>{c.season}: {c.player}</div>
+              ))}
+              {allTimeChamps.length === 0 && <div>No champions yet</div>}
             </div>
           </div>
         </div>
@@ -535,13 +442,15 @@ const AwardsPage = ({ seasons = [] }) => {
               fontSize: '14px' 
             }}
           >
-            {seasons.filter(s => s !== 'All-Time' && awardsBySeason[s]).map(s => (
+            {seasons.filter(s => s !== 'All-Time' && s !== '2026').map(s => (
               <option key={s} value={s} style={{ backgroundColor: '#1e1e2e', color: '#fff' }}>{s} Season</option>
             ))}
           </select>
         </div>
 
-        {currentAwards.length === 0 ? (
+        {loading ? (
+          <div style={{ color: '#888', padding: '40px', textAlign: 'center' }}>Loading awards...</div>
+        ) : currentAwards.length === 0 || !currentAwards.some(a => a.winner && a.winner !== 'None') ? (
           <div style={{ 
             color: '#888', 
             padding: '40px', 
@@ -613,6 +522,178 @@ const AwardsPage = ({ seasons = [] }) => {
           </div>
         )}
       </div>
+
+      {/* Player's Trophy Room */}
+      {selectedPlayer && (
+        <div style={{
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '16px',
+          padding: '24px',
+          marginTop: '40px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+        }}>
+          <h2 style={{ fontSize: '1.6rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
+            <Trophy size={24} color="#ffc107" /> {selectedPlayer}'s Trophy Room
+          </h2>
+
+          {loadingPlayerAwards ? (
+            <div style={{ color: '#888', padding: '20px', textAlign: 'center' }}>Loading trophy room...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              {/* Main Middle Shelf (Championships) */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '20px 0 40px 0' }}>
+                <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', alignItems: 'flex-end', minHeight: '120px', width: '100%', zIndex: 2 }}>
+                  {playerAwards?.championships?.map(season => (
+                    <div key={season} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', cursor: 'default' }} title={`${season} Champion`}>
+                      {/* Mini Trophy Cup */}
+                      <div style={{
+                        width: '60px',
+                        height: '65px',
+                        background: 'linear-gradient(135deg, #9c9c9a 0%, #7c7c7b 50%, rgb(51, 51, 50) 100%)',
+                        borderRadius: '0 0 30px 30px',
+                        border: '2px solid #fff',
+                        borderTop: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+                      }}>
+                        <span style={{ fontSize: '16px', fontWeight: '900', color: '#111', fontFamily: 'serif' }}>{season}</span>
+                      </div>
+                      {/* Mini Stem */}
+                      <div style={{ width: '10px', height: '12px', background: 'linear-gradient(90deg, #9c9c9a 0%, #7c7c7b 50%, #533020 100%)' }} />
+                      {/* Mini Base */}
+                      <div style={{
+                        width: '80px',
+                        height: '16px',
+                        background: 'linear-gradient(180deg, #2c3e50 0%, #1a252f 100%)',
+                        border: '1px solid #f1c40f',
+                        borderRadius: '3px',
+                        fontSize: '9px',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold'
+                      }}>
+                        CHAMPION
+                      </div>
+                    </div>
+                  ))}
+                  {(!playerAwards?.championships || playerAwards.championships.length === 0) && (
+                    <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', fontSize: '0.95rem', marginBottom: '10px' }}>
+                      No Benjamin Buford Blue Award Trophies won yet.
+                    </div>
+                  )}
+                </div>
+                {/* Wooden Shelf Bar */}
+                <div style={{
+                  width: '100%',
+                  height: '12px',
+                  background: 'linear-gradient(180deg, #8b5a2b 0%, #5c4033 100%)',
+                  borderRadius: '4px',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
+                  marginTop: '4px',
+                  zIndex: 1
+                }} />
+                <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)', marginTop: '8px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  Championship Shelf
+                </div>
+              </div>
+
+              {/* Specialty & Novelty Awards (Shelves below) */}
+              <div>
+                {playerAwards?.specialtyAwards && playerAwards.specialtyAwards.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                    {(() => {
+                      // Chunk awards into rows of 9 to fit nicely on shelves
+                      const chunks = [];
+                      const size = 9;
+                      for (let i = 0; i < playerAwards.specialtyAwards.length; i += size) {
+                        chunks.push(playerAwards.specialtyAwards.slice(i, i + size));
+                      }
+                      return chunks.map((chunk, chunkIdx) => (
+                        <div key={chunkIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', alignItems: 'flex-end', minHeight: '70px', width: '100%', zIndex: 2, flexWrap: 'wrap', padding: '0 10px' }}>
+                            {chunk.map((award, idx) => {
+                              const meta = AWARD_META[award.awardKey] || {};
+                              return (
+                                <div 
+                                  key={idx} 
+                                  style={{
+                                    width: '50px',
+                                    height: '65px',
+                                    background: 'linear-gradient(135deg, #301a06 0%, #533020 100%)',
+                                    border: '1px solid #d4ac0d',
+                                    borderRadius: '4px',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    boxShadow: '0 4px 8px rgba(0,0,0,0.4)',
+                                    cursor: 'default',
+                                    position: 'relative',
+                                    transition: 'transform 0.2s'
+                                  }}
+                                  title={`${meta.title || award.awardKey}: ${award.reason}`}
+                                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+                                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                >
+                                  {/* Plaque Icon */}
+                                  <div style={{
+                                    padding: '4px',
+                                    borderRadius: '4px',
+                                    backgroundColor: meta.badgeColor || 'rgba(255,255,255,0.05)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: '2px',
+                                    flexShrink: 0
+                                  }}>
+                                    {meta.icon ? React.cloneElement(meta.icon, { size: 24 }) : <Award size={24} />}
+                                  </div>
+                                  {/* Plaque Year */}
+                                  <div style={{ 
+                                    fontSize: '8px', 
+                                    color: '#f1c40f', 
+                                    fontWeight: 'bold', 
+                                    marginTop: 'auto',
+                                    borderTop: '1px solid rgba(255,255,255,0.15)',
+                                    width: '100%',
+                                    textAlign: 'center',
+                                    paddingTop: '2px'
+                                  }}>
+                                    {award.season}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Wooden Shelf Bar */}
+                          <div style={{
+                            width: '100%',
+                            height: '8px',
+                            background: 'linear-gradient(180deg, #8b5a2b 0%, #5c4033 100%)',
+                            borderRadius: '3px',
+                            boxShadow: '0 6px 12px rgba(0,0,0,0.5)',
+                            marginTop: '4px',
+                            zIndex: 1
+                          }} />
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', fontSize: '0.9rem', textAlign: 'center', padding: '20px' }}>
+                    No Specialty or Novelty Awards won yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Real Trophy Modal Popup */}
       {showRealTrophy && (

@@ -14,7 +14,8 @@ const Sidebar = ({
   isSidebarCollapsed, 
   setIsSidebarCollapsed, 
   activePage, 
-  handlePageChange 
+  handlePageChange,
+  selectedPlayer
 }) => {
   const toggleSidebar = () => {
     const next = !isSidebarCollapsed;
@@ -147,7 +148,7 @@ const Sidebar = ({
           <Award size={20} />
           {!isSidebarCollapsed && <span>Awards</span>}
         </button>
-        <button
+        {selectedPlayer === 'Aric' && <button
           className={activePage === 'admin' ? 'active' : ''}
           onClick={() => handlePageChange('admin')}
           style={{ 
@@ -163,24 +164,7 @@ const Sidebar = ({
         >
           <AdminIcon />
           {!isSidebarCollapsed && <span>Admin</span>}
-        </button>
-        <button
-          className={activePage === 'buttons' ? 'active' : ''}
-          onClick={() => handlePageChange('buttons')}
-          style={{ 
-            padding: '8px 16px', 
-            fontSize: '0.9rem', 
-            textAlign: isSidebarCollapsed ? 'center' : 'left',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-            gap: '10px'
-          }}
-          title={isSidebarCollapsed ? "Buttons" : ""}
-        >
-          <ComponentsIcon />
-          {!isSidebarCollapsed && <span>Buttons</span>}
-        </button>
+        </button>}
       </nav>
     </aside>
   );

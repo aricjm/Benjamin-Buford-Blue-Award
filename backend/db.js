@@ -105,6 +105,7 @@ async function init() {
   await addColumnIfMissing('teams', 'stadium_name', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_city', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_state', 'TEXT');
+  await addColumnIfMissing('picks', 'is_lock', 'INTEGER', 0);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS picks (
@@ -118,7 +119,8 @@ async function init() {
       is_mandatory INTEGER DEFAULT 0,
       result TEXT,
       picked_at TEXT,
-      updated_at TEXT
+      updated_at TEXT,
+      is_lock INTEGER DEFAULT 0
     )
   `);
 
@@ -339,6 +341,24 @@ async function ensureWeekRow(season, week) {
       `${season}-08-01T00:00:00Z`,
       `${season}-12-31T23:59:59Z`
     ]
+  );
+}
+
+// Clears all is_lock flags for a player/week/season, then sets the chosen pick as lock
+async function setHistoricalLock(player, week, season, gameId, lockType) {
+  await pool.query(
+    `UPDATE picks SET is_lock = 0, updated_at = $1
+     WHERE player = $2 AND week = $3 AND game_id IN (
+       SELECT p.game_id FROM picks p JOIN games g ON p.game_id = g.id
+       WHERE p.player = $2 AND p.week = $3 AND g.season = $4
+     )`,
+    [new Date().toISOString(), player, week, season]
+  );
+  const column = lockType === 'spread' ? 'selection_team' : 'selection_total';
+  await pool.query(
+    `UPDATE picks SET is_lock = 1, updated_at = $1
+     WHERE player = $2 AND week = $3 AND game_id = $4 AND ${column} IS NOT NULL`,
+    [new Date().toISOString(), player, week, gameId]
   );
 }
 
@@ -590,12 +610,14 @@ async function savePick(week, player, pick) {
       spread: pick.spread
     });
 
+    const isSpreadLock = pick.isLock && pick.lockType === 'spread';
+
     const { rows } = await pool.query(`
       INSERT INTO picks (
         week, player, game_id, selection_team, selection_side, spread,
-        is_mandatory, result, picked_at, updated_at
+        is_mandatory, result, picked_at, updated_at, is_lock
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
       )
       ON CONFLICT (week, player, game_id) WHERE selection_team IS NOT NULL DO UPDATE SET
         selection_team = EXCLUDED.selection_team,
@@ -603,11 +625,13 @@ async function savePick(week, player, pick) {
         spread = EXCLUDED.spread,
         is_mandatory = EXCLUDED.is_mandatory,
         result = EXCLUDED.result,
-        updated_at = EXCLUDED.updated_at
+        updated_at = EXCLUDED.updated_at,
+        is_lock = EXCLUDED.is_lock
       RETURNING *
     `, [
       week, player, pick.gameId, pick.selectionTeam, pick.selectionSide, pick.spread,
-      pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString()
+      pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString(),
+      isSpreadLock ? 1 : 0
     ]);
     savedPicks.push(rows[0]);
   }
@@ -619,23 +643,27 @@ async function savePick(week, player, pick) {
       total_line: pick.totalLine
     });
 
+    const isTotalLock = pick.isLock && pick.lockType === 'total';
+
     const { rows } = await pool.query(`
       INSERT INTO picks (
         week, player, game_id, selection_total, total_line, result,
-        is_mandatory, picked_at, updated_at
+        is_mandatory, picked_at, updated_at, is_lock
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
       )
       ON CONFLICT (week, player, game_id) WHERE selection_total IS NOT NULL DO UPDATE SET
         selection_total = EXCLUDED.selection_total,
         total_line = EXCLUDED.total_line,
         result = EXCLUDED.result,
         is_mandatory = EXCLUDED.is_mandatory,
-        updated_at = EXCLUDED.updated_at
+        updated_at = EXCLUDED.updated_at,
+        is_lock = EXCLUDED.is_lock
       RETURNING *
     `, [
       week, player, pick.gameId, pick.selectionTotal, pick.totalLine, result_total,
-      pick.isMandatory ? 1 : 0, new Date().toISOString(), new Date().toISOString()
+      pick.isMandatory ? 1 : 0, new Date().toISOString(), new Date().toISOString(),
+      isTotalLock ? 1 : 0
     ]);
     savedPicks.push(rows[0]);
   }
@@ -647,29 +675,42 @@ async function getWeekSummary(week, season) {
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
-    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+    summary[player.name] = { 
+      player: player.name, 
+      wins: 0, losses: 0, pushes: 0, pending: 0, total: 0,
+      lockWins: 0, lockLosses: 0, lockPushes: 0, lockPending: 0, lockTotal: 0
+    };
   }
 
   const { rows } = season
     ? await pool.query(`
-        SELECT player, result, COUNT(*) AS count
+        SELECT player, result, is_lock, COUNT(*) AS count
         FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND g.season = $2 AND p.result IS NOT NULL
-        GROUP BY player, result
+        GROUP BY player, result, is_lock
       `, [week, season])
     : await pool.query(`
-        SELECT player, result, COUNT(*) AS count
+        SELECT player, result, is_lock, COUNT(*) AS count
         FROM picks p JOIN games g ON p.game_id = g.id WHERE p.week = $1 AND p.result IS NOT NULL
-        GROUP BY player, result
+        GROUP BY player, result, is_lock
       `, [week]);
 
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
-      current.total += Number(row.count);
-      if (row.result === 'win') current.wins += Number(row.count);
-      else if (row.result === 'loss') current.losses += Number(row.count);
-      else if (row.result === 'push') current.pushes += Number(row.count);
-      else current.pending += Number(row.count);
+      const count = Number(row.count);
+      current.total += count;
+      if (row.result === 'win') current.wins += count;
+      else if (row.result === 'loss') current.losses += count;
+      else if (row.result === 'push') current.pushes += count;
+      else current.pending += count;
+
+      if (row.is_lock === 1) {
+        current.lockTotal += count;
+        if (row.result === 'win') current.lockWins += count;
+        else if (row.result === 'loss') current.lockLosses += count;
+        else if (row.result === 'push') current.lockPushes += count;
+        else current.lockPending += count;
+      }
     }
   }
   return Object.values(summary);
@@ -679,21 +720,34 @@ async function getSeasonSummary(season) {
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
-    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+    summary[player.name] = { 
+      player: player.name, 
+      wins: 0, losses: 0, pushes: 0, pending: 0, total: 0,
+      lockWins: 0, lockLosses: 0, lockPushes: 0, lockPending: 0, lockTotal: 0
+    };
   }
   const { rows } = await pool.query(`
-    SELECT player, result, COUNT(*) AS count
+    SELECT player, result, is_lock, COUNT(*) AS count
     FROM picks p JOIN games g ON p.game_id = g.id WHERE g.season = $1 AND p.result IS NOT NULL
-    GROUP BY player, result
+    GROUP BY player, result, is_lock
   `, [season]);
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
-      current.total += Number(row.count);
-      if (row.result === 'win') current.wins += Number(row.count);
-      else if (row.result === 'loss') current.losses += Number(row.count);
-      else if (row.result === 'push') current.pushes += Number(row.count);
-      else current.pending += Number(row.count);
+      const count = Number(row.count);
+      current.total += count;
+      if (row.result === 'win') current.wins += count;
+      else if (row.result === 'loss') current.losses += count;
+      else if (row.result === 'push') current.pushes += count;
+      else current.pending += count;
+
+      if (row.is_lock === 1) {
+        current.lockTotal += count;
+        if (row.result === 'win') current.lockWins += count;
+        else if (row.result === 'loss') current.lockLosses += count;
+        else if (row.result === 'push') current.lockPushes += count;
+        else current.lockPending += count;
+      }
     }
   }
   return Object.values(summary);
@@ -703,7 +757,11 @@ async function getAllTimeSummary() {
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
-    summary[player.name] = { player: player.name, wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+    summary[player.name] = { 
+      player: player.name, 
+      wins: 0, losses: 0, pushes: 0, pending: 0, total: 0,
+      lockWins: 0, lockLosses: 0, lockPushes: 0, lockPending: 0, lockTotal: 0
+    };
   }
 
   if (players.length === 0) {
@@ -711,21 +769,27 @@ async function getAllTimeSummary() {
   }
 
   const { rows } = await pool.query(`
-    SELECT player, res as result, COUNT(*) AS count
-    FROM (
-      SELECT player, result as res FROM picks WHERE result IS NOT NULL AND result != ''
-    ) sub
-    GROUP BY player, result
+    SELECT player, result, is_lock, COUNT(*) AS count
+    FROM picks
+    WHERE result IS NOT NULL AND result != ''
+    GROUP BY player, result, is_lock
   `);
   for (const row of rows) {
     const current = summary[row.player];
     if (current) {
-      current.total += Number(row.count);
-      if (row.result === 'win') current.wins += Number(row.count);
-      else if (row.result === 'loss') current.losses += Number(row.count);
-      else if (row.result === 'push') current.pushes += Number(row.count);
-      else if (row.result === 'pending') {
-        current.pending += Number(row.count);
+      const count = Number(row.count);
+      current.total += count;
+      if (row.result === 'win') current.wins += count;
+      else if (row.result === 'loss') current.losses += count;
+      else if (row.result === 'push') current.pushes += count;
+      else if (row.result === 'pending') current.pending += count;
+
+      if (row.is_lock === 1) {
+        current.lockTotal += count;
+        if (row.result === 'win') current.lockWins += count;
+        else if (row.result === 'loss') current.lockLosses += count;
+        else if (row.result === 'push') current.lockPushes += count;
+        else if (row.result === 'pending') current.lockPending += count;
       }
     }
   }
@@ -812,8 +876,8 @@ async function getPlayerStats(player, timeRange, week, season) {
 
   const trendQ = buildQuery(`
     SELECT g.season, g.week, 
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses
     FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
     GROUP BY g.season, g.week
     ORDER BY g.season DESC, g.week DESC
@@ -848,17 +912,31 @@ async function getPlayerStats(player, timeRange, week, season) {
 
   const recordQ = buildQuery(`
     SELECT 
-      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0) as wins,
-      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0) as losses,
-      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0) as pushes,
-      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0) as pending,
-      COUNT(*) as total
+      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0)::int as wins,
+      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0)::int as losses,
+      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0)::int as pushes,
+      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0)::int as pending,
+      COUNT(*)::int as total
     FROM picks p
     JOIN games g ON p.game_id = g.id
     WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
   `);
   const { rows: [record] } = await pool.query(recordQ.query, recordQ.params);
   const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+
+  const lockRecordQ = buildQuery(`
+    SELECT 
+      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0)::int as wins,
+      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0)::int as losses,
+      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0)::int as pushes,
+      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0)::int as pending,
+      COUNT(*)::int as total
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.player = $1 AND p.is_lock = 1 AND p.result IS NOT NULL __TIME_FILTER__
+  `);
+  const { rows: [lockRecord] } = await pool.query(lockRecordQ.query, lockRecordQ.params);
+  const safeLockRecord = lockRecord || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
 
   const mostBetsForQ = buildQuery(`
     SELECT p.selection_team as school, t.logo, COUNT(*) as count
@@ -1030,7 +1108,7 @@ async function getPlayerStats(player, timeRange, week, season) {
   const { rows: [worstConfByPct] } = await pool.query(worstConfByPctQ.query, worstConfByPctQ.params);
 
   return { 
-    favConf, bestConf, worstConf, bestConfByPct, worstConfByPct, topWinSchool, topLossSchool, record: safeRecord, trend, mostBetsFor, mostBetsAgainst, 
+    favConf, bestConf, worstConf, bestConfByPct, worstConfByPct, topWinSchool, topLossSchool, record: safeRecord, lockRecord: safeLockRecord, trend, mostBetsFor, mostBetsAgainst, 
     currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak,
     currentTotalWinStreak, currentTotalLossStreak, longestTotalWinStreak, longestTotalLossStreak,
     last10Form
@@ -1904,6 +1982,217 @@ async function deleteTeamMapping(id) {
   await pool.query('DELETE FROM team_mappings WHERE id = $1', [id]);
 }
 
+async function getSeasonAwards(season) {
+  // Check if the season has any graded picks (at least one win/loss/push)
+  const { rows: [gradedCheck] } = await pool.query(`
+    SELECT COUNT(*)::int as count 
+    FROM picks p JOIN games g ON p.game_id = g.id 
+    WHERE g.season = $1 AND p.result IN ('win', 'loss', 'push')
+  `, [season]);
+
+  if (!gradedCheck || gradedCheck.count === 0) {
+    return {
+      champion: null,
+      allTimeChamps: [],
+      specialtyAwards: {}
+    };
+  }
+
+  // 1. Golden Fade (Lowest win rate)
+  const { rows: [goldenFade] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END)::int as pushes,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct ASC LIMIT 1
+  `, [season]);
+
+  // 2. Locksmith (Highest lock win rate)
+  const { rows: [locksmith] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.is_lock = 1 AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC LIMIT 1
+  `, [season]);
+
+  // 3. Down Under (Highest % of total picks on Under)
+  const { rows: [downUnder] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END)::int as under_picks,
+           COUNT(*)::int as total_picks,
+           ROUND(SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END)::numeric / 
+                 COUNT(*) * 100, 2) as pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1
+    GROUP BY player ORDER BY pct DESC LIMIT 1
+  `, [season]);
+
+  // 4. Road Warrior (Highest win % on away teams)
+  const { rows: [roadWarrior] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.selection_side = 'away' AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC LIMIT 1
+  `, [season]);
+
+  // 5. Overlord (Highest % of total picks on Over)
+  const { rows: [overlord] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END)::int as over_picks,
+           COUNT(*)::int as total_picks,
+           ROUND(SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END)::numeric / 
+                 COUNT(*) * 100, 2) as pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1
+    GROUP BY player ORDER BY pct DESC LIMIT 1
+  `, [season]);
+
+  // 6. Underdog Whisperer (Highest win % on underdogs)
+  const { rows: [underdogWhisperer] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) > 0 AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC LIMIT 1
+  `, [season]);
+
+  // 7. Home Field Advantage (Highest win % on home teams)
+  const { rows: [homeField] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.selection_side = 'home' AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC LIMIT 1
+  `, [season]);
+
+  // 8. Chalk Eater (Highest win % on favorites)
+  const { rows: [chalkEater] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) < 0 AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC LIMIT 1
+  `, [season]);
+
+  // 8b. Volume Shooter (Most total picks made)
+  const { rows: [volumeShooter] } = await pool.query(`
+    SELECT player, COUNT(*)::int as total_picks
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1
+    GROUP BY player ORDER BY total_picks DESC LIMIT 1
+  `, [season]);
+
+  // 8c. Push Master (Most pushes)
+  const { rows: [pushMaster] } = await pool.query(`
+    SELECT player, SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END)::int as pushes
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1
+    GROUP BY player ORDER BY pushes DESC LIMIT 1
+  `, [season]);
+
+  // 9. Champion of the selected season
+  const { rows: [champion] } = await pool.query(`
+    SELECT player, 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                 NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
+    FROM picks p JOIN games g ON p.game_id = g.id
+    WHERE g.season = $1 AND p.result IN ('win', 'loss')
+    GROUP BY player ORDER BY win_pct DESC, wins DESC LIMIT 1
+  `, [season]);
+
+  // 10. All-time champions list for the base of the trophy
+  const { rows: allTimeChamps } = await pool.query(`
+    WITH season_standings AS (
+      SELECT g.season, p.player, 
+             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
+             SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses,
+             ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                   NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct,
+             ROW_NUMBER() OVER (PARTITION BY g.season ORDER BY 
+               ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+                     NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) DESC,
+               SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) DESC
+             ) as rank
+      FROM picks p JOIN games g ON p.game_id = g.id
+      WHERE p.result IN ('win', 'loss')
+      GROUP BY g.season, p.player
+    )
+    SELECT season, player, wins, losses, win_pct
+    FROM season_standings
+    WHERE rank = 1
+    ORDER BY season DESC
+  `);
+
+  return {
+    champion,
+    allTimeChamps,
+    specialtyAwards: {
+      goldenFade,
+      locksmith,
+      downUnder,
+      roadWarrior,
+      overlord,
+      underdogWhisperer,
+      homeField,
+      chalkEater,
+      volumeShooter,
+      pushMaster
+    }
+  };
+}
+
+async function getPlayerAwards(player) {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT g.season 
+    FROM picks p JOIN games g ON p.game_id = g.id 
+    WHERE p.result IN ('win', 'loss', 'push')
+    ORDER BY g.season ASC
+  `);
+  const seasons = rows.map(r => r.season);
+  const championships = [];
+  const specialtyAwards = [];
+
+  for (const season of seasons) {
+    const awards = await getSeasonAwards(season);
+    if (awards.champion && awards.champion.player === player) {
+      championships.push(season);
+    }
+    for (const [key, award] of Object.entries(awards.specialtyAwards)) {
+      if (award && award.player === player) {
+        specialtyAwards.push({
+          season,
+          awardKey: key,
+          ...award
+        });
+      }
+    }
+  }
+  return { championships, specialtyAwards };
+}
+
 module.exports = {
   init,
   seedPlayers,
@@ -1943,5 +2232,8 @@ module.exports = {
   getTeamMappings,
   addTeamMapping,
   deleteTeamMapping,
-  ensureWeekRow
+  ensureWeekRow,
+  setHistoricalLock,
+  getSeasonAwards,
+  getPlayerAwards
 };

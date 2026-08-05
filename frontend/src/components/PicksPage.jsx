@@ -1,6 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
+
+const RULES = [
+  'Pick the spread and/or over/under for any game each week.',
+  'You may pick both the spread and the over/under for the same game — they count as separate picks.',
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>Each week you may designate one pick as your <Lock size={12} style={{ color: '#f1c40f', flexShrink: 0 }} /> Lock — your best bet of the week.</span>,
+  'Only one Lock is allowed per week. Lock record is tracked separately on the leaderboard.',
+  'Picks must be submitted before the game kicks off.',
+];
+
+const RulesTooltip = () => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <button
+        onClick={() => setVisible(v => !v)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center' }}
+        aria-label="Rules"
+      >
+        <Info size={18} />
+      </button>
+      {visible && (
+        <>
+          <div onClick={() => setVisible(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, zIndex: 1000, marginTop: 8,
+            background: '#1e2a3a', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+            padding: '12px 16px', width: 320, boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+          }}>
+            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#f1c40f' }}>How to Pick</p>
+            <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: '0.85em', lineHeight: 1.6 }}>
+              {RULES.map((rule, i) => <li key={i}>{rule}</li>)}
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const getEffectiveSpread = (game, team, pick) => {
   if (pick && pick.selectionTeam && pick.spread !== null) {
@@ -273,12 +311,14 @@ const PicksPage = ({
   games,
   handlePickChange,
   handleTotalChange,
+  handleLockToggle,
   isGameLocked,
   isGameLive,
   handleSubmit,
   loading,
   selectedWeek,
   message,
+  messageSuccess = false,
   teams = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -345,7 +385,7 @@ const PicksPage = ({
       if (pick.selectionTeam) {
         const spread = pick.spread ?? (pick.selection_side === 'home' ? game.spread_home : game.spread_away);
         const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
-        pickDetails.push(`${pick.selectionTeam} (${spreadText})`);
+        pickDetails.push(`${pick.selectionTeam} ${spreadText}`);
       }
 
       // Format total pick
@@ -368,7 +408,10 @@ const PicksPage = ({
       <section className="layout-grid">
         <article className="panel" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-            <h2>Pick Games</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ margin: 0 }}>Pick Games</h2>
+              <RulesTooltip />
+            </div>
             <div className="search-container" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '8px', alignItems: isMobile ? 'stretch' : 'center', width: isMobile ? '100%' : 'auto' }}>
               <input
                 type="text"
@@ -507,49 +550,101 @@ const PicksPage = ({
                         }}
                       />
                     </div>
+                    {(isAwayActive || isHomeActive) && (
+                      <button
+                        type="button"
+                        onClick={() => handleLockToggle(game, 'spread')}
+                        disabled={isGameLocked(game)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: isGameLocked(game) ? 'not-allowed' : 'pointer',
+                          padding: '4px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? '#f1c40f' : 'rgba(255,255,255,0.2)',
+                          transition: 'color 0.2s'
+                        }}
+                        title={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? "Unlock Spread" : "Lock Spread"}
+                      >
+                        <Lock 
+                          size={20} 
+                          fill="none" 
+                          strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? 3 : 2} 
+                        />
+                      </button>
+                    )}
                   </div>
 
                   {(game.over_under != null || picks[game.id]?.totalLine != null) && (
-                    <div className="game-switch" style={{ marginTop: '10px' }}>
-                      <button
-                        type="button"
-                        className={`game-switch-option ${picks[game.id]?.selectionTotal === 'under' ? 'active' : ''}`}
-                        onClick={() => handleTotalChange(game, 'under')}
-                        disabled={isGameLocked(game)}
-                      >
-                        <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Under</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`game-switch-option ${!picks[game.id]?.selectionTotal ? 'active' : ''}`}
-                        onClick={() => handleTotalChange(game, null)}
-                        disabled={isGameLocked(game)}
-                      > 
-                        <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under ?? picks[game.id]?.totalLine}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`game-switch-option ${picks[game.id]?.selectionTotal === 'over' ? 'active' : ''}`}
-                        onClick={() => handleTotalChange(game, 'over')}
-                        disabled={isGameLocked(game)}
-                      >
-                        <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Over</span>
-                      </button>
-                      <span
-                        className="game-switch-slider"
-                        style={{
-                          transform: picks[game.id]?.selectionTotal === 'over'
-                            ? 'translateX(200%)' 
-                            : picks[game.id]?.selectionTotal === 'under'
-                              ? 'translateX(0)' 
-                              : 'translateX(100%)',
-                          backgroundColor: picks[game.id]?.selectionTotal === 'over'
-                            ? '#4caf50' 
-                            : picks[game.id]?.selectionTotal === 'under'
-                              ? '#f44336' 
-                              : '#E8979F'
-                        }}
-                      />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                      <div className="game-switch" style={{ marginTop: 0 }}>
+                        <button
+                          type="button"
+                          className={`game-switch-option ${picks[game.id]?.selectionTotal === 'under' ? 'active' : ''}`}
+                          onClick={() => handleTotalChange(game, 'under')}
+                          disabled={isGameLocked(game)}
+                        >
+                          <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Under</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`game-switch-option ${!picks[game.id]?.selectionTotal ? 'active' : ''}`}
+                          onClick={() => handleTotalChange(game, null)}
+                          disabled={isGameLocked(game)}
+                        > 
+                          <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under ?? picks[game.id]?.totalLine}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`game-switch-option ${picks[game.id]?.selectionTotal === 'over' ? 'active' : ''}`}
+                          onClick={() => handleTotalChange(game, 'over')}
+                          disabled={isGameLocked(game)}
+                        >
+                          <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Over</span>
+                        </button>
+                        <span
+                          className="game-switch-slider"
+                          style={{
+                            transform: picks[game.id]?.selectionTotal === 'over'
+                              ? 'translateX(200%)' 
+                              : picks[game.id]?.selectionTotal === 'under'
+                                ? 'translateX(0)' 
+                                : 'translateX(100%)',
+                            backgroundColor: picks[game.id]?.selectionTotal === 'over'
+                              ? '#4caf50' 
+                              : picks[game.id]?.selectionTotal === 'under'
+                                ? '#f44336' 
+                                : '#E8979F'
+                          }}
+                        />
+                      </div>
+                      {(picks[game.id]?.selectionTotal === 'under' || picks[game.id]?.selectionTotal === 'over') && (
+                        <button
+                          type="button"
+                          onClick={() => handleLockToggle(game, 'total')}
+                          disabled={isGameLocked(game)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: isGameLocked(game) ? 'not-allowed' : 'pointer',
+                            padding: '4px 8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? '#f1c40f' : 'rgba(255,255,255,0.2)',
+                            transition: 'color 0.2s'
+                          }}
+                          title={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? "Unlock Total" : "Lock Total"}
+                        >
+                          <Lock 
+                            size={20} 
+                            fill="none" 
+                            strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? 3 : 2} 
+                          />
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -634,11 +729,11 @@ const PicksPage = ({
       </section>
 
       <div className="actions">
-        {message && <div className="message" style={{ color: '#EF3037', fontWeight: 'bold', padding: '8px', border: '1px solid #EF3037', borderRadius: '4px', backgroundColor: '#FADBD8', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
+        {message && !messageSuccess && <div className="message" style={{ color: '#EF3037', fontWeight: 'bold', padding: '8px', border: '1px solid #EF3037', borderRadius: '4px', backgroundColor: '#FADBD8', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="secondary" onClick={handleCopyPicks} disabled={loading}>{copyButtonText}</button>
-          <button disabled={loading || selectedWeek === null} onClick={handleSubmit} style={{ marginLeft: 'auto' }}>Save Picks</button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end' }}>
+          <button onClick={handleCopyPicks} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Copy size={16} />{copyButtonText}</button>
+          <button disabled={loading || selectedWeek === null} onClick={handleSubmit} style={{ background: '#fff', color: '#000', border: '1px solid #ccc', display: 'flex', alignItems: 'center', gap: '6px' }}><Save size={16} />Save Picks</button>
         </div>
       </div>
     </>

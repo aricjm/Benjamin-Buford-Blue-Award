@@ -191,8 +191,9 @@ const LeaderboardPage = ({
                       <th>Win %</th>
                       <th>Losses</th>
                       <th>Pushes</th>
-                      <th>Pending</th>
+                      {allTimeSummary.some(r => Number(r.pending) > 0) && <th>Pending</th>}
                       <th>Total</th>
+                      <th>Lock Record</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -208,8 +209,11 @@ const LeaderboardPage = ({
                         <td>{winPct(row.wins, row.total)}</td>
                         <td>{row.losses}</td>
                         <td>{row.pushes}</td>
-                        <td>{row.pending}</td>
+                        {allTimeSummary.some(r => Number(r.pending) > 0) && <td>{row.pending}</td>}
                         <td>{row.total}</td>
+                        <td style={{ fontWeight: 'bold', color: '#f1c40f' }}>
+                          {row.lockWins ?? 0}-{row.lockLosses ?? 0}-{row.lockPushes ?? 0} ({winPct(row.lockWins ?? 0, row.lockTotal ?? 0)})
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -265,8 +269,9 @@ const LeaderboardPage = ({
                       <th>Win %</th>
                       <th>Losses</th>
                       <th>Pushes</th>
-                      <th>Pending</th>
+                      {seasonData.some(r => Number(r.pending) > 0) && <th>Pending</th>}
                       <th>Total</th>
+                      <th>Lock Record</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -282,8 +287,11 @@ const LeaderboardPage = ({
                         <td>{winPct(row.wins, row.total)}</td>
                         <td>{row.losses}</td>
                         <td>{row.pushes}</td>
-                        <td>{row.pending}</td>
+                        {seasonData.some(r => Number(r.pending) > 0) && <td>{row.pending}</td>}
                         <td>{row.total}</td>
+                        <td style={{ fontWeight: 'bold', color: '#f1c40f' }}>
+                          {row.lockWins ?? 0}-{row.lockLosses ?? 0}-{row.lockPushes ?? 0} ({winPct(row.lockWins ?? 0, row.lockTotal ?? 0)})
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -348,8 +356,9 @@ const LeaderboardPage = ({
                       <th>Win %</th>
                       <th>Losses</th>
                       <th>Pushes</th>
-                      <th>Pending</th>
+                      {weekData.some(r => Number(r.pending) > 0) && <th>Pending</th>}
                       <th>Total</th>
+                      <th>Lock Record</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -365,8 +374,11 @@ const LeaderboardPage = ({
                         <td>{winPct(row.wins, row.total)}</td>
                         <td>{row.losses}</td>
                         <td>{row.pushes}</td>
-                        <td>{row.pending}</td>
+                        {weekData.some(r => Number(r.pending) > 0) && <td>{row.pending}</td>}
                         <td>{row.total}</td>
+                        <td style={{ fontWeight: 'bold', color: '#f1c40f' }}>
+                          {row.lockWins ?? 0}-{row.lockLosses ?? 0}-{row.lockPushes ?? 0} ({winPct(row.lockWins ?? 0, row.lockTotal ?? 0)})
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Lock } from 'lucide-react';
 import logo from "./resources/images/benjamin_buford_blue_award_cutout.png";
 
 // Import Sub-Components
@@ -7,7 +8,6 @@ import StatsPage from './components/StatsPage';
 import ResearchPage from './components/ResearchPage';
 import AdminPage from './components/AdminPage';
 import PicksPage from './components/PicksPage';
-import ButtonsPage from './components/ButtonsPage';
 import LeaderboardPage from './components/LeaderboardPage';
 import AwardsPage from './components/AwardsPage';
 
@@ -33,7 +33,6 @@ function App() {
   const [showSaveResult, setShowSaveResult] = useState(false);
   const [saveResult, setSaveResult] = useState({ success: false, message: '' });
   const [savedPicksList, setSavedPicksList] = useState([]);
-  const [picksToConfirm, setPicksToConfirm] = useState([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -44,11 +43,11 @@ function App() {
   // Consume the custom hooks
   const isMobile = useIsMobile();
   const {
-    players, seasons, weeks, teams, games, picks,
+    players, seasons, weeks, teams, games, picks, loadedPicks,
     summary, seasonSummary, allTimeSummary,
     loading, message, playerStats, conferenceStats, allPlayerStats,
     setLoading, setMessage, loadStats, loadWeek, 
-    handlePickChange, handleTotalChange, addManualGame, savePicks
+    handlePickChange, handleTotalChange, handleLockToggle, addManualGame, savePicks
   } = useBetData(selectedSeason, selectedWeek, selectedPlayer, selectedConference, statsTimeRange);
 
   const handlePageChange = (page) => {
@@ -100,7 +99,6 @@ function App() {
 
   const isSummaryPage = activePage === 'summary';
   const isPicksPage = activePage === 'picks';
-  const isButtonsPage = activePage === 'buttons';
   const isAdminPage = activePage === 'admin';
   const isStatsPage = activePage === 'stats';
   const isResearchPage = activePage === 'research';
@@ -115,28 +113,6 @@ function App() {
       return;
     }
 
-    //TODO: Add mandatory games back? 
-    // Filter for mandatory games from the combined list for validation
-    // const allMandatoryGames = pickGames.filter(game => game.is_mandatory || game.is_televised);
-
-    // const mandatoryGamesToPick = allMandatoryGames.filter(game => !isGameLocked(game));
-    // const mandatoryGamesAlreadyLockedWithoutPick = allMandatoryGames.filter(game => isGameLocked(game) && !picks[game.id]);
-
-    // if (mandatoryGamesAlreadyLockedWithoutPick.length > 0) {
-    //   setMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
-    //   setAlertMessage('You cannot save picks for past mandatory games that were not selected. Please review your selections.');
-    //   setShowAlertModal(true);
-    //   return;
-    // }
-
-    // const missingMandatoryPicks = mandatoryGamesToPick.filter(game => !picks[game.id]);
-    // if (missingMandatoryPicks.length > 0) {
-    //   setMessage('Please make a selection for all mandatory televised games.');
-    //   setAlertMessage('Please make a selection for all mandatory televised games.');
-    //   setShowAlertModal(true);
-    //   return;
-    // }
-
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
     if (!playerPicks.length) {
       setMessage('Choose at least one game before saving picks.');
@@ -145,41 +121,13 @@ function App() {
       return;
     }
 
-    const confirmationList = playerPicks.map(pick => {
-      const game = pickGames.find(g => g.id === pick.gameId);
-      if (!game) return null;
-
-      const pickDetails = [];
-
-      // Format spread pick
-      if (pick.selectionTeam) {
-        const spread = pick.spread ?? (pick.selection_side === 'home' ? game.spread_home : game.spread_away);
-        const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
-        pickDetails.push(`${pick.selectionTeam} (${spreadText})`);
-      }
-      
-      // Format total pick
-      if (pick.selectionTotal) {
-        pickDetails.push(`${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`);
-      }
-
-      return {
-        key: pick.gameId,
-        game: `${game.away_team} @ ${game.home_team}`,
-        details: pickDetails.join(' | ')
-      };
-    }).filter(Boolean);
-
-    setPicksToConfirm(confirmationList);
-
-
-    // open confirmation modal
     setShowConfirmSave(true);
   };
 
   // perform the actual save after confirmation
   const performSave = async () => {
     setShowConfirmSave(false);
+    setMessage('');
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
     
     try {
@@ -216,9 +164,145 @@ function App() {
     }
   };
 
+  const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
+  const hasLock = playerPicks.some(p => p.isLock);
+
+  const buildPickItems = (pick) => {
+    const game = pickGames.find(g => g.id === pick.gameId);
+    if (!game) return [];
+    const gameLabel = `${game.away_team} @ ${game.home_team}`;
+    const items = [];
+
+    if (pick.selectionTeam) {
+      const spread = pick.spread ?? (pick.selectionSide === 'home' ? game.spread_home : game.spread_away);
+      const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
+      const isSpreadLock = pick.isLock && pick.lockType === 'spread';
+      items.push({
+        key: `${pick.gameId}-spread`,
+        game: gameLabel,
+        details: `${pick.selectionTeam} ${spreadText}`,
+        isLock: isSpreadLock,
+        type: 'spread'
+      });
+    }
+
+    if (pick.selectionTotal) {
+      const isTotalLock = pick.isLock && pick.lockType === 'total';
+      items.push({
+        key: `${pick.gameId}-total`,
+        game: gameLabel,
+        details: `${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`,
+        isLock: isTotalLock,
+        type: 'total'
+      });
+    }
+
+    return items;
+  };
+
+  const isSpreadSaved = (pick, originalPick) => {
+    if (!originalPick) return false;
+    return pick.selectionTeam === originalPick.selectionTeam &&
+      (pick.isLock && pick.lockType === 'spread') === (originalPick.isLock && originalPick.lockType === 'spread');
+  };
+
+  const isTotalSaved = (pick, originalPick) => {
+    if (!originalPick) return false;
+    return pick.selectionTotal === originalPick.selectionTotal &&
+      pick.totalLine === originalPick.totalLine &&
+      (pick.isLock && pick.lockType === 'total') === (originalPick.isLock && originalPick.lockType === 'total');
+  };
+
+  const alphabeticalPickSorter = (a, b) => a.game.localeCompare(b.game);
+  const alreadySaved = [];
+  const newPicks = [];
+  const removedPicks = [];
+
+  playerPicks.forEach((pick) => {
+    const items = buildPickItems(pick);
+    const originalPick = loadedPicks[pick.gameId];
+    items.forEach((item) => {
+      if (item.type === 'spread' && isSpreadSaved(pick, originalPick)) {
+        alreadySaved.push(item);
+      } else if (item.type === 'total' && isTotalSaved(pick, originalPick)) {
+        alreadySaved.push(item);
+      } else {
+        newPicks.push(item);
+      }
+    });
+  });
+
+  // Check for removed picks
+  Object.values(loadedPicks).forEach((originalPick) => {
+    const currentPick = picks[originalPick.gameId];
+    const game = pickGames.find(g => g.id === originalPick.gameId);
+    if (!game) return;
+    const gameLabel = `${game.away_team} @ ${game.home_team}`;
+
+    if (originalPick.selectionTeam && (!currentPick || !currentPick.selectionTeam)) {
+      const spread = originalPick.spread ?? (originalPick.selectionSide === 'home' ? game.spread_home : game.spread_away);
+      const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
+      const isSpreadLock = originalPick.isLock && originalPick.lockType === 'spread';
+      removedPicks.push({
+        key: `${originalPick.gameId}-spread-removed`,
+        game: gameLabel,
+        details: `${originalPick.selectionTeam} ${spreadText}`,
+        isLock: isSpreadLock,
+        type: 'spread'
+      });
+    }
+
+    if (originalPick.selectionTotal && (!currentPick || !currentPick.selectionTotal)) {
+      const isTotalLock = originalPick.isLock && originalPick.lockType === 'total';
+      removedPicks.push({
+        key: `${originalPick.gameId}-total-removed`,
+        game: gameLabel,
+        details: `${originalPick.selectionTotal.toUpperCase()} ${originalPick.totalLine}`,
+        isLock: isTotalLock,
+        type: 'total'
+      });
+    }
+  });
+
+  const picksToConfirm = {
+    alreadySaved: alreadySaved.sort(alphabeticalPickSorter),
+    newPicks: newPicks.sort(alphabeticalPickSorter),
+    removedPicks: removedPicks.sort(alphabeticalPickSorter)
+  };
+
+  const selectableBets = [];
+  playerPicks.forEach((pick) => {
+    const game = pickGames.find(g => g.id === pick.gameId);
+    if (!game) return;
+
+    if (pick.selectionTeam) {
+      const spread = pick.spread ?? (pick.selectionSide === 'home' ? game.spread_home : game.spread_away);
+      const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
+      selectableBets.push({
+        gameId: pick.gameId,
+        type: 'spread',
+        label: `${pick.selectionTeam} ${spreadText}`,
+        gameLabel: `${game.away_team} @ ${game.home_team}`,
+        isLock: pick.isLock && pick.lockType === 'spread',
+        gameObj: game
+      });
+    }
+
+    if (pick.selectionTotal) {
+      selectableBets.push({
+        gameId: pick.gameId,
+        type: 'total',
+        label: `${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`,
+        gameLabel: `${game.away_team} @ ${game.home_team}`,
+        isLock: pick.isLock && pick.lockType === 'total',
+        gameObj: game
+      });
+    }
+  });
+
   return (
     <div className="app-shell">
-      {loading && <LoadingAnimation message={message || 'Loading...'} />}
+      {loading && <LoadingAnimation />}
 
       <header className="page-header">
         <div>
@@ -285,22 +369,103 @@ function App() {
             <div className="player-modal">
               <div className="player-modal-content">
                 <h2>Confirm Save</h2>
-                <p>Are you sure you want to save your picks for week {selectedWeek} as <strong>{selectedPlayer}</strong>?</p>
-                {picksToConfirm.length > 0 && (
+                <p>Are you sure you want to save your picks for Week {selectedWeek} as <strong>{selectedPlayer}</strong>?</p>
+                
+                {hasLock ? (
+                  (picksToConfirm.alreadySaved.length > 0 || picksToConfirm.newPicks.length > 0 || picksToConfirm.removedPicks.length > 0) && (
+                    <div style={{ marginTop: 12, textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px' }}>
+                      <h4 style={{ marginTop: 0, marginBottom: '8px' }}>
+                        Your Picks ({picksToConfirm.alreadySaved.length + picksToConfirm.newPicks.length}):
+                      </h4>
+                      {picksToConfirm.newPicks.length > 0 && (
+                        <div>
+                          <h5 style={{ margin: '0 0 8px 0', color: '#8bc34a' }}>New picks ({picksToConfirm.newPicks.length}):</h5>
+                          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                            {picksToConfirm.newPicks.map((p) => (
+                              <li key={`new-${p.key}`} style={{ marginBottom: '6px' }}>
+                                <div>{p.game}</div>
+                                <strong style={{ color: '#2196f3', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  {p.details}{p.isLock && <Lock size={13} style={{ color: '#f1c40f' }} />}
+                                </strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {picksToConfirm.alreadySaved.length > 0 && picksToConfirm.newPicks.length > 0 && <br />}
+                      {picksToConfirm.alreadySaved.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <h5 style={{ margin: '0 0 8px 0', color: '#8bc34a' }}>Previously saved picks ({picksToConfirm.alreadySaved.length}):</h5>
+                          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                            {picksToConfirm.alreadySaved.map((p) => (
+                              <li key={`saved-${p.key}`} style={{ marginBottom: '6px' }}>
+                                <div>{p.game}</div>
+                                <strong style={{ color: '#2196f3', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  {p.details}{p.isLock && <Lock size={13} style={{ color: '#f1c40f' }} />}
+                                </strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {picksToConfirm.removedPicks.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <h5 style={{ margin: '0 0 8px 0', color: '#f44336' }}>Removed picks ({picksToConfirm.removedPicks.length}):</h5>
+                          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                            {picksToConfirm.removedPicks.map((p) => (
+                              <li key={`removed-${p.key}`} style={{ marginBottom: '6px' }}>
+                                <div>{p.game}</div>
+                                <strong style={{ color: '#f44336', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  {p.details}{p.isLock && <Lock size={13} style={{ color: '#f1c40f' }} />}
+                                </strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )
+                ) : (
                   <div style={{ marginTop: 12, textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px' }}>
-                    <h4 style={{ marginTop: 0, marginBottom: '8px' }}>Your Picks:</h4>
-                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                      {picksToConfirm.map((p) => (
-                        <li key={p.key} style={{ marginBottom: '6px' }}>
-                          <div>{p.game}</div>
-                          <strong style={{ color: '#2196f3' }}>{p.details}</strong>
-                        </li>
+                    <div style={{ color: '#ffcc00', fontWeight: 'bold', marginBottom: '12px', border: '1px solid #ffcc00', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(255, 204, 0, 0.1)', fontSize: '0.9em' }}>
+                      ⚠️ You must select one Lock for this week before saving. Please select one of your picks below:
+                    </div>
+                    <div style={{ maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {selectableBets.map((bet) => (
+                        <label 
+                          key={`${bet.gameId}-${bet.type}`} 
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '10px', 
+                            padding: '8px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer',
+                            background: bet.isLock ? 'rgba(241, 196, 15, 0.15)' : 'transparent',
+                            border: bet.isLock ? '1px solid #f1c40f' : '1px solid transparent',
+                            marginBottom: '6px',
+                            userSelect: 'none'
+                          }}
+                        >
+                          <input 
+                            type="radio" 
+                            name="lock-selection" 
+                            checked={bet.isLock}
+                            onChange={() => handleLockToggle(bet.gameObj, bet.type)}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.8em', color: '#aaa' }}>{bet.gameLabel}</div>
+                            <strong style={{ color: bet.isLock ? '#f1c40f' : '#2196f3', fontSize: '0.95em', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {bet.label} {bet.isLock && <Lock size={13} />}
+                            </strong>
+                          </div>
+                        </label>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                  <button className="continue-button" onClick={() => performSave()} disabled={loading}>Yes, save</button>
+                  <button className="continue-button" onClick={() => performSave()} disabled={loading || !hasLock}>Yes, save</button>
                   <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
                 </div>
               </div>
@@ -345,10 +510,11 @@ function App() {
           setIsSidebarCollapsed={setIsSidebarCollapsed}
           activePage={activePage}
           handlePageChange={handlePageChange}
+          selectedPlayer={selectedPlayer}
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          {!isAwardsPage && !isResearchPage && (
+          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && (
             <section className="controls">
               <label>
                 Season:
@@ -412,7 +578,7 @@ function App() {
             />
           )}
 
-          {isAdminPage && (
+          {isAdminPage && selectedPlayer === 'Aric' && (
             <AdminPage
               loading={loading}
               setLoading={setLoading}
@@ -424,6 +590,9 @@ function App() {
               setShowAlertModal={setShowAlertModal}
               loadWeek={loadWeek}
               loadStats={loadStats}
+              players={players}
+              seasons={seasons}
+              weeks={weeks}
             />
           )}
           {isPicksPage && (
@@ -432,12 +601,14 @@ function App() {
               picks={picks}
               handlePickChange={handlePickChange}
               handleTotalChange={handleTotalChange}
+              handleLockToggle={handleLockToggle}
               isGameLocked={isGameLocked}
               isGameLive={isGameLive}
               handleSubmit={handleSubmit}
               loading={loading}
               selectedWeek={selectedWeek}
               message={message}
+              messageSuccess={message === 'Picks saved!'}
               teams={teams}
             />
           )}
@@ -455,10 +626,8 @@ function App() {
           )}
 
           {isAwardsPage && (
-            <AwardsPage seasons={seasons} />
+            <AwardsPage seasons={seasons} selectedPlayer={selectedPlayer} />
           )}
-
-          {isButtonsPage && <ButtonsPage />}
 
         </main>
       </div>

@@ -252,12 +252,30 @@ const StatLeaders = ({ allPlayerStats, timeRange }) => {
         .map(s => ({ player: s.player, value: winPct(s.record.wins, s.record.losses), sub: `${s.record.wins}W - ${s.record.losses}L` })),
     },
     {
+      label: `Best Lock Win % (${prefix})`,
+      icon: <Star size={28} />,
+      color: '#f1c40f',
+      entries: [...withStats]
+        .filter(s => s.lockRecord && (s.lockRecord.wins + s.lockRecord.losses > 0))
+        .sort((a, b) => (b.lockRecord.wins / (b.lockRecord.wins + b.lockRecord.losses)) - (a.lockRecord.wins / (a.lockRecord.wins + a.lockRecord.losses)))
+        .map(s => ({ player: s.player, value: winPct(s.lockRecord.wins, s.lockRecord.losses), sub: `${s.lockRecord.wins}W - ${s.lockRecord.losses}L` })),
+    },
+    {
       label: `Most Wins (${prefix})`,
       icon: <BarChart2 size={28} />,
       color: '#2196f3',
       entries: [...withStats]
         .sort((a, b) => b.record.wins - a.record.wins)
         .map(s => ({ player: s.player, value: s.record.wins, sub: `${s.record.losses} losses` })),
+    },
+    {
+      label: `Most Lock Wins (${prefix})`,
+      icon: <Crown size={28} />,
+      color: '#f1c40f',
+      entries: [...withStats]
+        .filter(s => s.lockRecord)
+        .sort((a, b) => b.lockRecord.wins - a.lockRecord.wins)
+        .map(s => ({ player: s.player, value: s.lockRecord.wins, sub: `${s.lockRecord.losses} losses` })),
     },
   ];
 
@@ -805,6 +823,20 @@ const PlayerStatsPanel = ({ playerName, playerStats, selectedConference, setSele
           onClick={() => setSelectedStat('Total Picks')}
           active={selectedStat === 'Total Picks'}
         />
+        <StatCard label="Lock Record" color="#f1c40f"
+          value={`${playerStats.lockRecord?.wins || 0}-${playerStats.lockRecord?.losses || 0}-${playerStats.lockRecord?.pushes || 0}`}
+          sub={`Win %: ${winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0)}`}
+          icon={<Star size={40} />}
+          onClick={() => setSelectedStat('Lock Record')}
+          active={selectedStat === 'Lock Record'}
+        />
+        <StatCard label="Lock Win %" color="#f1c40f"
+          value={winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0)}
+          sub={`${playerStats.lockRecord?.wins || 0}W - ${playerStats.lockRecord?.losses || 0}L`}
+          icon={<Crown size={40} />}
+          onClick={() => setSelectedStat('Lock Win %')}
+          active={selectedStat === 'Lock Win %'}
+        />
         <StatCard
           label={playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Current Spread Streak'}
           value={playerStats.currentWinStreak > 0 ? playerStats.currentWinStreak : playerStats.currentLossStreak || 0}
@@ -880,21 +912,6 @@ const PlayerStatsPanel = ({ playerName, playerStats, selectedConference, setSele
           onClick={() => setSelectedStat('Most Bets Against')}
           active={selectedStat === 'Most Bets Against'}
         />
-        {playerStats.last10Form && (
-          <div className="control-card">
-            <h3>Last 10 Form</h3>
-            <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
-              {playerStats.last10Form.split('').map((c, i) => (
-                <span key={i} style={{
-                  width: '24px', height: '24px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.75em', fontWeight: 'bold',
-                  backgroundColor: c === 'W' ? '#4caf50' : c === 'L' ? '#f44336' : '#888',
-                  color: '#fff'
-                }}>{c}</span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Interactive Stat Chart */}

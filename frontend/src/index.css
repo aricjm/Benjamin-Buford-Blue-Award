@@ -338,6 +338,8 @@ select {
 
 .player-modal-content {
   width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   border-radius: 22px;
   background: #111317;
   border: 1px solid rgba(255, 255, 255, 0.12);

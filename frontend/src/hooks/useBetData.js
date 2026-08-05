@@ -9,6 +9,7 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
   const [teams, setTeams] = useState([]);
   const [games, setGames] = useState([]);
   const [picks, setPicks] = useState({});
+  const [loadedPicks, setLoadedPicks] = useState({});
   const [summary, setSummary] = useState([]);
   const [seasonSummary, setSeasonSummary] = useState([]);
   const [allTimeSummary, setAllTimeSummary] = useState([]);
@@ -34,7 +35,6 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
 
   const loadWeek = useCallback(async (week, season, player) => {
     setLoading(true);
-    setMessage('Loading week data...');
     try {
       const res = await fetch(`/api/week/${week}/games?season=${season}`);
       const data = await res.json();
@@ -46,6 +46,10 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
         data.picks.forEach((p) => {
           if (p.player === player) {
             const existing = picksObj[p.game_id] || {};
+            const isLock = p.is_lock === 1 || p.is_lock === true;
+            const lockType = isLock
+              ? (p.selection_team !== null ? 'spread' : 'total')
+              : existing.lockType;
             picksObj[p.game_id] = {
               gameId: p.game_id,
               selectionTeam: p.selection_team !== null ? p.selection_team : existing.selectionTeam,
@@ -55,15 +59,19 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
               totalLine: p.total_line !== null ? p.total_line : existing.totalLine,
               isMandatory: p.is_mandatory ? true : existing.isMandatory,
               result: p.result !== null ? p.result : existing.result,
-              result_total: p.result_total !== null ? p.result_total : existing.result_total
+              result_total: p.result_total !== null ? p.result_total : existing.result_total,
+              isLock: isLock || existing.isLock || false,
+              lockType: isLock ? lockType : existing.lockType || null
             };
           }
         });
       }
       setPicks(picksObj);
+      setLoadedPicks(picksObj);
       setMessage('');
     } catch (error) {
       setMessage('Unable to load week data.');
+      setLoadedPicks({});
     } finally {
       setLoading(false);
     }
@@ -112,7 +120,6 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     if (!selectedSeason) return;
     async function loadSeasonData() {
       setLoading(true);
-      setMessage('Loading season data...');
       try {
         const weeksRes = await fetch(`/api/weeks?season=${selectedSeason}`);
         setWeeks(await weeksRes.json());
@@ -158,7 +165,17 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           delete next[key];
           return next;
         }
-        return { ...prev, [key]: { ...existing, selectionTeam: null, selectionSide: null, spread: null } };
+        return { 
+          ...prev, 
+          [key]: { 
+            ...existing, 
+            selectionTeam: null, 
+            selectionSide: null, 
+            spread: null,
+            isLock: existing.lockType === 'spread' ? false : existing.isLock,
+            lockType: existing.lockType === 'spread' ? null : existing.lockType
+          } 
+        };
       }
       
       return {
@@ -184,7 +201,16 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           delete next[key];
           return next;
         }
-        return { ...prev, [key]: { ...existing, selectionTotal: null, totalLine: null } };
+        return { 
+          ...prev, 
+          [key]: { 
+            ...existing, 
+            selectionTotal: null, 
+            totalLine: null,
+            isLock: existing.lockType === 'total' ? false : existing.isLock,
+            lockType: existing.lockType === 'total' ? null : existing.lockType
+          } 
+        };
       }
       
       return {
@@ -195,6 +221,39 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           totalLine: game.over_under
         }
       };
+    });
+  };
+
+  const handleLockToggle = (game, type) => {
+    setPicks((prev) => {
+      const key = game.id;
+      const existing = prev[key];
+      
+      if (!existing) return prev;
+      if (type === 'spread' && !existing.selectionTeam) return prev;
+      if (type === 'total' && !existing.selectionTotal) return prev;
+
+      const isCurrentlyLocked = existing.isLock && existing.lockType === type;
+
+      const nextPicks = {};
+      Object.keys(prev).forEach((gameId) => {
+        const p = prev[gameId];
+        nextPicks[gameId] = {
+          ...p,
+          isLock: false,
+          lockType: null
+        };
+      });
+
+      if (!isCurrentlyLocked) {
+        nextPicks[key] = {
+          ...existing,
+          isLock: true,
+          lockType: type
+        };
+      }
+
+      return nextPicks;
     });
   };
 
@@ -227,6 +286,7 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     teams,
     games,
     picks,
+    loadedPicks,
     summary,
     seasonSummary,
     allTimeSummary,
@@ -241,10 +301,11 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     loadWeek,
     handlePickChange,
     handleTotalChange,
+    handleLockToggle,
     addManualGame,
     savePicks: async (playerPicks) => {
         setLoading(true);
-        setMessage('Saving your picks...');
+        setMessage('');
         try {
           const response = await fetch(`/api/week/${selectedWeek}/picks?season=${selectedSeason}`, {
             method: 'POST',

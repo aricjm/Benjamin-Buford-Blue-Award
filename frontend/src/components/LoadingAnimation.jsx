@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Lottie from 'lottie-react';
 import footballAnimation from './football-loader.json';
 
-const LoadingAnimation = ({ message }) => {
+const LoadingAnimation = () => {
+  const [dots, setDots] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(d => d === 3 ? 0 : d + 1);
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <>
       <div className="modal-backdrop" style={{ zIndex: 1000 }} />
@@ -15,11 +24,9 @@ const LoadingAnimation = ({ message }) => {
             style={{ width: 200, height: 200, display: 'block' }}
           />
         </div>
-        {message && (
-          <p style={{ marginTop: '10px', color: 'white', fontWeight: 'bold', fontSize: '1.2em' }}>
-            {message}
-          </p>
-        )}
+        <p style={{ marginTop: '10px', color: 'white', fontWeight: 'bold', fontSize: '1.2em' }}>
+          {'Loading' + '.'.repeat(dots)}
+        </p>
       </div>
     </>
   );

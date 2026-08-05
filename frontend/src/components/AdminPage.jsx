@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as Lucide from 'lucide-react';
 
 const formatResultLabel = (result) => {
   if (result === 'win') return 'Win';
@@ -20,6 +21,9 @@ const AdminPage = ({
   loadStats, // From App.jsx (to refresh player stats after sync)
   teams = [], // From App.jsx
   addManualGame, // From App.jsx
+  players = [],
+  seasons = [],
+  weeks = [],
 }) => {
   const emptyManualGame = {
     home_team: '',
@@ -284,6 +288,7 @@ const AdminPage = ({
 
   return (
     <>
+      <HistoricalLockSection players={players} seasons={seasons} />
       <section className="panel admin-panel">
         <h2>Admin: Update Game Lines</h2>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
@@ -292,8 +297,6 @@ const AdminPage = ({
           </button>
           <button onClick={handleSyncScores} disabled={loading}>
             Sync Scores & Odds
-          </button>          <button onClick={handleImportHistorical} disabled={loading} style={{ background: '#5a3e8a' }}>
-            Import Historical (2022–2025)
           </button>          {lastSynced && (
             <span style={{ fontSize: '0.9em', color: '#888', fontStyle: 'italic', marginLeft: '10px' }}>
               Last Synced: {lastSynced.toLocaleString()}
@@ -687,8 +690,229 @@ const AdminPage = ({
           </table>
         )}
       </section>
+
+      <section className="panel" style={{ marginTop: '2rem' }}>
+        <h3>Lucide Icons Reference</h3>
+        <LucideIconsReference />
+      </section>
     </>
   );
 };
+
+function HistoricalLockSection({ players, seasons }) {
+  const [lockSeason, setLockSeason] = useState('');
+  const [lockWeek, setLockWeek] = useState('');
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+  // picksByPlayer: { [playerName]: { gameId, lockType }[] } — all picks for that player
+  const [picksByPlayer, setPicksByPlayer] = useState({});
+  // selectedLocks: { [playerName]: { gameId, lockType } | null }
+  const [selectedLocks, setSelectedLocks] = useState({});
+  const [loadingPicks, setLoadingPicks] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+
+  useEffect(() => {
+    if (!lockSeason) { setAvailableWeeks([]); setLockWeek(''); return; }
+    fetch(`/api/weeks?season=${lockSeason}`)
+      .then(r => r.json())
+      .then(data => { setAvailableWeeks(data); setLockWeek(''); })
+      .catch(() => setAvailableWeeks([]));
+  }, [lockSeason]);
+
+  const loadPicks = async () => {
+    if (!lockSeason || !lockWeek) return;
+    setLoadingPicks(true);
+    setStatusMsg('');
+    setPicksByPlayer({});
+    setSelectedLocks({});
+    try {
+      const res = await fetch(`/api/week/${lockWeek}/picks?season=${lockSeason}`);
+      const data = await res.json();
+      // Group all picks by player
+      const grouped = {};
+      const initLocks = {};
+      for (const p of data) {
+        if (!grouped[p.player]) { grouped[p.player] = []; initLocks[p.player] = null; }
+        grouped[p.player].push(p);
+        if (p.is_lock === 1) {
+          initLocks[p.player] = { gameId: p.game_id, lockType: p.selection_team ? 'spread' : 'total' };
+        }
+      }
+      setPicksByPlayer(grouped);
+      setSelectedLocks(initLocks);
+    } catch {
+      setStatusMsg('Failed to load picks.');
+    } finally {
+      setLoadingPicks(false);
+    }
+  };
+
+  const saveAllLocks = async () => {
+    setSaving(true);
+    setStatusMsg('');
+    const entries = Object.entries(selectedLocks).filter(([, lock]) => lock !== null);
+    try {
+      await Promise.all(entries.map(([player, lock]) =>
+        fetch('/api/picks/lock', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player, week: lockWeek, season: lockSeason, gameId: lock.gameId, lockType: lock.lockType })
+        }).then(r => r.json())
+      ));
+      setStatusMsg('Locks saved successfully.');
+      await loadPicks();
+    } catch {
+      setStatusMsg('Failed to save locks.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const playerNames = Object.keys(picksByPlayer);
+  const hasAnyLock = Object.values(selectedLocks).some(l => l !== null);
+
+  return (
+    <section className="panel" style={{ marginBottom: '2rem' }}>
+      <h3>Set Historical Lock</h3>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '16px' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9em' }}>
+          Season
+          <select value={lockSeason} onChange={e => { setLockSeason(e.target.value); setLockWeek(''); }} style={{ padding: '6px 10px' }}>
+            <option value="">-- Select --</option>
+            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9em' }}>
+          Week
+          <select value={lockWeek} onChange={e => setLockWeek(e.target.value)} style={{ padding: '6px 10px' }} disabled={!lockSeason}>
+            <option value="">-- Select --</option>
+            {availableWeeks.map(w => <option key={w.week} value={w.week}>{w.label || `Week ${w.week}`}</option>)}
+          </select>
+        </label>
+        <button onClick={loadPicks} disabled={!lockSeason || !lockWeek || loadingPicks}>
+          {loadingPicks ? 'Loading...' : 'Load Picks'}
+        </button>
+      </div>
+
+      {playerNames.length > 0 && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${playerNames.length}, 1fr)`, gap: '16px', alignItems: 'start' }}>
+            {playerNames.map(playerName => {
+              const picks = picksByPlayer[playerName];
+              const selectedLock = selectedLocks[playerName];
+
+              // Group by game
+              const byGame = picks.reduce((acc, p) => {
+                if (!acc[p.game_id]) acc[p.game_id] = { game_id: p.game_id, away_team: p.away_team, home_team: p.home_team, rows: [] };
+                acc[p.game_id].rows.push(p);
+                return acc;
+              }, {});
+
+              return (
+                <div key={playerName}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#f1c40f' }}>{playerName}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {Object.values(byGame).map(({ game_id, away_team, home_team, rows }) =>
+                      rows.map(p => {
+                        const isSpread = !!p.selection_team;
+                        const lockType = isSpread ? 'spread' : 'total';
+                        const isSelected = selectedLock?.gameId === game_id && selectedLock?.lockType === lockType;
+                        const label = isSpread
+                          ? `${p.selection_team} (spread)`
+                          : `${p.selection_total?.toUpperCase()} ${p.total_line} (total)`;
+                        return (
+                          <label
+                            key={`${game_id}-${lockType}`}
+                            style={{
+                              display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px',
+                              borderRadius: '6px', cursor: 'pointer', userSelect: 'none',
+                              background: isSelected ? 'rgba(241,196,15,0.15)' : 'rgba(255,255,255,0.04)',
+                              border: isSelected ? '1px solid #f1c40f' : '1px solid rgba(255,255,255,0.1)'
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name={`lock-${playerName}`}
+                              checked={isSelected}
+                              onChange={() => setSelectedLocks(prev => ({ ...prev, [playerName]: { gameId: game_id, lockType } }))}
+                              style={{ marginTop: 3, flexShrink: 0 }}
+                            />
+                            <div>
+                              <div style={{ fontSize: '0.75em', color: '#aaa', lineHeight: 1.3 }}>{away_team} @ {home_team}</div>
+                              <strong style={{ fontSize: '0.9em', color: isSelected ? '#f1c40f' : '#2196f3' }}>{label}</strong>
+                              {p.is_lock === 1 && <span style={{ marginLeft: 6, fontSize: '0.7em', color: '#f1c40f' }}>(saved)</span>}
+                              {p.result && <span style={{ marginLeft: 6, fontSize: '0.7em', color: '#aaa' }}>{p.result}</span>}
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button onClick={saveAllLocks} disabled={!hasAnyLock || saving}>
+              {saving ? 'Saving...' : 'Save All Locks'}
+            </button>
+            {statusMsg && <span style={{ fontSize: '0.9em', color: statusMsg.includes('success') ? '#8bc34a' : '#e74c3c' }}>{statusMsg}</span>}
+          </div>
+        </>
+      )}
+      {playerNames.length === 0 && !loadingPicks && lockSeason && lockWeek && (
+        <p style={{ color: '#aaa', fontSize: '0.9em' }}>No picks found for {lockSeason} Week {lockWeek}.</p>
+      )}
+    </section>
+  );
+}
+
+function LucideIconsReference() {
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const iconNames = Object.keys(Lucide).filter(
+    (key) => /^[A-Z]/.test(key) && typeof Lucide[key] === 'object' && Lucide[key].displayName
+  );
+  const filteredIcons = iconNames.filter((name) => name.toLowerCase().includes(searchTerm.toLowerCase()));
+  return (
+    <>
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          type="text"
+          placeholder="Search icons..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', fontSize: '1rem' }}
+        />
+      </div>
+      <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #ddd', background: '#f9f9f9' }}>
+              <th style={{ padding: '0.75rem' }}>Icon</th>
+              <th style={{ padding: '0.75rem' }}>Name</th>
+              <th style={{ padding: '0.75rem' }}>Usage Code</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredIcons.map((name) => {
+              const IconComponent = Lucide[name];
+              if (!IconComponent || typeof IconComponent === 'string') return null;
+              return (
+                <tr key={name} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '0.75rem' }}><IconComponent size={24} /></td>
+                  <td style={{ padding: '0.75rem', fontWeight: 'bold' }}>{name}</td>
+                  <td style={{ padding: '0.75rem' }}><code>{`import { ${name} } from 'lucide-react';\n\n<${name} />`}</code></td>
+                </tr>
+              );
+            })}
+            {filteredIcons.length === 0 && (
+              <tr><td colSpan="3" style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>No icons found matching "{searchTerm}"</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 export default AdminPage;

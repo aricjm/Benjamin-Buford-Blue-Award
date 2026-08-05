@@ -205,6 +205,26 @@ app.get('/api/week/:week/summary', async (req, res) => {
   }
 });
 
+app.get('/api/season/:season/awards', async (req, res) => {
+  try {
+    const season = req.params.season;
+    const awards = await db.getSeasonAwards(season);
+    res.json(awards);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/player/:player/awards', async (req, res) => {
+  try {
+    const player = req.params.player;
+    const awards = await db.getPlayerAwards(player);
+    res.json(awards);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/week/:week/picks', async (req, res) => {
   try {
     const week = Number(req.params.week);
@@ -242,6 +262,19 @@ app.put('/api/pick/:id', async (req, res) => {
       spread: spread !== undefined ? spread : null
     });
     res.json({ success: true, pick });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/picks/lock', async (req, res) => {
+  try {
+    const { player, week, season, gameId, lockType } = req.body;
+    if (!player || !week || !season || !gameId || !lockType) {
+      return res.status(400).json({ error: 'player, week, season, gameId, and lockType are required' });
+    }
+    await db.setHistoricalLock(player, Number(week), season, Number(gameId), lockType);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
