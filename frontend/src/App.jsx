@@ -170,6 +170,12 @@ function App() {
         });
         setSavedPicksList(saved);
         setShowSaveResult(true);
+      } else if (data && data.queued) {
+        // queued on server — persist same UI feedback but indicate pending
+        setMessage('Picks queued for delivery (offline mode).');
+        setSaveResult({ success: false, message: 'Picks queued for delivery.' });
+        setSavedPicksList([]);
+        setShowSaveResult(true);
       } else {
         setMessage(data.error || 'Failed to save picks.');
         setSaveResult({ success: false, message: data.error || 'Failed to save picks.' });

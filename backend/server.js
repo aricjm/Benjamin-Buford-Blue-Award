@@ -466,6 +466,113 @@ app.get('/api/injuries', async (req, res) => {
   }
 });
 
+// Queue endpoint: accept picks and append to pending JSONL file for later flushing
+const fs = require('fs');
+const path = require('path');
+const PENDING_PATH = path.join(__dirname, '..', 'backend', 'pending-picks.jsonl');
+
+app.post('/api/queue/picks', async (req, res) => {
+  try {
+    const { week, season, player, picks } = req.body;
+    if (!player || !Array.isArray(picks) || week === undefined || !season) {
+      return res.status(400).json({ error: 'week, season, player and picks are required' });
+    }
+
+    const entry = {
+      id: Date.now() + '-' + Math.floor(Math.random() * 10000),
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      week: Number(week),
+      season: String(season),
+      player,
+      picks
+    };
+
+    fs.appendFileSync(PENDING_PATH, JSON.stringify(entry) + '\n', { encoding: 'utf8' });
+    res.status(202).json({ accepted: true, id: entry.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: list queued picks
+app.get('/api/queue/picks', async (req, res) => {
+  try {
+    if (!fs.existsSync(PENDING_PATH)) return res.json([]);
+    const lines = fs.readFileSync(PENDING_PATH, 'utf8').split('\n').filter(Boolean);
+    const items = lines.map(l => {
+      try { return JSON.parse(l); } catch (e) { return { raw: l }; }
+    });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: trigger immediate flush attempt (best-effort)
+app.post('/api/queue/flush', async (req, res) => {
+  try {
+    // Run the flusher script programmatically
+    const flusher = require('./flush_pending_picks');
+    const result = await flusher.flushOnce(db);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retry a single queued item by id
+app.post('/api/queue/retry/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const flusher = require('./flush_pending_picks');
+    const result = await flusher.flushOne(db, id);
+    if (result.error === 'not-found') return res.status(404).json({ error: 'not found' });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a queued item (admin) by id
+app.delete('/api/queue/picks/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const fs = require('fs');
+    const path = require('path');
+    const PENDING_PATH = path.join(__dirname, 'pending-picks.jsonl');
+    if (!fs.existsSync(PENDING_PATH)) return res.status(404).json({ error: 'not found' });
+    const lines = fs.readFileSync(PENDING_PATH, 'utf8').split('\n').filter(Boolean);
+    const remaining = [];
+    let found = false;
+    for (const l of lines) {
+      try {
+        const item = JSON.parse(l);
+        if (item.id === id) { found = true; continue; }
+        remaining.push(item);
+      } catch (e) { remaining.push(l); }
+    }
+    fs.writeFileSync(PENDING_PATH, remaining.map(r => JSON.stringify(r)).join('\n') + (remaining.length ? '\n' : ''), 'utf8');
+    if (!found) return res.status(404).json({ error: 'not found' });
+    res.json({ deleted: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retry a single pick within a queued item
+app.post('/api/queue/retry/:id/pick/:index', async (req, res) => {
+  try {
+    const { id, index } = req.params;
+    const flusher = require('./flush_pending_picks');
+    const result = await flusher.flushOnePick(db, id, index);
+    if (result.error === 'not-found' || result.error === 'no-file') return res.status(404).json({ error: 'not found' });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 (async () => {
   if (process.env.VERCEL !== '1') {
     try {

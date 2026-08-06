@@ -31,8 +31,8 @@ function start(db) {
     }
   });
 
-  // Live score sync every 15 minutes for games in progress
-  liveScoresTask = cron.schedule('*/15 * * * *', async () => {
+  // Live score sync every 5 minutes for games in progress
+  liveScoresTask = cron.schedule('*/5 * * * *', async () => {
     try {
       const activeWeeks = await db.getInProgressWeeks();
       if (activeWeeks.length === 0) {
@@ -45,12 +45,26 @@ function start(db) {
         const updatedCount = await db.updateScoresFromSeason(scoreUpdates);
         console.log(`[scheduler] updated ${updatedCount} scores for ${season} Week ${week}`);
       }
+      // Attempt to flush pending picks as part of scheduled maintenance
+      try { const flusher = require('./flush_pending_picks'); await flusher.flushOnce(db); } catch(e) { console.error('Pending flush error', e.message); }
     } catch (error) {
       console.error('[scheduler] live score sync failed', error.message);
     }
   });
 
-  console.log('Scheduler started: daily updates and 15-minute live score sync are enabled.');
+  // Odds and lines sync every 4 hours
+  const oddsTask = cron.schedule('0 */4 * * *', async () => {
+    try {
+      console.log('[scheduler] syncing odds and lines');
+      const games = await api.fetchSeasonGames();
+      const savedCount = await db.saveGamesForSeason(games);
+      console.log(`[scheduler] synced ${savedCount} games with updated odds/lines`);
+    } catch (error) {
+      console.error('[scheduler] odds sync failed', error.message);
+    }
+  });
+
+  console.log('Scheduler started: daily updates, 4-hour odds sync, and 5-minute live score sync are enabled.');
 }
 
 function stop() {

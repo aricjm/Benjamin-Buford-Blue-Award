@@ -327,8 +327,47 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           const data = await response.json();
           if (response.ok) {
             setSummary(data.summary || []);
+            // clear any local pending queue for this player/week
+            try {
+              const pendingKey = `pending_picks_${selectedSeason}_${selectedWeek}_${selectedPlayer}`;
+              localStorage.removeItem(pendingKey);
+            } catch (e) { }
+            return { ok: true, data };
           }
-          return { ok: response.ok, data };
+
+          // If server responds with 5xx / rate-limit, fallback to queue endpoint
+          if (response.status >= 500 || response.status === 429) {
+            try {
+              const qres = await fetch('/api/queue/picks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ week: selectedWeek, season: selectedSeason, player: selectedPlayer, picks: playerPicks })
+              });
+              if (qres.ok) {
+                // persist locally as well
+                const pendingKey = `pending_picks_${selectedSeason}_${selectedWeek}_${selectedPlayer}`;
+                localStorage.setItem(pendingKey, JSON.stringify({ createdAt: Date.now(), picks: playerPicks }));
+                return { ok: false, data: { queued: true } };
+              }
+            } catch (e) { }
+          }
+
+          return { ok: false, data };
+        } catch (err) {
+          // Network error — fall back to queue + local storage
+          try {
+            const qres = await fetch('/api/queue/picks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ week: selectedWeek, season: selectedSeason, player: selectedPlayer, picks: playerPicks })
+            });
+            if (qres.ok) {
+              const pendingKey = `pending_picks_${selectedSeason}_${selectedWeek}_${selectedPlayer}`;
+              localStorage.setItem(pendingKey, JSON.stringify({ createdAt: Date.now(), picks: playerPicks }));
+              return { ok: false, data: { queued: true } };
+            }
+          } catch (e) { }
+          return { ok: false, data: { error: 'Network error' } };
         } finally {
           setLoading(false);
         }

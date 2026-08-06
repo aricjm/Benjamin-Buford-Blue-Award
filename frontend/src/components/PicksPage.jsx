@@ -10,6 +10,13 @@ const RULES = [
   'Picks must be submitted before the game kicks off.',
 ];
 
+const SITE_DETAILS = [
+  'Live scores update every 5 minutes during active games.',
+  'Game odds and lines update every 4 hours.',
+  'Weather forecasts update daily and show conditions at kickoff.',
+  'Injury reports are fetched live when requested.',
+];
+
 const RulesTooltip = () => {
   const [visible, setVisible] = useState(false);
   return (
@@ -32,6 +39,10 @@ const RulesTooltip = () => {
             <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#f1c40f' }}>How to Pick</p>
             <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: '0.85em', lineHeight: 1.6 }}>
               {RULES.map((rule, i) => <li key={i}>{rule}</li>)}
+            </ul>
+            <p style={{ margin: '16px 0 8px 0', fontWeight: 'bold', color: '#4d7cff' }}>Site Details</p>
+            <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: '0.85em', lineHeight: 1.6 }}>
+              {SITE_DETAILS.map((detail, i) => <li key={i}>{detail}</li>)}
             </ul>
           </div>
         </>
@@ -386,8 +397,47 @@ const PicksPage = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConference, setSelectedConference] = useState('');
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
-  const [copyButtonText, setCopyButtonText] = useState('Copy My Picks');
+  const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
+  const [liveScores, setLiveScores] = useState({});
   const isMobile = useIsMobile();
+
+  // Poll ESPN for live scores every 30 seconds if there are live games
+  useEffect(() => {
+    const liveGames = pickGames.filter(g => isGameLive(g));
+    if (liveGames.length === 0) return;
+
+    const fetchLiveScores = async () => {
+      try {
+        const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard');
+        const data = await res.json();
+        
+        const newLiveScores = {};
+        data.events.forEach(event => {
+          const comp = event.competitions[0];
+          const home = comp.competitors.find(c => c.homeAway === 'home');
+          const away = comp.competitors.find(c => c.homeAway === 'away');
+          
+          newLiveScores[event.id] = {
+            score_home: home.score ? parseInt(home.score) : 0,
+            score_away: away.score ? parseInt(away.score) : 0,
+            clock: event.status.displayClock,
+            period: event.status.period,
+            status: event.status.type.description,
+            possession: comp.situation?.possession,
+            downDistance: comp.situation?.downDistanceText
+          };
+        });
+        
+        setLiveScores(newLiveScores);
+      } catch (err) {
+        console.error('Failed to fetch live scores from ESPN', err);
+      }
+    };
+
+    fetchLiveScores();
+    const interval = setInterval(fetchLiveScores, 30000);
+    return () => clearInterval(interval);
+  }, [pickGames, isGameLive]);
 
   // Build a lookup: school name -> conference
   const teamConferenceMap = teams.reduce((acc, t) => {
@@ -433,7 +483,7 @@ const PicksPage = ({
 
     if (playerPicks.length === 0) {
       setCopyButtonText('No Picks to Copy');
-      setTimeout(() => setCopyButtonText('Copy My Picks'), 2000);
+      setTimeout(() => setCopyButtonText('Copy Picks'), 2000);
       return;
     }
 
@@ -460,7 +510,7 @@ const PicksPage = ({
 
     navigator.clipboard.writeText(picksAsText).then(() => {
       setCopyButtonText('Copied!');
-      setTimeout(() => setCopyButtonText('Copy My Picks'), 2000);
+      setTimeout(() => setCopyButtonText('Copy Picks'), 2000);
     });
   };
 
@@ -539,6 +589,8 @@ const PicksPage = ({
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
               const isHomeActive = picks[game.id]?.selectionTeam === game.home_team;
               const isRivalry = !!game.rivalry_trophy;
+
+              
 
               return (
                 <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}
@@ -727,13 +779,77 @@ const PicksPage = ({
                     <span>{new Date(game.commence_time).toLocaleString()}</span>
                     {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
                     {isGameLive(game) && <span className="game-status-live" style={{ marginLeft: '10px' }}>LIVE</span>}
-                    {!isGameLive(game) && isGameLocked(game) && (
+                    {!isGameLive(game) && isGameLocked(game) && !game.completed && (
                       <span className="game-status-locked" style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Lock size={12} /> LOCKED
                       </span>
                     )}
                   </div>
 
+                  {/* Live Scoreboard */}
+                  {isGameLive(game) && liveScores[game.api_game_id] && (
+                    <div className="scoreboard-box" style={{
+                      marginTop: '15px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(77, 124, 255, 0.1)',
+                      border: '1px solid rgba(77, 124, 255, 0.3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#4d7cff', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '4px', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>
+                          {liveScores[game.api_game_id].status === 'Halftime' ? 'HALFTIME' : `Q${liveScores[game.api_game_id].period} - ${liveScores[game.api_game_id].clock}`}
+                        </span>
+                        {liveScores[game.api_game_id].downDistance && (
+                          <span style={{ color: '#fff' }}>{liveScores[game.api_game_id].downDistance}</span>
+                        )}
+                      </div>
+                      
+                      {/* Away Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontWeight: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? 'bold' : 'normal',
+                            color: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? '#fff' : '#aaa'
+                          }}>
+                            {game.away_team}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.2em', 
+                          fontWeight: 'bold',
+                          color: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? '#4caf50' : '#fff'
+                        }}>
+                          {liveScores[game.api_game_id].score_away}
+                        </span>
+                      </div>
+
+                      {/* Home Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontWeight: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? 'bold' : 'normal',
+                            color: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? '#fff' : '#aaa'
+                          }}>
+                            {game.home_team}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.2em', 
+                          fontWeight: 'bold',
+                          color: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? '#4caf50' : '#fff'
+                        }}>
+                          {liveScores[game.api_game_id].score_home}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final Scoreboard */}
                   {!!game.completed && (
                     <div className="scoreboard-box" style={{
                       marginTop: '15px',

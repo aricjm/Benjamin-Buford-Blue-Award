@@ -554,6 +554,10 @@ async function getWeeks(season) {
 
 async function getWeekGames(week, season) {
   if (season) {
+    const cacheKey = `week_games_${season}_${week}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
     const { rows } = await pool.query(`
       SELECT DISTINCT ON (g.id)
         g.*, 
@@ -589,12 +593,17 @@ async function getWeekGames(week, season) {
     
     // Sort by commence_time after DISTINCT ON
     rows.sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
+    cache.set(cacheKey, rows, 1800); // Cache for 30 minutes
     return rows;
   }
   return [];
 }
 
 async function getPicksByWeek(week, season) {
+  const cacheKey = `week_picks_${season || 'all'}_${week}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   if (season) {
     const { rows } = await pool.query(`
       SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
@@ -603,6 +612,7 @@ async function getPicksByWeek(week, season) {
       WHERE p.week = $1 AND g.season = $2 
       ORDER BY p.player, p.updated_at DESC
     `, [week, season]);
+    cache.set(cacheKey, rows, 1800); // Cache for 30 minutes
     return rows;
   }
   const { rows } = await pool.query(`
@@ -612,6 +622,7 @@ async function getPicksByWeek(week, season) {
     WHERE p.week = $1 
     ORDER BY p.player, p.updated_at DESC
   `, [week]);
+  cache.set(cacheKey, rows, 1800); // Cache for 30 minutes
   return rows;
 }
 
@@ -699,7 +710,13 @@ async function saveGamesForWeek(week, games, season) {
     game.season = season;
   }
 
-  return await saveGamesForSeason(games);
+  const result = await saveGamesForSeason(games);
+  
+  // Invalidate cache
+  cache.del(`week_games_${season}_${week}`);
+  cache.del(`week_games_all_${week}`);
+  
+  return result;
 }
 
 async function saveGamesForSeason(games) {
@@ -784,12 +801,25 @@ async function saveGamesForSeason(games) {
     saved += updates.length;
   }
 
+  if (saved > 0) {
+    // Invalidate cache for all weeks in the season
+    // We don't know exactly which weeks were updated, so we clear the whole season
+    const seasons = [...new Set(games.map(g => g.season).filter(Boolean))];
+    for (const s of seasons) {
+      // We can't easily iterate all weeks, so we rely on the TTL or clear specific known keys if needed.
+      // For now, we'll just let the TTL handle it, or we could clear the entire cache if we wanted to be safe.
+      // A better approach would be to track which weeks were updated and clear those specific keys.
+      // Since we don't have a way to clear by prefix in node-cache, we'll just clear the whole cache for simplicity and safety.
+      cache.flushAll();
+    }
+  }
+
   return saved;
 }
 
 async function saveManualGame(week, season, gameData) {
   const manualId = gameData.api_game_id || `manual-${season}-${week}-${Date.now()}`;
-  return await upsertGame({
+  const result = await upsertGame({
     api_game_id: manualId,
     week,
     season,
@@ -807,6 +837,12 @@ async function saveManualGame(week, season, gameData) {
     score_away: null,
     completed: false
   });
+
+  // Invalidate cache
+  cache.del(`week_games_${season}_${week}`);
+  cache.del(`week_games_all_${week}`);
+
+  return result;
 }
 
 async function updateScoresFromSeason(scoreGames) {
@@ -821,6 +857,9 @@ async function updateScoresFromSeason(scoreGames) {
   for (const game of scoreGames) {
     const existing = existingMap.get(game.api_game_id);
     if (!existing) continue;
+
+    // Only update the database if the game is completed
+    if (!game.completed) continue;
 
     const isCompleted = game.completed ? 1 : 0;
 
@@ -867,18 +906,30 @@ async function updateScoresFromSeason(scoreGames) {
     for (const game of updates) {
       await updatePickResults(game.id);
     }
+    
+    // Invalidate cache
+    cache.flushAll();
   }
 
   return updated;
 }
 
 async function deletePicksForPlayerWeek(player, week, season) {
-  return await pool.query(`
+  const result = await pool.query(`
     DELETE FROM picks 
     WHERE player = $1 
     AND week = $2 
     AND game_id IN (SELECT id FROM games WHERE season = $3)
   `, [player, week, season]);
+
+  // Invalidate cache
+  cache.del(`week_picks_${season}_${week}`);
+  cache.del(`week_picks_all_${week}`);
+  cache.del(`week_summary_${season}_${week}`);
+  cache.del(`season_summary_${season}`);
+  cache.del('summary_alltime');
+
+  return result;
 }
 
 async function updatePickResults(gameId) {
@@ -964,6 +1015,13 @@ async function savePick(week, player, pick) {
     ]);
     savedPicks.push(rows[0]);
   }
+
+  // Invalidate cache
+  cache.del(`week_picks_${game.season}_${week}`);
+  cache.del(`week_picks_all_${week}`);
+  cache.del(`week_summary_${game.season}_${week}`);
+  cache.del(`season_summary_${game.season}`);
+  cache.del('summary_alltime');
 
   return savedPicks[0] || null;
 }

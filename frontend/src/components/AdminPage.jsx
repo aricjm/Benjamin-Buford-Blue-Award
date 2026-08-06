@@ -169,6 +169,90 @@ const AdminPage = ({
     loadAdminData();
   }, [selectedWeek, selectedSeason]); // Reload admin data when week/season changes
 
+  // Queue management
+  const [queuedItems, setQueuedItems] = useState([]);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [expandedQueueIds, setExpandedQueueIds] = useState([]);
+
+  const loadQueue = async () => {
+    setLoadingQueue(true);
+    try {
+      const res = await fetch('/api/queue/picks');
+      const data = await res.json();
+      setQueuedItems(data || []);
+    } catch (e) {
+      setMessage('Failed to load queued picks.');
+    } finally {
+      setLoadingQueue(false);
+    }
+  };
+
+  const handleRetryQueued = async (id) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Retry attempted.');
+        await loadQueue();
+        await loadAdminData();
+      } else {
+        setMessage(data.error || 'Retry failed.');
+      }
+    } catch (e) {
+      setMessage('Retry failed.');
+    } finally { setLoading(false); }
+  };
+
+  const handleRetrySinglePick = async (id, pickIndex) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}/pick/${pickIndex}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Pick retry attempted.');
+        await loadQueue();
+        await loadAdminData();
+      } else {
+        setMessage(data.error || 'Retry failed.');
+      }
+    } catch (e) {
+      setMessage('Retry failed.');
+    } finally { setLoading(false); }
+  };
+
+  const handleDeleteQueued = async (id) => {
+    if (!window.confirm('Delete queued item? This cannot be undone.')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/queue/picks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMessage('Queued item deleted.');
+        await loadQueue();
+      } else {
+        const d = await res.json(); setMessage(d.error || 'Delete failed.');
+      }
+    } catch (e) { setMessage('Delete failed.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleFlushAll = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/queue/flush', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(`Flush complete: ${data.processed || 0} processed.`);
+        await loadQueue();
+        await loadAdminData();
+      } else {
+        setMessage(data.error || 'Flush failed.');
+      }
+    } catch (e) {
+      setMessage('Flush failed.');
+    } finally { setLoading(false); }
+  };
+
   const handleUpdateGameLine = async (gameId) => {
     if (!editingGameData.spread_home && editingGameData.spread_home !== 0 && !editingGameData.spread_away && editingGameData.spread_away !== 0) {
       setMessage('At least one spread must be provided.');
@@ -426,6 +510,97 @@ const AdminPage = ({
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel admin-panel">
+        <h2>Admin: Queued Picks</h2>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+          <button onClick={loadQueue} disabled={loadingQueue}>Load Queue</button>
+          <button onClick={handleFlushAll} disabled={loading}>Flush All (attempt)</button>
+          <span style={{ color: '#888', fontSize: '0.9em' }}>{queuedItems.length} queued</span>
+        </div>
+
+        {queuedItems.length === 0 ? (
+          <p>No queued picks. Click "Load Queue" to fetch pending items.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Player</th>
+                <th>Season</th>
+                <th>Week</th>
+                <th>Attempts</th>
+                <th>Created</th>
+                <th>Count</th>
+                <th>Last Error</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {queuedItems.map(item => {
+                const expanded = expandedQueueIds.includes(item.id);
+                return (
+                  <React.Fragment key={item.id}>
+                    <tr>
+                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.id}</td>
+                      <td>{item.player}</td>
+                      <td>{item.season}</td>
+                      <td>{item.week}</td>
+                      <td>{item.attempts || 0}</td>
+                      <td>{item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
+                      <td>{Array.isArray(item.picks) ? item.picks.length : '-'}</td>
+                      <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.lastError || ''}</td>
+                      <td>
+                        <button className="admin-action-btn" onClick={() => handleRetryQueued(item.id)} disabled={loading}>Retry</button>
+                        <button className="admin-action-btn" onClick={() => {
+                          setExpandedQueueIds(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]);
+                        }}>{expanded ? 'Collapse' : 'Details'}</button>
+                        <button className="admin-action-btn secondary" onClick={() => handleDeleteQueued(item.id)} disabled={loading}>Delete</button>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '8px 16px', background: '#0b0b0b' }}>
+                          <div style={{ maxHeight: 240, overflow: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr>
+                                  <th>Index</th>
+                                  <th>GameId</th>
+                                  <th>Selection Team</th>
+                                  <th>Selection Total</th>
+                                  <th>Spread</th>
+                                  <th>Total Line</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {Array.isArray(item.picks) && item.picks.map((p, idx) => (
+                                  <tr key={idx}>
+                                    <td>{idx}</td>
+                                    <td>{p.gameId}</td>
+                                    <td>{p.selectionTeam || '-'}</td>
+                                    <td>{p.selectionTotal || '-'}</td>
+                                    <td>{p.spread == null ? '-' : (p.spread === 0 ? 'PK' : p.spread)}</td>
+                                    <td>{p.totalLine == null ? '-' : p.totalLine}</td>
+                                    <td>
+                                      <button className="admin-action-btn" onClick={() => handleRetrySinglePick(item.id, idx)} disabled={loading}>Retry Pick</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
