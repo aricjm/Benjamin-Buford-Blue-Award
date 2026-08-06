@@ -20,12 +20,23 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
   const [allPlayerStats, setAllPlayerStats] = useState([]);
 
   // Action functions
+  const buildQueryString = (params) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        query.set(key, value);
+      }
+    });
+    return query.toString();
+  };
+
   const loadStats = useCallback(async (player) => {
     if (!player) return;
     setPlayerStats(null);
     setConferenceStats(null);
     try {
-      const res = await fetch(`/api/stats/${player}?range=${statsTimeRange}&week=${selectedWeek}&season=${selectedSeason}`);
+      const query = buildQueryString({ range: statsTimeRange, week: selectedWeek, season: selectedSeason });
+      const res = await fetch(`/api/stats/${encodeURIComponent(player)}${query ? `?${query}` : ''}`);
       const data = await res.json();
       setPlayerStats(data);
     } catch (error) {
@@ -83,7 +94,8 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
       return;
     }
     try {
-      const res = await fetch(`/api/stats/${selectedPlayer}/conference?conference=${selectedConference}&range=${statsTimeRange}&week=${selectedWeek}&season=${selectedSeason}`);
+      const query = buildQueryString({ conference: selectedConference, range: statsTimeRange, week: selectedWeek, season: selectedSeason });
+      const res = await fetch(`/api/stats/${encodeURIComponent(selectedPlayer)}/conference?${query}`);
       const data = await res.json();
       setConferenceStats(data);
     } catch (error) {

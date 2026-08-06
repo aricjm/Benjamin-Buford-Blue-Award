@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const NodeCache = require('node-cache');
 const {
   buildSeasonWeeks,
   getWeekNumberFromDate,
@@ -11,6 +12,9 @@ const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: { rejectUnauthorized: false }
 });
+
+// Initialize cache with standard TTL of 1 hour
+const cache = new NodeCache({ stdTTL: 3600 });
 
 async function ensureConnected() {
   try {
@@ -107,7 +111,6 @@ async function init() {
   await addColumnIfMissing('teams', 'stadium_name', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_city', 'TEXT');
   await addColumnIfMissing('teams', 'stadium_state', 'TEXT');
-  await addColumnIfMissing('picks', 'is_lock', 'INTEGER', 0);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS picks (
@@ -122,9 +125,17 @@ async function init() {
       result TEXT,
       picked_at TEXT,
       updated_at TEXT,
-      is_lock INTEGER DEFAULT 0
+      is_lock INTEGER DEFAULT 0,
+      selection_total TEXT,
+      total_line REAL,
+      result_total TEXT
     )
   `);
+
+  await addColumnIfMissing('picks', 'selection_total', 'TEXT');
+  await addColumnIfMissing('picks', 'total_line', 'REAL');
+  await addColumnIfMissing('picks', 'result_total', 'TEXT');
+  await addColumnIfMissing('picks', 'is_lock', 'INTEGER', 0);
 
   // Drop the old unique index if it exists
   await pool.query(`DROP INDEX IF EXISTS idx_picks_unique`);
@@ -133,6 +144,12 @@ async function init() {
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_spread_unique ON picks(week, player, game_id) WHERE selection_team IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_total_unique ON picks(week, player, game_id) WHERE selection_total IS NOT NULL`);
 
+  // Performance Indexes
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_picks_player_game ON picks(player, game_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_games_season_week ON games(season, week)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_games_commence_time ON games(commence_time)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_teams_conference ON teams(conference)`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS team_mappings (
       id SERIAL PRIMARY KEY,
@@ -140,6 +157,45 @@ async function init() {
       team_id INTEGER NOT NULL
     )
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rivalries (
+      id SERIAL PRIMARY KEY,
+      team1 TEXT NOT NULL,
+      team2 TEXT NOT NULL,
+      trophy_name TEXT,
+      UNIQUE(team1, team2)
+    )
+  `);
+}
+
+function buildBulkInsertQuery(table, columns, rows, conflictTarget, updateColumns = []) {
+  if (!rows.length) {
+    return { query: '', values: [] };
+  }
+
+  const values = [];
+  const valuePlaceholders = rows.map((row, rowIndex) => {
+    const placeholders = columns.map((column, colIndex) => {
+      values.push(row[column]);
+      return `$${rowIndex * columns.length + colIndex + 1}`;
+    });
+    return `(${placeholders.join(', ')})`;
+  }).join(', ');
+
+  let query = `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${valuePlaceholders}`;
+
+  if (conflictTarget) {
+    query += ` ON CONFLICT (${conflictTarget})`;
+    if (updateColumns.length > 0) {
+      const updates = updateColumns.map((column) => `${column} = EXCLUDED.${column}`).join(', ');
+      query += ` DO UPDATE SET ${updates}`;
+    } else {
+      query += ' DO NOTHING';
+    }
+  }
+
+  return { query, values };
 }
 
 async function seedPlayers() {
@@ -148,13 +204,19 @@ async function seedPlayers() {
     { name: 'Nick', full_name: 'Nicholas Wood' },
     { name: 'Cisco', full_name: 'Andrew Cisco' }
   ];
-  for (const p of defaultPlayers) {
-    await pool.query(`
-      INSERT INTO players (name, full_name) 
-      VALUES ($1, $2) 
-      ON CONFLICT (name) DO UPDATE SET full_name = EXCLUDED.full_name
-    `, [p.name, p.full_name]);
+
+  const { query, values } = buildBulkInsertQuery(
+    'players',
+    ['name', 'full_name'],
+    defaultPlayers,
+    'name',
+    ['full_name']
+  );
+
+  if (query) {
+    await pool.query(query, values);
   }
+
   return defaultPlayers.length;
 }
 
@@ -329,14 +391,86 @@ async function seedTeams() {
 
 async function seedWeeks() {
   const weeks = buildSeasonWeeks();
-  for (const item of weeks) {
-    await pool.query(`
-      INSERT INTO weeks (week, season, label, starts_on, ends_on) 
-      VALUES ($1, $2, $3, $4, $5) 
-      ON CONFLICT (season, week) DO NOTHING
-    `, [item.week, item.season, item.label, item.starts_on, item.ends_on]);
+
+  const { query, values } = buildBulkInsertQuery(
+    'weeks',
+    ['week', 'season', 'label', 'starts_on', 'ends_on'],
+    weeks,
+    'season, week'
+  );
+
+  if (query) {
+    await pool.query(query, values);
   }
+
   return weeks.length;
+}
+
+async function seedRivalries() {
+  const rivalries = [
+    { team1: 'Michigan', team2: 'Ohio State', trophy_name: 'The Game' },
+    { team1: 'Alabama', team2: 'Auburn', trophy_name: 'Iron Bowl' },
+    { team1: 'Oklahoma', team2: 'Texas', trophy_name: 'Red River Rivalry' },
+    { team1: 'Army', team2: 'Navy', trophy_name: "America's Game" },
+    { team1: 'Notre Dame', team2: 'USC', trophy_name: 'Jeweled Shillelagh' },
+    { team1: 'Florida', team2: 'Florida State', trophy_name: 'Sunshine Showdown' },
+    { team1: 'Georgia', team2: 'Florida', trophy_name: "World's Largest Outdoor Cocktail Party" },
+    { team1: 'Clemson', team2: 'South Carolina', trophy_name: 'Palmetto Bowl' },
+    { team1: 'Oregon', team2: 'Oregon State', trophy_name: 'Civil War (officially no longer branded that way)' },
+    { team1: 'UCLA', team2: 'USC', trophy_name: 'Victory Bell' },
+    { team1: 'Texas', team2: 'Texas A&M', trophy_name: 'Lone Star Showdown' },
+    { team1: 'Auburn', team2: 'Georgia', trophy_name: "Deep South's Oldest Rivalry" },
+    { team1: 'Michigan', team2: 'Michigan State', trophy_name: 'Paul Bunyan Trophy' },
+    { team1: 'Ole Miss', team2: 'Mississippi State', trophy_name: 'Egg Bowl' },
+    { team1: 'Minnesota', team2: 'Wisconsin', trophy_name: "Paul Bunyan's Axe" },
+    { team1: 'California', team2: 'Stanford', trophy_name: 'Big Game' },
+    { team1: 'Tennessee', team2: 'Alabama', trophy_name: 'Third Saturday in October' },
+    { team1: 'Oklahoma', team2: 'Oklahoma State', trophy_name: 'Bedlam' },
+    { team1: 'Washington', team2: 'Washington State', trophy_name: 'Apple Cup' },
+    { team1: 'Pittsburgh', team2: 'West Virginia', trophy_name: 'Backyard Brawl' },
+    { team1: 'Virginia', team2: 'Virginia Tech', trophy_name: 'Commonwealth Clash' },
+    { team1: 'Iowa', team2: 'Iowa State', trophy_name: 'Cy-Hawk Trophy' },
+    { team1: 'LSU', team2: 'Alabama', trophy_name: 'SEC Heavyweight Rivalry' },
+    { team1: 'North Carolina', team2: 'Duke', trophy_name: 'Victory Bell' },
+    { team1: 'Penn State', team2: 'Pittsburgh', trophy_name: 'Keystone Classic' },
+    { team1: 'Nebraska', team2: 'Oklahoma', trophy_name: 'Historic Big Eight Rivalry' },
+    { team1: 'Kentucky', team2: 'Louisville', trophy_name: "Governor's Cup" },
+    { team1: 'NC State', team2: 'North Carolina', trophy_name: 'Rivalry of the Triangle' },
+    { team1: 'Arizona', team2: 'Arizona State', trophy_name: 'Territorial Cup' },
+    { team1: 'Utah', team2: 'BYU', trophy_name: 'Holy War' },
+    { team1: 'Miami (FL)', team2: 'Florida State', trophy_name: 'State Supremacy' },
+    { team1: 'Missouri', team2: 'Kansas', trophy_name: 'Border War' },
+    { team1: 'LSU', team2: 'Ole Miss', trophy_name: 'Magnolia Bowl' },
+    { team1: 'Purdue', team2: 'Indiana', trophy_name: 'Old Oaken Bucket' },
+    { team1: 'Illinois', team2: 'Northwestern', trophy_name: 'Land of Lincoln Trophy' },
+    { team1: 'Iowa', team2: 'Nebraska', trophy_name: 'Heroes Game' },
+    { team1: 'Baylor', team2: 'TCU', trophy_name: 'Revivalry' },
+    { team1: 'Cincinnati', team2: 'Miami (OH)', trophy_name: 'Victory Bell' },
+    { team1: 'Colorado', team2: 'Colorado State', trophy_name: 'Rocky Mountain Showdown' },
+    { team1: 'Georgia Tech', team2: 'Georgia', trophy_name: 'Clean, Old-Fashioned Hate' },
+    { team1: 'Arkansas', team2: 'LSU', trophy_name: 'Battle for the Golden Boot' },
+    { team1: 'Arkansas', team2: 'Texas', trophy_name: 'Southwest Classic' },
+    { team1: 'Houston', team2: 'Rice', trophy_name: 'Bayou Bucket' },
+    { team1: 'SMU', team2: 'TCU', trophy_name: 'Battle for the Iron Skillet' },
+    { team1: 'Air Force', team2: 'Army', trophy_name: "Commander-in-Chief's Trophy" },
+    { team1: 'Air Force', team2: 'Navy', trophy_name: "Commander-in-Chief's Trophy" },
+    { team1: 'Boise State', team2: 'Fresno State', trophy_name: 'Mountain West Rivalry' },
+    { team1: 'Virginia Tech', team2: 'West Virginia', trophy_name: 'Black Diamond Trophy' },
+    { team1: 'Tennessee', team2: 'Vanderbilt', trophy_name: 'In-State SEC Rivalry' },
+    { team1: 'Wake Forest', team2: 'NC State', trophy_name: 'Tobacco Road Rivalry' }
+  ];
+
+  const { query, values } = buildBulkInsertQuery(
+    'rivalries',
+    ['team1', 'team2', 'trophy_name'],
+    rivalries,
+    'team1, team2',
+    ['trophy_name']
+  );
+
+  if (query) {
+    await pool.query(query, values);
+  }
 }
 
 async function ensureWeekRow(season, week) {
@@ -373,26 +507,48 @@ async function setHistoricalLock(player, week, season, gameId, lockType) {
 }
 
 async function getPlayers() {
+  const cacheKey = 'players';
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const { rows } = await pool.query('SELECT id, name, full_name FROM players ORDER BY id');
+  cache.set(cacheKey, rows);
   return rows;
 }
 
 async function getTeams() {
+  const cacheKey = 'teams';
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const { rows } = await pool.query('SELECT id, school, nickname, conference, logo, school_primary_color, stadium_name, stadium_city, stadium_state FROM teams ORDER BY school ASC');
+  cache.set(cacheKey, rows);
   return rows;
 }
 
 async function getSeasons() {
+  const cacheKey = 'seasons';
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const { rows } = await pool.query('SELECT DISTINCT season FROM weeks ORDER BY season DESC');
-  return rows.map((row) => row.season);
+  const seasons = rows.map((row) => row.season);
+  cache.set(cacheKey, seasons);
+  return seasons;
 }
 
 async function getWeeks(season) {
+  const cacheKey = `weeks_${season || 'all'}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   if (season) {
     const { rows } = await pool.query('SELECT id, week, season, label, starts_on, ends_on FROM weeks WHERE season = $1 ORDER BY week', [season]);
+    cache.set(cacheKey, rows);
     return rows;
   }
   const { rows } = await pool.query('SELECT id, week, season, label, starts_on, ends_on FROM weeks ORDER BY season DESC, week');
+  cache.set(cacheKey, rows);
   return rows;
 }
 
@@ -407,10 +563,26 @@ async function getWeekGames(week, season) {
         ht.stadium_city as home_stadium_city,
         ht.stadium_state as home_stadium_state,
         ht.nickname as home_nickname, at.nickname as away_nickname,
-        ht.conference as home_conference, at.conference as away_conference
+        ht.conference as home_conference, at.conference as away_conference,
+        r.trophy_name as rivalry_trophy,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM games prev_g 
+          WHERE (prev_g.home_team = g.home_team OR prev_g.away_team = g.home_team) 
+            AND prev_g.season = g.season 
+            AND prev_g.week = g.week - 1
+        ) THEN 'No' ELSE 'Yes' END as home_cobw,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM games prev_g 
+          WHERE (prev_g.home_team = g.away_team OR prev_g.away_team = g.away_team) 
+            AND prev_g.season = g.season 
+            AND prev_g.week = g.week - 1
+        ) THEN 'No' ELSE 'Yes' END as away_cobw
       FROM games g
       LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
       LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+      LEFT JOIN rivalries r ON 
+        (g.home_team LIKE r.team1 || '%' AND g.away_team LIKE r.team2 || '%') OR 
+        (g.home_team LIKE r.team2 || '%' AND g.away_team LIKE r.team1 || '%')
       WHERE g.week = $1 AND g.season = $2 
       ORDER BY g.id ASC, g.commence_time ASC
     `, [week, season]);
@@ -522,25 +694,96 @@ async function upsertGame(game) {
 }
 
 async function saveGamesForWeek(week, games, season) {
-  let saved = 0;
   for (const game of games) {
     game.week = week;
     game.season = season;
-    await upsertGame(game);
-    saved += 1;
   }
-  return saved;
+
+  return await saveGamesForSeason(games);
 }
 
 async function saveGamesForSeason(games) {
   let saved = 0;
+  
+  // Fetch all existing games for diffing
+  const { rows: existingGames } = await pool.query('SELECT api_game_id, spread_home, spread_away, over_under, commence_time FROM games');
+  const existingMap = new Map(existingGames.map(g => [g.api_game_id, g]));
+
+  const updates = [];
+  const inserts = [];
+
   for (const game of games) {
     if (!game.season) {
       game.season = getSeasonFromDate(game.commence_time);
     }
-    await upsertGame(game);
-    saved += 1;
+    
+    const existing = existingMap.get(game.api_game_id);
+    
+    // Diffing: Only upsert if it's a new game, or if spread, over_under, or commence_time changed
+    if (!existing) {
+      inserts.push(game);
+    } else if (
+        existing.spread_home !== game.spread_home || 
+        existing.spread_away !== game.spread_away || 
+        existing.over_under !== game.over_under ||
+        new Date(existing.commence_time).getTime() !== new Date(game.commence_time).getTime()) {
+      updates.push(game);
+    }
   }
+
+  if (inserts.length > 0) {
+    const { query, values } = buildBulkInsertQuery(
+      'games',
+      [
+        'api_game_id', 'week', 'season', 'commence_time', 'home_team', 'away_team', 'site',
+        'is_televised', 'is_mandatory', 'spread_home', 'spread_away', 'home_price', 'away_price',
+        'score_home', 'score_away', 'completed', 'updated_at', 'tv_network', 'over_under'
+      ],
+      inserts,
+      'api_game_id'
+    );
+
+    if (query) {
+      await pool.query(query, values);
+    }
+    saved += inserts.length;
+  }
+
+  if (updates.length > 0) {
+    const values = [];
+    let query = 'UPDATE games SET \n';
+    
+    const setClauses = {
+      commence_time: [],
+      spread_home: [],
+      spread_away: [],
+      over_under: [],
+      updated_at: []
+    };
+
+    updates.forEach((game, index) => {
+      const offset = index * 5;
+      values.push(game.api_game_id, game.commence_time, game.spread_home, game.spread_away, game.over_under);
+      
+      setClauses.commence_time.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 2}`);
+      setClauses.spread_home.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 3}`);
+      setClauses.spread_away.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 4}`);
+      setClauses.over_under.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 5}`);
+      setClauses.updated_at.push(`WHEN api_game_id = $${offset + 1} THEN '${new Date().toISOString()}'`);
+    });
+
+    query += `commence_time = CASE ${setClauses.commence_time.join(' ')} ELSE commence_time END,\n`;
+    query += `spread_home = CASE ${setClauses.spread_home.join(' ')} ELSE spread_home END,\n`;
+    query += `spread_away = CASE ${setClauses.spread_away.join(' ')} ELSE spread_away END,\n`;
+    query += `over_under = CASE ${setClauses.over_under.join(' ')} ELSE over_under END,\n`;
+    query += `updated_at = CASE ${setClauses.updated_at.join(' ')} ELSE updated_at END\n`;
+    
+    query += `WHERE api_game_id IN (${updates.map((_, i) => `$${i * 5 + 1}`).join(', ')})`;
+
+    await pool.query(query, values);
+    saved += updates.length;
+  }
+
   return saved;
 }
 
@@ -568,20 +811,64 @@ async function saveManualGame(week, season, gameData) {
 
 async function updateScoresFromSeason(scoreGames) {
   let updated = 0;
+  
+  // Fetch existing games to diff scores
+  const { rows: existingGames } = await pool.query('SELECT id, api_game_id, score_home, score_away, completed FROM games');
+  const existingMap = new Map(existingGames.map(g => [g.api_game_id, g]));
+
+  const updates = [];
+
   for (const game of scoreGames) {
-    const existing = await getGameByApiId(game.api_game_id);
+    const existing = existingMap.get(game.api_game_id);
     if (!existing) continue;
-    await pool.query(`
-      UPDATE games SET 
-        score_home = $1, 
-        score_away = $2, 
-        completed = $3, 
-        updated_at = $4 
-      WHERE api_game_id = $5
-    `, [game.score_home, game.score_away, game.completed ? 1 : 0, new Date().toISOString(), game.api_game_id]);
-    updated += 1;
-    await updatePickResults(existing.id);
+
+    const isCompleted = game.completed ? 1 : 0;
+
+    // Diffing: Only update if scores or completed status changed
+    if (existing.score_home !== game.score_home || 
+        existing.score_away !== game.score_away || 
+        existing.completed !== isCompleted) {
+      updates.push({ ...game, isCompleted, id: existing.id });
+    }
   }
+
+  if (updates.length > 0) {
+    const values = [];
+    let query = 'UPDATE games SET \n';
+    
+    const setClauses = {
+      score_home: [],
+      score_away: [],
+      completed: [],
+      updated_at: []
+    };
+
+    updates.forEach((game, index) => {
+      const offset = index * 4;
+      values.push(game.api_game_id, game.score_home, game.score_away, game.isCompleted);
+      
+      setClauses.score_home.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 2}`);
+      setClauses.score_away.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 3}`);
+      setClauses.completed.push(`WHEN api_game_id = $${offset + 1} THEN $${offset + 4}`);
+      setClauses.updated_at.push(`WHEN api_game_id = $${offset + 1} THEN '${new Date().toISOString()}'`);
+    });
+
+    query += `score_home = CASE ${setClauses.score_home.join(' ')} ELSE score_home END,\n`;
+    query += `score_away = CASE ${setClauses.score_away.join(' ')} ELSE score_away END,\n`;
+    query += `completed = CASE ${setClauses.completed.join(' ')} ELSE completed END,\n`;
+    query += `updated_at = CASE ${setClauses.updated_at.join(' ')} ELSE updated_at END\n`;
+    
+    query += `WHERE api_game_id IN (${updates.map((_, i) => `$${i * 4 + 1}`).join(', ')})`;
+
+    await pool.query(query, values);
+    updated += updates.length;
+
+    // Update pick results for all updated games
+    for (const game of updates) {
+      await updatePickResults(game.id);
+    }
+  }
+
   return updated;
 }
 
@@ -682,6 +969,10 @@ async function savePick(week, player, pick) {
 }
 
 async function getWeekSummary(week, season) {
+  const cacheKey = `week_summary_${season}_${week}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
@@ -723,10 +1014,16 @@ async function getWeekSummary(week, season) {
       }
     }
   }
-  return Object.values(summary);
+  const result = Object.values(summary);
+  cache.set(cacheKey, result, 86400); // Cache for 1 day
+  return result;
 }
 
 async function getSeasonSummary(season) {
+  const cacheKey = `season_summary_${season}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
@@ -760,10 +1057,16 @@ async function getSeasonSummary(season) {
       }
     }
   }
-  return Object.values(summary);
+  const result = Object.values(summary);
+  cache.set(cacheKey, result, 86400); // Cache for 1 day
+  return result;
 }
 
 async function getAllTimeSummary() {
+  const cacheKey = 'all_time_summary';
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const summary = {};
   const players = await getPlayers();
   for (const player of players) {
@@ -803,7 +1106,9 @@ async function getAllTimeSummary() {
       }
     }
   }
-  return Object.values(summary);
+  const result = Object.values(summary);
+  cache.set(cacheKey, result, 86400); // Cache for 1 day
+  return result;
 }
 
 async function seedTestData() {
@@ -818,313 +1123,305 @@ async function seedTestData() {
 }
 
 async function getPlayerStats(player, timeRange, week, season) {
-  function buildQuery(baseQuery) {
-    let timeFilter = '';
-    const params = [player];
+  const params = [player];
+  let timeFilter = '';
 
-    if (timeRange === 'Week') {
-      timeFilter = 'AND g.week = $2 AND g.season = $3';
-      params.push(week, season);
-    } else if (timeRange === 'Season') {
-      timeFilter = 'AND g.season = $2';
-      params.push(season);
-    } else if (timeRange === 'Last Season') {
-      timeFilter = 'AND g.season = $2';
-      params.push(String(Number(season) - 1));
-    } else if (/^\d{4}$/.test(timeRange)) {
-      timeFilter = 'AND g.season = $2';
-      params.push(timeRange);
-    } else if (timeRange === 'Last 5 Weeks') {
-      timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 4 AND $2';
-      params.push(week, season);
-    } else if (timeRange === 'Last 10 Weeks') {
-      timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 9 AND $2';
-      params.push(week, season);
-    } else if (timeRange === 'Last 30 Days') {
-      timeFilter = "AND g.commence_time >= NOW() - INTERVAL '30 days'";
-    }
-
-    const query = baseQuery.replace('__TIME_FILTER__', timeFilter);
-    return { query, params };
+  if (timeRange === 'Week') {
+    timeFilter = 'AND g.week = $2 AND g.season = $3';
+    params.push(week, season);
+  } else if (timeRange === 'Season') {
+    timeFilter = 'AND g.season = $2';
+    params.push(season);
+  } else if (timeRange === 'Last Season') {
+    timeFilter = 'AND g.season = $2';
+    params.push(String(Number(season) - 1));
+  } else if (/^\d{4}$/.test(timeRange)) {
+    timeFilter = 'AND g.season = $2';
+    params.push(timeRange);
+  } else if (timeRange === 'Last 5 Weeks') {
+    timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 4 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 10 Weeks') {
+    timeFilter = 'AND g.season = $3 AND g.week BETWEEN $2 - 9 AND $2';
+    params.push(week, season);
+  } else if (timeRange === 'Last 30 Days') {
+    timeFilter = "AND g.commence_time >= NOW() - INTERVAL '30 days'";
   }
 
-  const favConfQ = buildQuery(`
-    SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 __TIME_FILTER__
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [favConf] } = await pool.query(favConfQ.query, favConfQ.params);
-
-  const bestConfQ = buildQuery(`
-    SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'win' __TIME_FILTER__
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [bestConf] } = await pool.query(bestConfQ.query, bestConfQ.params);
-
-  const worstConfQ = buildQuery(`
-    SELECT t.conference, COUNT(*) as count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'loss' __TIME_FILTER__
-    GROUP BY t.conference
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [worstConf] } = await pool.query(worstConfQ.query, worstConfQ.params);
-
-  const trendQ = buildQuery(`
-    SELECT g.season, g.week, 
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses
-    FROM picks p JOIN games g ON p.game_id = g.id WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
-    GROUP BY g.season, g.week
-    ORDER BY g.season DESC, g.week DESC
-    LIMIT 10
-  `);
-  const { rows: trendRows } = await pool.query(trendQ.query, trendQ.params);
-  const trend = trendRows.reverse();
-
-  const topWinSchoolQ = buildQuery(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'win' AND p.selection_team IS NOT NULL __TIME_FILTER__
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [topWinSchool] } = await pool.query(topWinSchoolQ.query, topWinSchoolQ.params);
-
-  const topLossSchoolQ = buildQuery(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result = 'loss' AND p.selection_team IS NOT NULL __TIME_FILTER__
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [topLossSchool] } = await pool.query(topLossSchoolQ.query, topLossSchoolQ.params);
-
-  const recordQ = buildQuery(`
+  // 1. Push basic math to SQL (wins, losses, pushes, pending, locks)
+  const { rows: [recordRow] } = await pool.query(`
     SELECT 
-      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0)::int as wins,
-      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0)::int as losses,
-      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0)::int as pushes,
-      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0)::int as pending,
-      COUNT(*)::int as total
+      COUNT(*) as total,
+      SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+      SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+      SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END) as pushes,
+      SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN p.is_lock = 1 THEN 1 ELSE 0 END) as lock_total,
+      SUM(CASE WHEN p.is_lock = 1 AND p.result = 'win' THEN 1 ELSE 0 END) as lock_wins,
+      SUM(CASE WHEN p.is_lock = 1 AND p.result = 'loss' THEN 1 ELSE 0 END) as lock_losses,
+      SUM(CASE WHEN p.is_lock = 1 AND p.result = 'push' THEN 1 ELSE 0 END) as lock_pushes,
+      SUM(CASE WHEN p.is_lock = 1 AND p.result = 'pending' THEN 1 ELSE 0 END) as lock_pending
     FROM picks p
     JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND p.result IS NOT NULL __TIME_FILTER__
-  `);
-  const { rows: [record] } = await pool.query(recordQ.query, recordQ.params);
-  const safeRecord = record || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+    WHERE p.player = $1 ${timeFilter}
+  `, params);
 
-  const lockRecordQ = buildQuery(`
-    SELECT 
-      COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END), 0)::int as wins,
-      COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END), 0)::int as losses,
-      COALESCE(SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END), 0)::int as pushes,
-      COALESCE(SUM(CASE WHEN p.result = 'pending' THEN 1 ELSE 0 END), 0)::int as pending,
-      COUNT(*)::int as total
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND p.is_lock = 1 AND p.result IS NOT NULL __TIME_FILTER__
-  `);
-  const { rows: [lockRecord] } = await pool.query(lockRecordQ.query, lockRecordQ.params);
-  const safeLockRecord = lockRecord || { wins: 0, losses: 0, pushes: 0, pending: 0, total: 0 };
+  const record = {
+    wins: Number(recordRow.wins || 0),
+    losses: Number(recordRow.losses || 0),
+    pushes: Number(recordRow.pushes || 0),
+    pending: Number(recordRow.pending || 0),
+    total: Number(recordRow.total || 0)
+  };
 
-  const mostBetsForQ = buildQuery(`
-    SELECT p.selection_team as school, t.logo, COUNT(*) as count
+  const lockRecord = {
+    wins: Number(recordRow.lock_wins || 0),
+    losses: Number(recordRow.lock_losses || 0),
+    pushes: Number(recordRow.lock_pushes || 0),
+    pending: Number(recordRow.lock_pending || 0),
+    total: Number(recordRow.lock_total || 0)
+  };
+
+  // 2. Fetch only the necessary data for streaks and complex conference/team logic
+  const { rows } = await pool.query(`
+    SELECT
+      p.result,
+      p.result AS total_result,
+      p.selection_team,
+      p.selection_side,
+      p.selection_total,
+      g.season,
+      g.week,
+      g.home_team,
+      g.away_team,
+      t.school AS team_school,
+      t.logo AS team_logo,
+      t.conference AS team_conference
     FROM picks p
     JOIN games g ON p.game_id = g.id
     LEFT JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.selection_team IS NOT NULL __TIME_FILTER__
-    GROUP BY p.selection_team, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [mostBetsFor] } = await pool.query(mostBetsForQ.query, mostBetsForQ.params);
-
-  const mostBetsAgainstQ = buildQuery(`
-    SELECT sub.school, t.logo, COUNT(*) as count
-    FROM (
-      SELECT CASE WHEN p.selection_side = 'home' THEN g.away_team ELSE g.home_team END as school
-      FROM picks p
-      JOIN games g ON p.game_id = g.id
-      WHERE p.player = $1 AND p.selection_side IS NOT NULL __TIME_FILTER__
-    ) sub
-    LEFT JOIN teams t ON t.school = sub.school
-    GROUP BY sub.school, t.logo
-    ORDER BY count DESC
-    LIMIT 1
-  `);
-  const { rows: [mostBetsAgainst] } = await pool.query(mostBetsAgainstQ.query, mostBetsAgainstQ.params);
-
-  const recentResultsQ = buildQuery(`
-    SELECT p.result
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND p.result IN ('win', 'loss', 'push') __TIME_FILTER__
+    WHERE p.player = $1 ${timeFilter}
     ORDER BY g.commence_time ASC, g.id ASC
-  `);
-  const { rows: recentResults } = await pool.query(recentResultsQ.query, recentResultsQ.params);
+  `, params);
 
-  const recentTotalResultsQ = buildQuery(`
-    SELECT p.result
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    WHERE p.player = $1 AND p.selection_total IS NOT NULL AND p.result IN ('win', 'loss', 'push') __TIME_FILTER__
-    ORDER BY g.commence_time ASC, g.id ASC
-  `);
-  const { rows: recentTotalResults } = await pool.query(recentTotalResultsQ.query, recentTotalResultsQ.params);
+  const countsByConf = {
+    fav: new Map(),
+    win: new Map(),
+    loss: new Map(),
+  };
+  const teamCounts = {
+    wins: new Map(),
+    losses: new Map(),
+    betsFor: new Map(),
+    betsAgainst: new Map(),
+  };
+  const teamMeta = {
+    logos: new Map(),
+    conferences: new Map(),
+  };
 
-  let currentWinStreak = 0;
-  let currentLossStreak = 0;
-  let winStreakActive = true;
-  let lossStreakActive = true;
+  const recentResults = [];
+  const recentTotalResults = [];
+  const trendMap = new Map();
 
-  const reversedResults = [...recentResults].reverse();
-  for (const r of reversedResults) {
-    if (r.result === 'win' || r.result === 'loss') {
-      if (winStreakActive) {
-        if (r.result === 'win') currentWinStreak++;
-        else if (r.result === 'loss') winStreakActive = false;
+  for (const row of rows) {
+    const {
+      result,
+      total_result,
+      selection_team,
+      selection_side,
+      selection_total,
+      season: rowSeason,
+      week: rowWeek,
+      home_team,
+      away_team,
+      team_school,
+      team_logo,
+      team_conference,
+    } = row;
+
+    if (selection_team) {
+      if (team_conference) {
+        countsByConf.fav.set(team_conference, (countsByConf.fav.get(team_conference) || 0) + 1);
       }
-      if (lossStreakActive) {
-        if (r.result === 'loss') currentLossStreak++;
-        else if (r.result === 'win') lossStreakActive = false;
+      if (result === 'win' && team_conference) {
+        countsByConf.win.set(team_conference, (countsByConf.win.get(team_conference) || 0) + 1);
       }
+      if (result === 'loss' && team_conference) {
+        countsByConf.loss.set(team_conference, (countsByConf.loss.get(team_conference) || 0) + 1);
+      }
+      if (team_school) {
+        teamMeta.logos.set(team_school, team_logo || teamMeta.logos.get(team_school));
+        if (team_conference) {
+          teamMeta.conferences.set(team_school, team_conference);
+        }
+      }
+      if (result === 'win') {
+        teamCounts.wins.set(selection_team, (teamCounts.wins.get(selection_team) || 0) + 1);
+      }
+      if (result === 'loss') {
+        teamCounts.losses.set(selection_team, (teamCounts.losses.get(selection_team) || 0) + 1);
+      }
+      teamCounts.betsFor.set(selection_team, (teamCounts.betsFor.get(selection_team) || 0) + 1);
+    }
+
+    if (selection_side) {
+      const againstTeam = selection_side === 'home' ? away_team : home_team;
+      if (againstTeam) {
+        teamCounts.betsAgainst.set(againstTeam, (teamCounts.betsAgainst.get(againstTeam) || 0) + 1);
+      }
+    }
+
+    const weekKey = `${rowSeason}_${rowWeek}`;
+    if (!trendMap.has(weekKey)) {
+      trendMap.set(weekKey, { season: rowSeason, week: rowWeek, wins: 0, losses: 0 });
+    }
+    const trendEntry = trendMap.get(weekKey);
+    if (result === 'win') trendEntry.wins += 1;
+    else if (result === 'loss') trendEntry.losses += 1;
+
+    if (['win', 'loss', 'push'].includes(result)) {
+      recentResults.push(result);
+    }
+    if (selection_total != null && ['win', 'loss', 'push'].includes(total_result)) {
+      recentTotalResults.push(total_result);
     }
   }
 
-  let longestWinStreak = 0;
-  let longestLossStreak = 0;
-  let tempWinStreak = 0;
-  let tempLossStreak = 0;
+  const trend = Array.from(trendMap.values()).sort((a, b) => {
+    if (Number(a.season) !== Number(b.season)) return Number(a.season) - Number(b.season);
+    return a.week - b.week;
+  }).slice(-10);
 
-  for (const r of recentResults) {
-    if (r.result === 'win') {
-      tempWinStreak++;
-      tempLossStreak = 0;
-      if (tempWinStreak > longestWinStreak) longestWinStreak = tempWinStreak;
-    } else if (r.result === 'loss') {
-      tempLossStreak++;
-      tempWinStreak = 0;
-      if (tempLossStreak > longestLossStreak) longestLossStreak = tempLossStreak;
-    }
-  }
-
-  // O/U streaks
-  let currentTotalWinStreak = 0;
-  let currentTotalLossStreak = 0;
-  let totalWinStreakActive = true;
-  let totalLossStreakActive = true;
-
-  const reversedTotalResults = [...recentTotalResults].reverse();
-  for (const r of reversedTotalResults) {
-    if (r.result === 'win' || r.result === 'loss') {
-      if (totalWinStreakActive) {
-        if (r.result === 'win') currentTotalWinStreak++;
-        else totalWinStreakActive = false;
-      }
-      if (totalLossStreakActive) {
-        if (r.result === 'loss') currentTotalLossStreak++;
-        else totalLossStreakActive = false;
+  const pickTop = (map) => {
+    let top = null;
+    let maxCount = -1;
+    for (const [key, count] of map.entries()) {
+      if (count > maxCount) {
+        top = key;
+        maxCount = count;
       }
     }
-  }
+    if (!top) return null;
+    return { school: top, logo: teamMeta.logos.get(top) || null, count: maxCount, conference: teamMeta.conferences.get(top) || null };
+  };
 
-  let longestTotalWinStreak = 0;
-  let longestTotalLossStreak = 0;
-  let tempTotalWinStreak = 0;
-  let tempTotalLossStreak = 0;
+  const pickBestConf = (map) => {
+    const entries = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    return entries.length ? { conference: entries[0][0], count: entries[0][1] } : null;
+  };
 
-  for (const r of recentTotalResults) {
-    if (r.result === 'win') {
-      tempTotalWinStreak++;
-      tempTotalLossStreak = 0;
-      if (tempTotalWinStreak > longestTotalWinStreak) longestTotalWinStreak = tempTotalWinStreak;
-    } else if (r.result === 'loss') {
-      tempTotalLossStreak++;
-      tempTotalWinStreak = 0;
-      if (tempTotalLossStreak > longestTotalLossStreak) longestTotalLossStreak = tempTotalLossStreak;
+  const computeConfPct = () => {
+    const confStats = new Map();
+
+    for (const row of rows) {
+      if (row.result !== 'win' && row.result !== 'loss') continue;
+      const conference = row.team_conference;
+      if (!conference) continue;
+      const stats = confStats.get(conference) || { wins: 0, losses: 0 };
+      if (row.result === 'win') stats.wins += 1;
+      else stats.losses += 1;
+      confStats.set(conference, stats);
     }
-  }
 
-  const last10Form = recentResults
-    .filter(r => r.result === 'win' || r.result === 'loss' || r.result === 'push')
-    .slice(-10)
-    .map((r) => {
-      if (r.result === 'win') return 'W';
-      if (r.result === 'loss') return 'L';
-      if (r.result === 'push') return 'P';
-      return '';
-    })
-    .join('-');
+    let best = null;
+    let bestPct = -1;
+    let worst = null;
+    let worstPct = 101;
 
-  const bestConfByPctQ = buildQuery(`
-    SELECT t.conference,
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(
-             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
-             NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
-             2
-           ) as win_pct
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result IN ('win', 'loss') __TIME_FILTER__
-    GROUP BY t.conference
-    HAVING SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END) >= 5
-    ORDER BY win_pct DESC
-    LIMIT 1
-  `);
-  const { rows: [bestConfByPct] } = await pool.query(bestConfByPctQ.query, bestConfByPctQ.params);
+    for (const [conference, stats] of confStats.entries()) {
+      const total = stats.wins + stats.losses;
+      if (total < 5) continue;
+      const win_pct = Number(((stats.wins / total) * 100).toFixed(2));
+      if (win_pct > bestPct) {
+        bestPct = win_pct;
+        best = { conference, wins: stats.wins, losses: stats.losses, win_pct };
+      }
+      if (win_pct < worstPct) {
+        worstPct = win_pct;
+        worst = { conference, wins: stats.wins, losses: stats.losses, win_pct };
+      }
+    }
+    return { best, worst };
+  };
 
-  const worstConfByPctQ = buildQuery(`
-    SELECT t.conference,
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(
-             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
-             NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
-             2
-           ) as win_pct
-    FROM picks p
-    JOIN games g ON p.game_id = g.id
-    JOIN teams t ON p.selection_team = t.school
-    WHERE p.player = $1 AND p.result IN ('win', 'loss') __TIME_FILTER__
-    GROUP BY t.conference
-    HAVING SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END) >= 5
-    ORDER BY win_pct ASC
-    LIMIT 1
-  `);
-  const { rows: [worstConfByPct] } = await pool.query(worstConfByPctQ.query, worstConfByPctQ.params);
+  const { best: bestConfByPct, worst: worstConfByPct } = computeConfPct();
 
-  return { 
-    favConf, bestConf, worstConf, bestConfByPct, worstConfByPct, topWinSchool, topLossSchool, record: safeRecord, lockRecord: safeLockRecord, trend, mostBetsFor, mostBetsAgainst, 
-    currentWinStreak, currentLossStreak, longestWinStreak, longestLossStreak,
-    currentTotalWinStreak, currentTotalLossStreak, longestTotalWinStreak, longestTotalLossStreak,
-    last10Form
+  const currentStreaks = (results) => {
+    let currentWin = 0;
+    let currentLoss = 0;
+    let winActive = true;
+    let lossActive = true;
+
+    for (let i = results.length - 1; i >= 0; i--) {
+      const result = results[i];
+      if (winActive) {
+        if (result === 'win') currentWin += 1;
+        else if (result === 'loss') winActive = false;
+      }
+      if (lossActive) {
+        if (result === 'loss') currentLoss += 1;
+        else if (result === 'win') lossActive = false;
+      }
+      if (!winActive && !lossActive) break;
+    }
+
+    return { currentWin, currentLoss };
+  };
+
+  const bestWorstStreaks = (results) => {
+    let longestWin = 0;
+    let longestLoss = 0;
+    let tempWin = 0;
+    let tempLoss = 0;
+
+    for (const result of results) {
+      if (result === 'win') {
+        tempWin += 1;
+        tempLoss = 0;
+        longestWin = Math.max(longestWin, tempWin);
+      } else if (result === 'loss') {
+        tempLoss += 1;
+        tempWin = 0;
+        longestLoss = Math.max(longestLoss, tempLoss);
+      } else {
+        tempWin = 0;
+        tempLoss = 0;
+      }
+    }
+
+    return { longestWin, longestLoss };
+  };
+
+  const currentStreak = currentStreaks(recentResults);
+  const longestStreak = bestWorstStreaks(recentResults);
+  const currentTotalStreak = currentStreaks(recentTotalResults);
+  const longestTotalStreak = bestWorstStreaks(recentTotalResults);
+
+  return {
+    favConf: pickBestConf(countsByConf.fav),
+    bestConf: pickBestConf(countsByConf.win),
+    worstConf: pickBestConf(countsByConf.loss),
+    bestConfByPct,
+    worstConfByPct,
+    topWinSchool: pickTop(teamCounts.wins),
+    topLossSchool: pickTop(teamCounts.losses),
+    record,
+    lockRecord,
+    trend,
+    mostBetsFor: pickTop(teamCounts.betsFor),
+    mostBetsAgainst: pickTop(teamCounts.betsAgainst),
+    currentWinStreak: Number(currentStreak.currentWin || 0),
+    currentLossStreak: Number(currentStreak.currentLoss || 0),
+    longestWinStreak: Number(longestStreak.longestWin || 0),
+    longestLossStreak: Number(longestStreak.longestLoss || 0),
+    currentTotalWinStreak: Number(currentTotalStreak.currentWin || 0),
+    currentTotalLossStreak: Number(currentTotalStreak.currentLoss || 0),
+    longestTotalWinStreak: Number(longestTotalStreak.longestWin || 0),
+    longestTotalLossStreak: Number(longestTotalStreak.longestLoss || 0),
+    last10Form: recentResults.slice(-10).map((r) => (r === 'win' ? 'W' : r === 'loss' ? 'L' : 'P')).join('-'),
   };
 }
-
 async function getConferenceStats(player, conference, timeRange, week, season) {
   let timeFilter = '';
   const params = [player, conference];
@@ -1569,8 +1866,8 @@ async function getTeamResearchStats(teamName, timeRange, week, season) {
       }
     }
 
-    // Recent Games (limit to 10)
-    if (stats.recent.length < 10) {
+    // Recent Games (limit to 100 to allow head-to-head filtering on frontend)
+    if (stats.recent.length < 100) {
       stats.recent.push({
         season: g.season,
         week: g.week,
@@ -1809,7 +2106,7 @@ async function getConferenceResearchStats(conferenceName, timeRange, week, seaso
 }
 
 
-async function getResearchRankings(entity, stat, location, role, timeRange, week, season) {
+async function getResearchRankings(entity, stat, location, role, minGames, conference, timeRange, week, season) {
   let timeFilter = '';
   const params = [];
 
@@ -1849,6 +2146,12 @@ async function getResearchRankings(entity, stat, location, role, timeRange, week
     roleFilter = 'AND team_spread > 0';
   }
 
+  let confFilter = '';
+  if (conference && entity === 'school') {
+    params.push(conference);
+    confFilter = `AND conference = $${params.length}`;
+  }
+
   let statCondition = '';
   if (stat === 'ats') {
     statCondition = 'AND team_spread IS NOT NULL';
@@ -1868,6 +2171,8 @@ async function getResearchRankings(entity, stat, location, role, timeRange, week
 
   const groupField = entity === 'school' ? 'team, conference' : 'conference';
   const selectField = entity === 'school' ? 'team AS name, conference' : 'conference AS name';
+
+  const minGamesFilter = Number(minGames) || 1;
 
   const query = `
     WITH team_games AS (
@@ -1920,9 +2225,9 @@ async function getResearchRankings(entity, stat, location, role, timeRange, week
         2
       ) as win_pct
     FROM team_games
-    WHERE 1=1 ${timeFilter} ${locationFilter} ${roleFilter} ${statCondition}
+    WHERE 1=1 ${timeFilter} ${locationFilter} ${roleFilter} ${statCondition} ${confFilter}
     GROUP BY ${groupField}
-    HAVING COUNT(*) >= 1
+    HAVING COUNT(*) >= ${minGamesFilter}
     ORDER BY win_pct DESC, wins DESC, total DESC
   `;
 
@@ -1993,6 +2298,10 @@ async function deleteTeamMapping(id) {
 }
 
 async function getSeasonAwards(season) {
+  const cacheKey = `season_awards_${season}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   // Check if the season has any graded picks (at least one win/loss/push)
   const { rows: [gradedCheck] } = await pool.query(`
     SELECT COUNT(*)::int as count 
@@ -2160,7 +2469,7 @@ async function getSeasonAwards(season) {
     ORDER BY season DESC
   `);
 
-  return {
+  const result = {
     champion,
     allTimeChamps,
     specialtyAwards: {
@@ -2176,9 +2485,15 @@ async function getSeasonAwards(season) {
       pushMaster
     }
   };
+  cache.set(cacheKey, result, 31536000); // Cache for 1 year
+  return result;
 }
 
 async function getPlayerAwards(player) {
+  const cacheKey = `player_awards_${player}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const { rows } = await pool.query(`
     SELECT DISTINCT g.season 
     FROM picks p JOIN games g ON p.game_id = g.id 
@@ -2204,7 +2519,21 @@ async function getPlayerAwards(player) {
       }
     }
   }
-  return { championships, specialtyAwards };
+  const result = { championships, specialtyAwards };
+  cache.set(cacheKey, result, 31536000); // Cache for 1 year
+  return result;
+}
+
+async function getInProgressWeeks() {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT season, week 
+    FROM games 
+    WHERE completed = 0 
+      AND commence_time IS NOT NULL 
+      AND commence_time::timestamptz <= NOW() 
+      AND commence_time::timestamptz >= NOW() - INTERVAL '12 hours'
+  `);
+  return rows;
 }
 
 module.exports = {
@@ -2212,6 +2541,7 @@ module.exports = {
   seedPlayers,
   seedTeams,
   seedWeeks,
+  seedRivalries,
   getPlayers,
   getTeams,
   getSeasons,
@@ -2249,5 +2579,6 @@ module.exports = {
   ensureWeekRow,
   setHistoricalLock,
   getSeasonAwards,
-  getPlayerAwards
+  getPlayerAwards,
+  getInProgressWeeks
 };

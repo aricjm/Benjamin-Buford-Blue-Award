@@ -134,9 +134,16 @@ async function fetchInjuries() {
   return allInjuries;
 }
 
+async function fetchWeekScores(week, season = DEFAULT_SEASON) {
+  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}`;
+  const data = await fetchJson(url);
+  return data.events.map(mapScore);
+}
+
 module.exports = {
   fetchSeasonGames,
   fetchWeekGames,
   fetchSeasonScores,
+  fetchWeekScores,
   fetchInjuries
 };

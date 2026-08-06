@@ -1,6 +1,7 @@
 require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const db = require('./db');
 const api = require('./api');
 const scheduler = require('./scheduler');
@@ -10,6 +11,7 @@ const PORT = process.env.PORT || 4000;
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 
 app.use(cors());
+app.use(compression()); // Enable Gzip compression for all responses
 app.use(express.json());
 
 function getSeason(req) {
@@ -408,12 +410,14 @@ app.get('/api/stats/:player/trend', async (req, res) => {
 
 app.get('/api/research/rankings', async (req, res) => {
   try {
-    const { entity, stat, location, role, range, week, season } = req.query;
+    const { entity, stat, location, role, minGames, conference, range, week, season } = req.query;
     const result = await db.getResearchRankings(
       entity || 'school',
       stat || 'su',
       location || 'both',
       role || 'either',
+      minGames || 1,
+      conference || null,
       range || null,
       Number(week) || null,
       season || null

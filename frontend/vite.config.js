@@ -8,5 +8,16 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:4000'
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          lottie: ['lottie-react', 'lottie-web'],
+          lucide: ['lucide-react']
+        }
+      }
+    }
   }
 });

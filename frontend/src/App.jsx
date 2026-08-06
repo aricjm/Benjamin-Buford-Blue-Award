@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Lock } from 'lucide-react';
+import { useEffect, useState, Suspense, lazy } from 'react';
+import { Lock, AlertTriangle } from 'lucide-react';
 import logo from "./resources/images/benjamin_buford_blue_award_cutout.png";
 
 // Import Sub-Components
 import Sidebar from './components/Sidebar';
-import StatsPage from './components/StatsPage';
-import ResearchPage from './components/ResearchPage';
-import AdminPage from './components/AdminPage';
-import PicksPage from './components/PicksPage';
-import LeaderboardPage from './components/LeaderboardPage';
-import AwardsPage from './components/AwardsPage';
-
 import LoadingAnimation from './components/LoadingAnimation';
+
+// Lazy Load Heavy Pages
+const StatsPage = lazy(() => import('./components/StatsPage'));
+const ResearchPage = lazy(() => import('./components/ResearchPage'));
+const AdminPage = lazy(() => import('./components/AdminPage'));
+const PicksPage = lazy(() => import('./components/PicksPage'));
+const LeaderboardPage = lazy(() => import('./components/LeaderboardPage'));
+const AwardsPage = lazy(() => import('./components/AwardsPage'));
+
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
 import useIsMobile from './hooks/useIsMobile';
@@ -116,8 +118,6 @@ function App() {
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
     if (!playerPicks.length) {
       setMessage('Choose at least one game before saving picks.');
-      setAlertMessage('Choose at least one game before saving picks.');
-      setShowAlertModal(true);
       return;
     }
 
@@ -428,7 +428,7 @@ function App() {
                 ) : (
                   <div style={{ marginTop: 12, textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px' }}>
                     <div style={{ color: '#ffcc00', fontWeight: 'bold', marginBottom: '12px', border: '1px solid #ffcc00', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(255, 204, 0, 0.1)', fontSize: '0.9em' }}>
-                      ⚠️ You must select one Lock for this week before saving. Please select one of your picks below:
+                      <AlertTriangle size={18} /> You must select one Lock for this week before saving. Please select one of your picks below:
                     </div>
                     <div style={{ maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
                       {selectableBets.map((bet) => (
@@ -549,85 +549,87 @@ function App() {
             </section>
           )}          
 
-          {isStatsPage && (
-            <StatsPage 
-              players={players}
-              seasons={seasons}
-              selectedPlayer={selectedPlayer}
-              setSelectedPlayer={setSelectedPlayer}
-              playerStats={playerStats}
-              selectedConference={selectedConference}
-              setSelectedConference={setSelectedConference}
-              conferenceList={conferenceList}
-              statsTimeRange={statsTimeRange}
-              setStatsTimeRange={setStatsTimeRange}
-              conferenceStats={conferenceStats}
-              allPlayerStats={allPlayerStats}
-              selectedWeek={selectedWeek}
-              selectedSeason={selectedSeason}
-            />
-          )}
+          <Suspense fallback={<LoadingAnimation />}>
+            {isStatsPage && (
+              <StatsPage 
+                players={players}
+                seasons={seasons}
+                selectedPlayer={selectedPlayer}
+                setSelectedPlayer={setSelectedPlayer}
+                playerStats={playerStats}
+                selectedConference={selectedConference}
+                setSelectedConference={setSelectedConference}
+                conferenceList={conferenceList}
+                statsTimeRange={statsTimeRange}
+                setStatsTimeRange={setStatsTimeRange}
+                conferenceStats={conferenceStats}
+                allPlayerStats={allPlayerStats}
+                selectedWeek={selectedWeek}
+                selectedSeason={selectedSeason}
+              />
+            )}
 
-          {isResearchPage && (
-            <ResearchPage 
-              teams={teams}
-              conferenceList={conferenceList}
-              seasons={seasons}
-              selectedWeek={selectedWeek}
-              selectedSeason={selectedSeason}
-            />
-          )}
+            {isResearchPage && (
+              <ResearchPage 
+                teams={teams}
+                conferenceList={conferenceList}
+                seasons={seasons}
+                selectedWeek={selectedWeek}
+                selectedSeason={selectedSeason}
+              />
+            )}
 
-          {isAdminPage && selectedPlayer === 'Aric' && (
-            <AdminPage
-              loading={loading}
-              setLoading={setLoading}
-              selectedWeek={selectedWeek}
-              selectedSeason={selectedSeason}
-              selectedPlayer={selectedPlayer}
-              setMessage={setMessage}
-              setAlertMessage={setAlertMessage}
-              setShowAlertModal={setShowAlertModal}
-              loadWeek={loadWeek}
-              loadStats={loadStats}
-              players={players}
-              seasons={seasons}
-              weeks={weeks}
-            />
-          )}
-          {isPicksPage && (
-            <PicksPage 
-              pickGames={pickGames}
-              picks={picks}
-              handlePickChange={handlePickChange}
-              handleTotalChange={handleTotalChange}
-              handleLockToggle={handleLockToggle}
-              isGameLocked={isGameLocked}
-              isGameLive={isGameLive}
-              handleSubmit={handleSubmit}
-              loading={loading}
-              selectedWeek={selectedWeek}
-              message={message}
-              messageSuccess={message === 'Picks saved!'}
-              teams={teams}
-            />
-          )}
+            {isAdminPage && selectedPlayer === 'Aric' && (
+              <AdminPage
+                loading={loading}
+                setLoading={setLoading}
+                selectedWeek={selectedWeek}
+                selectedSeason={selectedSeason}
+                selectedPlayer={selectedPlayer}
+                setMessage={setMessage}
+                setAlertMessage={setAlertMessage}
+                setShowAlertModal={setShowAlertModal}
+                loadWeek={loadWeek}
+                loadStats={loadStats}
+                players={players}
+                seasons={seasons}
+                weeks={weeks}
+              />
+            )}
+            {isPicksPage && (
+              <PicksPage 
+                pickGames={pickGames}
+                picks={picks}
+                handlePickChange={handlePickChange}
+                handleTotalChange={handleTotalChange}
+                handleLockToggle={handleLockToggle}
+                isGameLocked={isGameLocked}
+                isGameLive={isGameLive}
+                handleSubmit={handleSubmit}
+                loading={loading}
+                selectedWeek={selectedWeek}
+                message={message}
+                messageSuccess={message === 'Picks saved!'}
+                teams={teams}
+              />
+            )}
 
-          {isSummaryPage && (
-            <LeaderboardPage 
-              summary={summary}
-              seasonSummary={seasonSummary}
-              allTimeSummary={allTimeSummary}
-              selectedWeek={selectedWeek}
-              selectedSeason={selectedSeason}
-              seasons={seasons}
-              weeks={weeks}
-            />
-          )}
+            {isSummaryPage && (
+              <LeaderboardPage 
+                summary={summary}
+                seasonSummary={seasonSummary}
+                allTimeSummary={allTimeSummary}
+                selectedWeek={selectedWeek}
+                selectedSeason={selectedSeason}
+                seasons={seasons}
+                weeks={weeks}
+              />
+            )}
 
-          {isAwardsPage && (
-            <AwardsPage seasons={seasons} selectedPlayer={selectedPlayer} />
-          )}
+            {isAwardsPage && (
+              <AwardsPage seasons={seasons} selectedPlayer={selectedPlayer} />
+            )}
+          </Suspense>
 
         </main>
       </div>

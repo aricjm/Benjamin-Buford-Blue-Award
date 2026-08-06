@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
 const RULES = [
@@ -132,6 +132,35 @@ const getWeatherLabel = (code) => {
 const GameIntel = ({ game, picks }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [injuries, setInjuries] = useState(null);
+  const [loadingInjuries, setLoadingInjuries] = useState(false);
+
+  const fetchInjuries = async () => {
+    setLoadingInjuries(true);
+    try {
+      const res = await fetch('/api/injuries');
+      const data = await res.json();
+      
+      const matchTeam = (teamName, targetName) => {
+        if (!teamName || !targetName) return false;
+        const clean = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanTeam = clean(teamName);
+        const cleanTarget = clean(targetName);
+        return cleanTeam.includes(cleanTarget) || cleanTarget.includes(cleanTeam);
+      };
+
+      const filtered = data.filter(inj => 
+        matchTeam(inj.team_name, game.home_team) || 
+        matchTeam(inj.team_name, game.away_team)
+      );
+      setInjuries(filtered);
+    } catch (err) {
+      console.error('Failed to fetch injuries:', err);
+      setInjuries([]);
+    } finally {
+      setLoadingInjuries(false);
+    }
+  };
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -246,13 +275,46 @@ const GameIntel = ({ game, picks }) => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div>
-          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Win Streak</div>
-          <div style={{ fontSize: '0.85em' }}>{game.away_team}: --</div>
-          <div style={{ fontSize: '0.85em' }}>{game.home_team}: --</div>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>COBW</div>
+          <div style={{ fontSize: '0.85em' }}>{game.away_team}: {game.away_cobw || 'No'}</div>
+          <div style={{ fontSize: '0.85em' }}>{game.home_team}: {game.home_cobw || 'No'}</div>
         </div>
         <div>
-          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Injuries</div>
-          <div style={{ fontSize: '0.85em' }}>None reported</div>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>Injuries</div>
+          {injuries === null ? (
+            loadingInjuries ? (
+              <div style={{ fontSize: '0.8em', color: '#aaa' }}>Fetching...</div>
+            ) : (
+              <button
+                onClick={fetchInjuries}
+                style={{
+                  padding: '2px 6px',
+                  fontSize: '0.75em',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              >
+                Fetch Injuries
+              </button>
+            )
+          ) : injuries.length === 0 ? (
+            <div style={{ fontSize: '0.8em', color: '#888' }}>None reported</div>
+          ) : (
+            <div style={{ maxHeight: '80px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {injuries.map((inj, idx) => (
+                <div key={idx} style={{ fontSize: '0.75em', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px' }}>
+                  <span style={{ fontWeight: 'bold', color: '#fff' }}>{inj.player_name}</span> ({inj.status})
+                  <div style={{ fontSize: '0.9em', color: '#aaa' }}>{inj.team_name} - {inj.short_comment || inj.long_comment || 'No details'}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -476,13 +538,26 @@ const PicksPage = ({
             {filteredGames.map((game) => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
               const isHomeActive = picks[game.id]?.selectionTeam === game.home_team;
+              const isRivalry = !!game.rivalry_trophy;
 
               return (
                 <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}
-                   style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px', padding: '20px', alignItems: 'start' }}>
+                   style={{ 
+                     display: 'grid', 
+                     gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+                     gap: '20px', 
+                     padding: '20px', 
+                     alignItems: 'start',
+                     ...(isRivalry ? { backgroundColor: '#0b0b2b', borderColor: '#1F1F75' } : {})
+                   }}>
                 
                 {/* Left Column: Toggle and Game Info */}
                 <div className="pick-interface">
+                  {isRivalry && (
+                    <div style={{ textAlign: 'center', marginBottom: '10px', color: '#FFD700', fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      {game.rivalry_trophy}
+                    </div>
+                  )}
                   <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px', flexWrap: 'nowrap', width: '100%', maxWidth: '540px', gap: 0 }}>
                     <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
                       <strong>{game.away_team}</strong>
@@ -729,7 +804,12 @@ const PicksPage = ({
       </section>
 
       <div className="actions">
-        {message && !messageSuccess && <div className="message" style={{ color: '#EF3037', fontWeight: 'bold', padding: '8px', border: '1px solid #EF3037', borderRadius: '4px', backgroundColor: '#FADBD8', marginBottom: '16px', textAlign: 'center' }}>{message}</div>}
+        {message && !messageSuccess && (
+          <div className="message" style={{ color: '#EF3037', fontWeight: 'bold', marginBottom: '16px', textAlign: 'center', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <AlertTriangle size={18} />
+            {message}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'flex-end' }}>
           <button onClick={handleCopyPicks} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Copy size={16} />{copyButtonText}</button>

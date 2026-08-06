@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import * as Lucide from 'lucide-react';
+import { RefreshCw, Save, Edit2, X, Plus, Trash2, CheckCircle, AlertCircle, Clock, Search } from 'lucide-react';
 
 const formatResultLabel = (result) => {
   if (result === 'win') return 'Win';
@@ -690,11 +690,6 @@ const AdminPage = ({
           </table>
         )}
       </section>
-
-      <section className="panel" style={{ marginTop: '2rem' }}>
-        <h3>Lucide Icons Reference</h3>
-        <LucideIconsReference />
-      </section>
     </>
   );
 };
@@ -864,54 +859,6 @@ function HistoricalLockSection({ players, seasons }) {
         <p style={{ color: '#aaa', fontSize: '0.9em' }}>No picks found for {lockSeason} Week {lockWeek}.</p>
       )}
     </section>
-  );
-}
-
-function LucideIconsReference() {
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const iconNames = Object.keys(Lucide).filter(
-    (key) => /^[A-Z]/.test(key) && typeof Lucide[key] === 'object' && Lucide[key].displayName
-  );
-  const filteredIcons = iconNames.filter((name) => name.toLowerCase().includes(searchTerm.toLowerCase()));
-  return (
-    <>
-      <div style={{ marginBottom: '1rem' }}>
-        <input
-          type="text"
-          placeholder="Search icons..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', fontSize: '1rem' }}
-        />
-      </div>
-      <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #ddd', background: '#f9f9f9' }}>
-              <th style={{ padding: '0.75rem' }}>Icon</th>
-              <th style={{ padding: '0.75rem' }}>Name</th>
-              <th style={{ padding: '0.75rem' }}>Usage Code</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredIcons.map((name) => {
-              const IconComponent = Lucide[name];
-              if (!IconComponent || typeof IconComponent === 'string') return null;
-              return (
-                <tr key={name} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '0.75rem' }}><IconComponent size={24} /></td>
-                  <td style={{ padding: '0.75rem', fontWeight: 'bold' }}>{name}</td>
-                  <td style={{ padding: '0.75rem' }}><code>{`import { ${name} } from 'lucide-react';\n\n<${name} />`}</code></td>
-                </tr>
-              );
-            })}
-            {filteredIcons.length === 0 && (
-              <tr><td colSpan="3" style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>No icons found matching "{searchTerm}"</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
   );
 }
 

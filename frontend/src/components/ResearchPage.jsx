@@ -188,8 +188,8 @@ const CompareRow = ({ label, aVal, bVal, aText, bText, higherIsBetter = true }) 
 const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, selectedSeason }) => {
   const [confA, setConfA] = useState('');
   const [confB, setConfB] = useState('');
-  const [teamA, setTeamA] = useState('');
-  const [teamB, setTeamB] = useState('');
+  const [teamA, setTeamA] = useState('Iowa Hawkeyes');
+  const [teamB, setTeamB] = useState('Iowa State Cyclones');
   const [statsA, setStatsA] = useState(null);
   const [statsB, setStatsB] = useState(null);
 
@@ -202,13 +202,13 @@ const CompareTeamsPanel = ({ teams, conferenceList, timeRange, selectedWeek, sel
 
   // Auto-select first team when list changes
   useEffect(() => {
-    if (sortedTeamsA.length) {
+    if (sortedTeamsA.length && confA) {
       setTeamA(sortedTeamsA[0].school);
     }
   }, [confA]);
 
   useEffect(() => {
-    if (sortedTeamsB.length) {
+    if (sortedTeamsB.length && confB) {
       setTeamB(sortedTeamsB[0].school);
     }
   }, [confB]);
@@ -618,11 +618,13 @@ const ConferencePanel = ({ conferenceList }) => {
   );
 };
 
-const RankingsPanel = ({ timeRange, selectedWeek, selectedSeason }) => {
+const RankingsPanel = ({ timeRange, selectedWeek, selectedSeason, conferenceList }) => {
   const [entity, setEntity] = useState('school');
   const [stat, setStat] = useState('su');
   const [location, setLocation] = useState('both');
   const [role, setRole] = useState('either');
+  const [minGames, setMinGames] = useState(5);
+  const [conferenceFilter, setConferenceFilter] = useState('');
   const [rankings, setRankings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -632,10 +634,11 @@ const RankingsPanel = ({ timeRange, selectedWeek, selectedSeason }) => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ entity, stat, location, role });
+        const params = new URLSearchParams({ entity, stat, location, role, minGames });
         if (timeRange) params.set('range', timeRange);
         if (selectedWeek) params.set('week', selectedWeek);
         if (selectedSeason) params.set('season', selectedSeason);
+        if (conferenceFilter) params.set('conference', conferenceFilter);
         const res = await fetch(`/api/research/rankings?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -647,7 +650,7 @@ const RankingsPanel = ({ timeRange, selectedWeek, selectedSeason }) => {
       }
     };
     fetchRankings();
-  }, [entity, stat, location, role, timeRange, selectedWeek, selectedSeason]);
+  }, [entity, stat, location, role, minGames, conferenceFilter, timeRange, selectedWeek, selectedSeason]);
 
   const toggleStyle = (active) => ({
     padding: '6px 14px',
@@ -695,6 +698,34 @@ const RankingsPanel = ({ timeRange, selectedWeek, selectedSeason }) => {
             <button style={toggleStyle(role === 'underdog')} onClick={() => setRole('underdog')}>Underdog</button>
           </div>
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase' }}>Min Games</span>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input 
+              type="number" 
+              min="1" 
+              max="100" 
+              value={minGames} 
+              onChange={(e) => setMinGames(Number(e.target.value) || 1)}
+              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: '#1e1e2e', color: '#fff', width: '80px', fontSize: '13px' }}
+            />
+          </div>
+        </div>
+        {entity === 'school' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase' }}>Conference</span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <select 
+                value={conferenceFilter} 
+                onChange={(e) => setConferenceFilter(e.target.value)}
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: '#1e1e2e', color: '#fff', fontSize: '13px' }}
+              >
+                <option value="">All Conferences</option>
+                {conferenceList.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading && <div style={{ color: '#888', padding: '20px' }}>Loading rankings...</div>}
@@ -950,9 +981,9 @@ const CompareConferencesPanel = ({ teams, conferenceList }) => {
 
 
 const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSeason }) => {
-  const [activeTab, setActiveTab] = useState('single');
+  const [activeTab, setActiveTab] = useState('rankings');
   const [selectedConference, setSelectedConference] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedTeam, setSelectedTeam] = useState('Iowa Hawkeyes');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedStat, setSelectedStat] = useState('SU Overall');
@@ -964,7 +995,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
 
   // Auto-select first team when conference changes
   useEffect(() => {
-    if (sortedTeams.length) {
+    if (sortedTeams.length && selectedConference) {
       setSelectedTeam(sortedTeams[0].school);
     }
   }, [selectedConference]);
@@ -1031,6 +1062,9 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
 
       {/* Tab Bar */}
       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '24px' }}>
+        <button style={tabStyle('rankings')} onClick={() => setActiveTab('rankings')}>
+          <Hash size={14} /> Rankings
+        </button>
         <button style={tabStyle('single')} onClick={() => setActiveTab('single')}>
           <Library size={14} /> Single Team
         </button>
@@ -1042,9 +1076,6 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
         </button>
         <button style={tabStyle('compare-conf')} onClick={() => setActiveTab('compare-conf')}>
           <ArrowLeftRight size={14} /> Compare Conferences
-        </button>
-        <button style={tabStyle('rankings')} onClick={() => setActiveTab('rankings')}>
-          <Hash size={14} /> Rankings
         </button>
       </div>
 
@@ -1224,7 +1255,7 @@ const ResearchPage = ({ teams, conferenceList, seasons, selectedWeek, selectedSe
       )}
 
       {activeTab === 'rankings' && (
-        <RankingsPanel timeRange={researchTimeRange} selectedWeek={selectedWeek} selectedSeason={selectedSeason} />
+        <RankingsPanel timeRange={researchTimeRange} selectedWeek={selectedWeek} selectedSeason={selectedSeason} conferenceList={conferenceList} />
       )}
 
     </section>

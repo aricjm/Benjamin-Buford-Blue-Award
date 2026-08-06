@@ -843,94 +843,153 @@ const PlayerStatsPanel = ({ playerName, playerStats, selectedConference, setSele
   const maxPct = Math.max(...trendPcts, 0.75);
   const pctRange = maxPct - minPct || 0.1;
 
+  const statCardsConfig = [
+    {
+      label: "Record",
+      color: "#fff",
+      value: `${playerStats.record.wins}-${playerStats.record.losses}-${playerStats.record.pushes}`,
+      sub: `Win %: ${winPct(playerStats.record.wins, playerStats.record.losses)}`,
+      icon: <BarChart2 size={40} />,
+      onClick: () => setSelectedStat('Record'),
+      active: selectedStat === 'Record'
+    },
+    {
+      label: "Total Picks",
+      color: "#fff",
+      value: playerStats.record.total || 0,
+      sub: "Spread & O/U combined",
+      icon: <Hash size={40} />,
+      onClick: () => setSelectedStat('Total Picks'),
+      active: selectedStat === 'Total Picks'
+    },
+    {
+      label: "Lock Record",
+      color: "#f1c40f",
+      value: `${playerStats.lockRecord?.wins || 0}-${playerStats.lockRecord?.losses || 0}-${playerStats.lockRecord?.pushes || 0}`,
+      sub: `Win %: ${winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0)}`,
+      icon: <Star size={40} />,
+      onClick: () => setSelectedStat('Lock Record'),
+      active: selectedStat === 'Lock Record'
+    },
+    {
+      label: "Lock Win %",
+      color: "#f1c40f",
+      value: winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0),
+      sub: `${playerStats.lockRecord?.wins || 0}W - ${playerStats.lockRecord?.losses || 0}L`,
+      icon: <Crown size={40} />,
+      onClick: () => setSelectedStat('Lock Win %'),
+      active: selectedStat === 'Lock Win %'
+    },
+    {
+      label: playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Current Spread Streak',
+      value: playerStats.currentWinStreak > 0 ? playerStats.currentWinStreak : playerStats.currentLossStreak || 0,
+      color: playerStats.currentWinStreak > 0 ? '#4caf50' : playerStats.currentLossStreak > 0 ? '#f44336' : '#888',
+      sub: playerStats.currentWinStreak > 0 ? 'Consecutive wins' : playerStats.currentLossStreak > 0 ? 'Consecutive losses' : 'No active streak',
+      icon: <Flame size={40} />,
+      onClick: () => setSelectedStat(playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Active Spread Win Streak'),
+      active: selectedStat === 'Active Spread Win Streak' || selectedStat === 'Active Spread Loss Streak'
+    },
+    {
+      label: "Longest Spread Win Streak",
+      value: playerStats.longestWinStreak || 0,
+      color: "#ffcc00",
+      sub: "All-time best",
+      icon: <Trophy size={40} />,
+      onClick: () => setSelectedStat('Longest Spread Win Streak'),
+      active: selectedStat === 'Longest Spread Win Streak'
+    },
+    {
+      label: "Longest Spread Loss Streak",
+      value: playerStats.longestLossStreak || 0,
+      color: "#f44336",
+      sub: "All-time low",
+      icon: <TrendingDown size={40} />,
+      onClick: () => setSelectedStat('Longest Spread Loss Streak'),
+      active: selectedStat === 'Longest Spread Loss Streak'
+    },
+    {
+      label: playerStats.currentTotalWinStreak > 0 ? 'Active O/U Win Streak' : playerStats.currentTotalLossStreak > 0 ? 'Active O/U Loss Streak' : 'Current O/U Streak',
+      value: playerStats.currentTotalWinStreak > 0 ? playerStats.currentTotalWinStreak : playerStats.currentTotalLossStreak || 0,
+      color: playerStats.currentTotalWinStreak > 0 ? '#4caf50' : playerStats.currentTotalLossStreak > 0 ? '#f44336' : '#888',
+      sub: playerStats.currentTotalWinStreak > 0 ? 'Consecutive wins' : playerStats.currentTotalLossStreak > 0 ? 'Consecutive losses' : 'No active streak',
+      icon: <Flame size={40} />,
+      onClick: () => setSelectedStat(playerStats.currentTotalWinStreak > 0 ? 'Active O/U Win Streak' : playerStats.currentTotalLossStreak > 0 ? 'Active O/U Loss Streak' : 'Active O/U Win Streak'),
+      active: selectedStat === 'Active O/U Win Streak' || selectedStat === 'Active O/U Loss Streak'
+    },
+    {
+      label: "Longest O/U Win Streak",
+      value: playerStats.longestTotalWinStreak || 0,
+      color: "#ffcc00",
+      sub: "All-time best",
+      icon: <Trophy size={40} />,
+      onClick: () => setSelectedStat('Longest O/U Win Streak'),
+      active: selectedStat === 'Longest O/U Win Streak'
+    },
+    {
+      label: "Longest O/U Loss Streak",
+      value: playerStats.longestTotalLossStreak || 0,
+      color: "#f44336",
+      sub: "All-time low",
+      icon: <TrendingDown size={40} />,
+      onClick: () => setSelectedStat('Longest O/U Loss Streak'),
+      active: selectedStat === 'Longest O/U Loss Streak'
+    },
+    {
+      label: "Favorite Conference",
+      value: playerStats.favConf?.conference || 'None',
+      sub: `${playerStats.favConf?.count || 0} picks made`,
+      onClick: () => setSelectedStat('Favorite Conference'),
+      active: selectedStat === 'Favorite Conference'
+    },
+    {
+      label: "Best Conference",
+      value: playerStats.bestConf?.conference || 'None',
+      color: "#4caf50",
+      sub: `${playerStats.bestConf?.count || 0} wins here`,
+      onClick: () => setSelectedStat('Best Conference'),
+      active: selectedStat === 'Best Conference'
+    },
+    {
+      label: "Worst Conference",
+      value: playerStats.worstConf?.conference || 'None',
+      color: "#ff9800",
+      sub: `${playerStats.worstConf?.count || 0} losses here`,
+      onClick: () => setSelectedStat('Worst Conference'),
+      active: selectedStat === 'Worst Conference'
+    },
+    {
+      label: "Best Conference by Win %",
+      value: playerStats.bestConfByPct?.conference || 'None',
+      color: "#4caf50",
+      sub: playerStats.bestConfByPct ? `${playerStats.bestConfByPct.win_pct}% (${playerStats.bestConfByPct.wins}W-${playerStats.bestConfByPct.losses}L)` : 'Min. 5 picks',
+      onClick: () => setSelectedStat('Best Conference by Win %'),
+      active: selectedStat === 'Best Conference by Win %'
+    },
+    {
+      label: "Worst Conference by Win %",
+      value: playerStats.worstConfByPct?.conference || 'None',
+      color: "#f44336",
+      sub: playerStats.worstConfByPct ? `${playerStats.worstConfByPct.win_pct}% (${playerStats.worstConfByPct.wins}W-${playerStats.worstConfByPct.losses}L)` : 'Min. 5 picks',
+      onClick: () => setSelectedStat('Worst Conference by Win %'),
+      active: selectedStat === 'Worst Conference by Win %'
+    }
+  ];
+
   return (
     <div>
       <div className="manual-grid" style={{ marginTop: '16px' }}>
-        <StatCard label="Record" color="#fff"
-          value={`${playerStats.record.wins}-${playerStats.record.losses}-${playerStats.record.pushes}`}
-          sub={`Win %: ${winPct(playerStats.record.wins, playerStats.record.losses)}`}
-          icon={<BarChart2 size={40} />}
-          onClick={() => setSelectedStat('Record')}
-          active={selectedStat === 'Record'}
-        />
-        <StatCard label="Total Picks" color="#fff"
-          value={playerStats.record.total || 0}
-          sub="Spread & O/U combined"
-          icon={<Hash size={40} />}
-          onClick={() => setSelectedStat('Total Picks')}
-          active={selectedStat === 'Total Picks'}
-        />
-        <StatCard label="Lock Record" color="#f1c40f"
-          value={`${playerStats.lockRecord?.wins || 0}-${playerStats.lockRecord?.losses || 0}-${playerStats.lockRecord?.pushes || 0}`}
-          sub={`Win %: ${winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0)}`}
-          icon={<Star size={40} />}
-          onClick={() => setSelectedStat('Lock Record')}
-          active={selectedStat === 'Lock Record'}
-        />
-        <StatCard label="Lock Win %" color="#f1c40f"
-          value={winPct(playerStats.lockRecord?.wins || 0, playerStats.lockRecord?.losses || 0)}
-          sub={`${playerStats.lockRecord?.wins || 0}W - ${playerStats.lockRecord?.losses || 0}L`}
-          icon={<Crown size={40} />}
-          onClick={() => setSelectedStat('Lock Win %')}
-          active={selectedStat === 'Lock Win %'}
-        />
-        <StatCard
-          label={playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Current Spread Streak'}
-          value={playerStats.currentWinStreak > 0 ? playerStats.currentWinStreak : playerStats.currentLossStreak || 0}
-          color={playerStats.currentWinStreak > 0 ? '#4caf50' : playerStats.currentLossStreak > 0 ? '#f44336' : '#888'}
-          sub={playerStats.currentWinStreak > 0 ? 'Consecutive wins' : playerStats.currentLossStreak > 0 ? 'Consecutive losses' : 'No active streak'}
-          icon={<Flame size={40} />}
-          onClick={() => setSelectedStat(playerStats.currentWinStreak > 0 ? 'Active Spread Win Streak' : playerStats.currentLossStreak > 0 ? 'Active Spread Loss Streak' : 'Active Spread Win Streak')}
-          active={selectedStat === 'Active Spread Win Streak' || selectedStat === 'Active Spread Loss Streak'}
-        />
-        <StatCard label="Longest Spread Win Streak" value={playerStats.longestWinStreak || 0} color="#ffcc00" sub="All-time best" icon={<Trophy size={40} />}
-          onClick={() => setSelectedStat('Longest Spread Win Streak')}
-          active={selectedStat === 'Longest Spread Win Streak'}
-        />
-        <StatCard label="Longest Spread Loss Streak" value={playerStats.longestLossStreak || 0} color="#f44336" sub="All-time low" icon={<TrendingDown size={40} />}
-          onClick={() => setSelectedStat('Longest Spread Loss Streak')}
-          active={selectedStat === 'Longest Spread Loss Streak'}
-        />
-        
-        <StatCard
-          label={playerStats.currentTotalWinStreak > 0 ? 'Active O/U Win Streak' : playerStats.currentTotalLossStreak > 0 ? 'Active O/U Loss Streak' : 'Current O/U Streak'}
-          value={playerStats.currentTotalWinStreak > 0 ? playerStats.currentTotalWinStreak : playerStats.currentTotalLossStreak || 0}
-          color={playerStats.currentTotalWinStreak > 0 ? '#4caf50' : playerStats.currentTotalLossStreak > 0 ? '#f44336' : '#888'}
-          sub={playerStats.currentTotalWinStreak > 0 ? 'Consecutive wins' : playerStats.currentTotalLossStreak > 0 ? 'Consecutive losses' : 'No active streak'}
-          icon={<Flame size={40} />}
-          onClick={() => setSelectedStat(playerStats.currentTotalWinStreak > 0 ? 'Active O/U Win Streak' : playerStats.currentTotalLossStreak > 0 ? 'Active O/U Loss Streak' : 'Active O/U Win Streak')}
-          active={selectedStat === 'Active O/U Win Streak' || selectedStat === 'Active O/U Loss Streak'}
-        />
-        <StatCard label="Longest O/U Win Streak" value={playerStats.longestTotalWinStreak || 0} color="#ffcc00" sub="All-time best" icon={<Trophy size={40} />}
-          onClick={() => setSelectedStat('Longest O/U Win Streak')}
-          active={selectedStat === 'Longest O/U Win Streak'}
-        />
-        <StatCard label="Longest O/U Loss Streak" value={playerStats.longestTotalLossStreak || 0} color="#f44336" sub="All-time low" icon={<TrendingDown size={40} />}
-          onClick={() => setSelectedStat('Longest O/U Loss Streak')}
-          active={selectedStat === 'Longest O/U Loss Streak'}
-        />
-        <StatCard label="Favorite Conference" value={playerStats.favConf?.conference || 'None'} sub={`${playerStats.favConf?.count || 0} picks made`}
-          onClick={() => setSelectedStat('Favorite Conference')}
-          active={selectedStat === 'Favorite Conference'}
-        />
-        <StatCard label="Best Conference" value={playerStats.bestConf?.conference || 'None'} color="#4caf50" sub={`${playerStats.bestConf?.count || 0} wins here`}
-          onClick={() => setSelectedStat('Best Conference')}
-          active={selectedStat === 'Best Conference'}
-        />
-        <StatCard label="Worst Conference" value={playerStats.worstConf?.conference || 'None'} color="#ff9800" sub={`${playerStats.worstConf?.count || 0} losses here`}
-          onClick={() => setSelectedStat('Worst Conference')}
-          active={selectedStat === 'Worst Conference'}
-        />
-        <StatCard label="Best Conference by Win %" value={playerStats.bestConfByPct?.conference || 'None'} color="#4caf50"
-          sub={playerStats.bestConfByPct ? `${playerStats.bestConfByPct.win_pct}% (${playerStats.bestConfByPct.wins}W-${playerStats.bestConfByPct.losses}L)` : 'Min. 5 picks'}
-          onClick={() => setSelectedStat('Best Conference by Win %')}
-          active={selectedStat === 'Best Conference by Win %'}
-        />
-        <StatCard label="Worst Conference by Win %" value={playerStats.worstConfByPct?.conference || 'None'} color="#f44336"
-          sub={playerStats.worstConfByPct ? `${playerStats.worstConfByPct.win_pct}% (${playerStats.worstConfByPct.wins}W-${playerStats.worstConfByPct.losses}L)` : 'Min. 5 picks'}
-          onClick={() => setSelectedStat('Worst Conference by Win %')}
-          active={selectedStat === 'Worst Conference by Win %'}
-        />
+        {statCardsConfig.map((card, idx) => (
+          <StatCard
+            key={idx}
+            label={card.label}
+            color={card.color}
+            value={card.value}
+            sub={card.sub}
+            icon={card.icon}
+            onClick={card.onClick}
+            active={card.active}
+          />
+        ))}
         <AllyNemesisCards
           playerName={playerName}
           defaultAlly={playerStats.topWinSchool}
@@ -1364,8 +1423,20 @@ const StatsPage = ({
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   useEffect(() => {
+    if (!selectedPlayer) return;
+    if (activeTab === 'leaders' || activeTab === 'compare') return;
+    if (activeTab !== selectedPlayer) {
+      setActiveTab(selectedPlayer);
+    }
+  }, [selectedPlayer, activeTab]);
+
+  useEffect(() => {
     setLoadingLeaders(true);
-    fetch(`/api/stats/leaders?range=${statsTimeRange}&week=${selectedWeek}&season=${selectedSeason}`)
+    const query = new URLSearchParams();
+    if (statsTimeRange) query.set('range', statsTimeRange);
+    if (selectedWeek !== null && selectedWeek !== undefined) query.set('week', selectedWeek);
+    if (selectedSeason) query.set('season', selectedSeason);
+    fetch(`/api/stats/leaders?${query.toString()}`)
       .then(r => r.json())
       .then(data => setLeadersStats(data))
       .catch(() => {})
