@@ -23,7 +23,10 @@ const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 function App() {
   // UI Specific State
   const [selectedSeason, setSelectedSeason] = useState(DEFAULT_SEASON);
-  const [selectedPlayer, setSelectedPlayer] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState(() => {
+    const saved = localStorage.getItem('selectedPlayer');
+    return saved || 'Aric';
+  });
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedConference, setSelectedConference] = useState('');
   const [statsTimeRange, setStatsTimeRange] = useState('All-Time');
@@ -60,8 +63,25 @@ function App() {
   // Utility to auto-select first season/week on metadata load
   useEffect(() => {
     if (seasons.length && !selectedSeason) setSelectedSeason(seasons[0]);
-    if (weeks.length && selectedWeek === null) setSelectedWeek(weeks[0].week);
-    if (players.length && !selectedPlayer) setSelectedPlayer(players[0].name);
+    if (players.length && !selectedPlayer) setSelectedPlayer('Aric');
+    
+    if (weeks.length && selectedWeek === null) {
+      const now = new Date();
+      // Find the week where the current date falls between starts_on and ends_on
+      const currentActiveWeek = weeks.find(w => {
+        if (!w.starts_on || !w.ends_on) return false;
+        const start = new Date(w.starts_on);
+        const end = new Date(w.ends_on);
+        return now >= start && now <= end;
+      });
+      
+      if (currentActiveWeek) {
+        setSelectedWeek(currentActiveWeek.week);
+      } else {
+        // Fallback to the first week if no active week is found
+        setSelectedWeek(weeks[0].week);
+      }
+    }
   }, [seasons, weeks, players, selectedSeason, selectedWeek, selectedPlayer]);
 
   // Auto-adjust selectedWeek when the weeks list changes (e.g., when switching seasons)
@@ -341,17 +361,30 @@ function App() {
           <div className="player-modal">
             <div className="player-modal-content">
               <h2>Choose your player</h2>
-              <label>
-                Player
-                <select
-                  value={selectedPlayer}
-                  onChange={(e) => setSelectedPlayer(e.target.value)}
-                >
-                  {players.map((player) => (
-                    <option key={player.id} value={player.name}>{player.name}</option>
-                  ))}
-                </select>
-              </label>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', margin: '20px 0' }}>
+                {players.map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => {
+                      setSelectedPlayer(player.name);
+                      localStorage.setItem('selectedPlayer', player.name);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: selectedPlayer === player.name ? '2px solid #4d7cff' : '1px solid rgba(255,255,255,0.2)',
+                      backgroundColor: selectedPlayer === player.name ? 'rgba(77,124,255,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: selectedPlayer === player.name ? '#4d7cff' : '#fff',
+                      fontWeight: selectedPlayer === player.name ? 'bold' : 'normal',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      flex: 1
+                    }}
+                  >
+                    {player.name}
+                  </button>
+                ))}
+              </div>
               <button
                 className="continue-button"
                 onClick={() => setPlayerModalOpen(false)}

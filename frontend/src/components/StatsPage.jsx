@@ -1462,7 +1462,7 @@ const StatsPage = ({
           <Trophy size={14} /> Stat Leaders
         </button>
         {players.map(p => (
-          <button key={p.id} style={tabStyle(p.name)} onClick={() => { setActiveTab(p.name); setSelectedPlayer(p.name); }}>
+          <button key={p.id} style={tabStyle(p.name)} onClick={() => { setActiveTab(p.name); }}>
             <Users size={14} /> {p.name}
           </button>
         ))}
@@ -1511,8 +1511,8 @@ const StatsPage = ({
 
       {players.some(p => p.name === activeTab) && (
         <PlayerStatsPanel
-          playerName={selectedPlayer}
-          playerStats={playerStats}
+          playerName={activeTab}
+          playerStats={activeTab === selectedPlayer ? playerStats : leadersStats.find(s => s.player === activeTab)}
           selectedConference={selectedConference}
           setSelectedConference={setSelectedConference}
           conferenceList={conferenceList}
