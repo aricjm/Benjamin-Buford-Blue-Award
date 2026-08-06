@@ -1422,13 +1422,13 @@ const StatsPage = ({
   const [leadersStats, setLeadersStats] = useState([]);
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
+  // Only sync activeTab to selectedPlayer when selectedPlayer actually changes
+  // (e.g. when the user changes their global "Pick as" dropdown)
   useEffect(() => {
-    if (!selectedPlayer) return;
-    if (activeTab === 'leaders' || activeTab === 'compare') return;
-    if (activeTab !== selectedPlayer) {
+    if (selectedPlayer) {
       setActiveTab(selectedPlayer);
     }
-  }, [selectedPlayer, activeTab]);
+  }, [selectedPlayer]);
 
   useEffect(() => {
     setLoadingLeaders(true);
