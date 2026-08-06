@@ -5,9 +5,18 @@ body {
   color: #f5f5f5;
 }
 
+.trophy-scaler-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 320px;
+  margin: 0 auto;
+  overflow: visible;
+}
+
 .trophy-container {
   width: 320px;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .main-trophy-section {
@@ -16,9 +25,12 @@ body {
 }
 
 @media (max-width: 360px) {
+  .trophy-scaler-wrapper {
+    width: 218px;
+  }
   .trophy-container {
     transform: scale(0.68);
-    margin-bottom: -90px !important;
+    margin-bottom: -130px !important;
   }
   .main-trophy-section {
     padding: 20px 10px !important;
@@ -26,9 +38,12 @@ body {
 }
 
 @media (min-width: 361px) and (max-width: 400px) {
+  .trophy-scaler-wrapper {
+    width: 244px;
+  }
   .trophy-container {
     transform: scale(0.76);
-    margin-bottom: -65px !important;
+    margin-bottom: -95px !important;
   }
   .main-trophy-section {
     padding: 30px 15px !important;
@@ -36,9 +51,12 @@ body {
 }
 
 @media (min-width: 401px) and (max-width: 480px) {
+  .trophy-scaler-wrapper {
+    width: 272px;
+  }
   .trophy-container {
     transform: scale(0.85);
-    margin-bottom: -40px !important;
+    margin-bottom: -60px !important;
   }
   .main-trophy-section {
     padding: 30px 15px !important;

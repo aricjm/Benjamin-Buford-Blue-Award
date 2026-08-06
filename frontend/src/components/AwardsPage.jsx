@@ -189,13 +189,6 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '2.5rem', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-          <Award size={36} color="#ffc107" /> The Awards Room
-        </h1>
-        <p style={{ color: '#888', fontSize: '1.1rem' }}>Honoring greatness, fading disasters, and celebrating the gridiron grind.</p>
-      </div>
-
       {/* Main Trophy Section */}
       <div className="main-trophy-section" style={{ 
         background: 'rgba(255,255,255,0.02)', 
@@ -211,14 +204,15 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
         width: '100%'
       }}>
         {/* Trophy Visual */}
-        <div className="trophy-container" style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          position: 'relative',
-          margin: '20px auto',
-          transformOrigin: 'top center',
-        }}>
+        <div className="trophy-scaler-wrapper">
+          <div className="trophy-container" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative',
+            margin: '20px auto',
+            transformOrigin: 'top center',
+          }}>
           {/* Left Handle */}
           <div style={{
             position: 'absolute',
@@ -388,6 +382,7 @@ const AwardsPage = ({ seasons = [], selectedPlayer }) => {
               {allTimeChamps.length === 0 && <div>No champions yet</div>}
             </div>
           </div>
+        </div>
         </div>
 
         {/* Link to see the real thing */}
