@@ -10,12 +10,31 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
 
-app.use(cors());
+// Configure CORS
+const corsOptions = {
+  origin: process.env.VERCEL === '1' 
+    ? [process.env.FRONTEND_URL || 'https://my-bbba-app.vercel.app'] // Replace with your actual Vercel URL
+    : '*', // Allow all in local development
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
 app.use(compression()); // Enable Gzip compression for all responses
 app.use(express.json());
 
 function getSeason(req) {
   return req.query.season || DEFAULT_SEASON;
+}
+
+// Simple Admin Authentication Middleware
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'bbba-admin-2026';
+
+function requireAdmin(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer ${ADMIN_PASSWORD}`) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or missing admin token' });
+  }
+  next();
 }
 
 app.get('/api/health', (req, res) => {
@@ -101,7 +120,7 @@ app.post('/api/week/:week/picks', async (req, res) => {
   }
 });
 
-app.post('/api/week/:week/games', async (req, res) => {
+app.post('/api/week/:week/games', requireAdmin, async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
@@ -139,7 +158,7 @@ app.post('/api/week/:week/games', async (req, res) => {
   }
 });
 
-app.post('/api/week/:week/sync', async (req, res) => {
+app.post('/api/week/:week/sync', requireAdmin, async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
@@ -151,7 +170,7 @@ app.post('/api/week/:week/sync', async (req, res) => {
   }
 });
 
-app.post('/api/sync-all', async (req, res) => {
+app.post('/api/sync-all', requireAdmin, async (req, res) => {
   try {
     const oddsGames = await api.fetchSeasonGames();
     const savedCount = await db.saveGamesForSeason(oddsGames);
@@ -164,7 +183,7 @@ app.post('/api/sync-all', async (req, res) => {
 });
 
 // Import historical seasons from ESPN API (regular season weeks 1-15)
-app.post('/api/import-historical', async (req, res) => {
+app.post('/api/import-historical', requireAdmin, async (req, res) => {
   const { seasons = [2022, 2023, 2024, 2025], weeks = Array.from({ length: 15 }, (_, i) => i + 1) } = req.body;
 
   const results = [];
@@ -238,7 +257,7 @@ app.get('/api/week/:week/picks', async (req, res) => {
   }
 });
 
-app.put('/api/game/:id', async (req, res) => {
+app.put('/api/game/:id', requireAdmin, async (req, res) => {
   try {
     const gameId = Number(req.params.id);
     const { spread_home, spread_away, home_price, away_price } = req.body;
@@ -254,7 +273,7 @@ app.put('/api/game/:id', async (req, res) => {
   }
 });
 
-app.put('/api/pick/:id', async (req, res) => {
+app.put('/api/pick/:id', requireAdmin, async (req, res) => {
   try {
     const pickId = Number(req.params.id);
     const { selection_team, selection_side, spread } = req.body;
@@ -269,7 +288,7 @@ app.put('/api/pick/:id', async (req, res) => {
   }
 });
 
-app.put('/api/picks/lock', async (req, res) => {
+app.put('/api/picks/lock', requireAdmin, async (req, res) => {
   try {
     const { player, week, season, gameId, lockType } = req.body;
     if (!player || !week || !season || !gameId || !lockType) {
@@ -291,7 +310,7 @@ app.get('/api/mappings', async (req, res) => {
   }
 });
 
-app.post('/api/mappings', async (req, res) => {
+app.post('/api/mappings', requireAdmin, async (req, res) => {
   try {
     const { api_name, team_id } = req.body;
     if (!api_name || !team_id) {
@@ -304,7 +323,7 @@ app.post('/api/mappings', async (req, res) => {
   }
 });
 
-app.delete('/api/mapping/:id', async (req, res) => {
+app.delete('/api/mapping/:id', requireAdmin, async (req, res) => {
   try {
     await db.deleteTeamMapping(Number(req.params.id));
     res.json({ success: true });
@@ -496,7 +515,7 @@ app.post('/api/queue/picks', async (req, res) => {
 });
 
 // Admin: list queued picks
-app.get('/api/queue/picks', async (req, res) => {
+app.get('/api/queue/picks', requireAdmin, async (req, res) => {
   try {
     if (!fs.existsSync(PENDING_PATH)) return res.json([]);
     const lines = fs.readFileSync(PENDING_PATH, 'utf8').split('\n').filter(Boolean);
@@ -510,7 +529,7 @@ app.get('/api/queue/picks', async (req, res) => {
 });
 
 // Admin: trigger immediate flush attempt (best-effort)
-app.post('/api/queue/flush', async (req, res) => {
+app.post('/api/queue/flush', requireAdmin, async (req, res) => {
   try {
     // Run the flusher script programmatically
     const flusher = require('./flush_pending_picks');
@@ -522,7 +541,7 @@ app.post('/api/queue/flush', async (req, res) => {
 });
 
 // Retry a single queued item by id
-app.post('/api/queue/retry/:id', async (req, res) => {
+app.post('/api/queue/retry/:id', requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
     const flusher = require('./flush_pending_picks');
@@ -535,7 +554,7 @@ app.post('/api/queue/retry/:id', async (req, res) => {
 });
 
 // Delete a queued item (admin) by id
-app.delete('/api/queue/picks/:id', async (req, res) => {
+app.delete('/api/queue/picks/:id', requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
     const fs = require('fs');
@@ -561,7 +580,7 @@ app.delete('/api/queue/picks/:id', async (req, res) => {
 });
 
 // Retry a single pick within a queued item
-app.post('/api/queue/retry/:id/pick/:index', async (req, res) => {
+app.post('/api/queue/retry/:id/pick/:index', requireAdmin, async (req, res) => {
   try {
     const { id, index } = req.params;
     const flusher = require('./flush_pending_picks');
@@ -569,6 +588,81 @@ app.post('/api/queue/retry/:id/pick/:index', async (req, res) => {
     if (result.error === 'not-found' || result.error === 'no-file') return res.status(404).json({ error: 'not found' });
     res.json(result);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Vercel Cron Job Endpoints ---
+
+// Middleware to verify Vercel Cron requests
+function requireCronAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (!cronSecret) {
+    console.warn('CRON_SECRET is not set in environment variables.');
+    // If no secret is set, we allow it for local testing, but warn.
+    // In production, you MUST set CRON_SECRET.
+    return next();
+  }
+
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid CRON_SECRET' });
+  }
+  next();
+}
+
+app.get('/api/cron/sync-daily', requireCronAuth, async (req, res) => {
+  try {
+    console.log('[cron] syncing season games, scores, spreads, and over/unders');
+    const games = await api.fetchSeasonGames();
+    const savedCount = await db.saveGamesForSeason(games);
+    const scoreUpdates = await api.fetchSeasonScores();
+    const updatedCount = await db.updateScoresFromSeason(scoreUpdates);
+    res.json({ success: true, savedCount, updatedCount });
+  } catch (error) {
+    console.error('[cron] daily sync failed', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/cron/sync-live', requireCronAuth, async (req, res) => {
+  try {
+    const activeWeeks = await db.getInProgressWeeks();
+    let updatedCount = 0;
+    
+    if (activeWeeks.length > 0) {
+      console.log(`[cron] found ${activeWeeks.length} active week(s). Syncing live scores...`);
+      for (const { season, week } of activeWeeks) {
+        const scoreUpdates = await api.fetchWeekScores(week, season);
+        updatedCount += await db.updateScoresFromSeason(scoreUpdates);
+      }
+    }
+    
+    // Attempt to flush pending picks
+    let flushResult = { processed: 0 };
+    try { 
+      const flusher = require('./flush_pending_picks'); 
+      flushResult = await flusher.flushOnce(db); 
+    } catch(e) { 
+      console.error('[cron] Pending flush error', e.message); 
+    }
+    
+    res.json({ success: true, updatedCount, flushed: flushResult.processed });
+  } catch (error) {
+    console.error('[cron] live sync failed', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/cron/sync-odds', requireCronAuth, async (req, res) => {
+  try {
+    console.log('[cron] syncing odds and lines');
+    const games = await api.fetchSeasonGames();
+    const savedCount = await db.saveGamesForSeason(games);
+    res.json({ success: true, savedCount });
+  } catch (error) {
+    console.error('[cron] odds sync failed', error.message);
     res.status(500).json({ error: error.message });
   }
 });

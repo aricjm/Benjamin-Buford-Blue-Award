@@ -51,6 +51,18 @@ const AdminPage = ({
   });
   const [mappings, setMappings] = useState([]);
   const [mappingInput, setMappingInput] = useState({ api_name: '', team_id: '' });
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || '');
+
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${adminToken}`
+  });
+
+  const handleAdminTokenChange = (e) => {
+    const token = e.target.value;
+    setAdminToken(token);
+    localStorage.setItem('adminToken', token);
+  };
 
   const handleManualGameChange = (field, value) => {
     if (['spread_home', 'spread_away', 'home_price', 'away_price'].includes(field)) {
@@ -110,7 +122,7 @@ const AdminPage = ({
     try {
       const res = await fetch('/api/mappings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ api_name: mappingInput.api_name, team_id: Number(mappingInput.team_id) })
       });
       if (res.ok) {
@@ -131,7 +143,10 @@ const AdminPage = ({
   const handleDeleteMapping = async (id) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/mapping/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/mapping/${id}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         setMessage('Mapping deleted.');
         loadMappings();
@@ -177,7 +192,7 @@ const AdminPage = ({
   const loadQueue = async () => {
     setLoadingQueue(true);
     try {
-      const res = await fetch('/api/queue/picks');
+      const res = await fetch('/api/queue/picks', { headers: getAuthHeaders() });
       const data = await res.json();
       setQueuedItems(data || []);
     } catch (e) {
@@ -190,7 +205,10 @@ const AdminPage = ({
   const handleRetryQueued = async (id) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}`, { method: 'POST' });
+      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}`, { 
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       if (res.ok) {
         setMessage('Retry attempted.');
@@ -207,7 +225,10 @@ const AdminPage = ({
   const handleRetrySinglePick = async (id, pickIndex) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}/pick/${pickIndex}`, { method: 'POST' });
+      const res = await fetch(`/api/queue/retry/${encodeURIComponent(id)}/pick/${pickIndex}`, { 
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       if (res.ok) {
         setMessage('Pick retry attempted.');
@@ -225,7 +246,10 @@ const AdminPage = ({
     if (!window.confirm('Delete queued item? This cannot be undone.')) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/queue/picks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/queue/picks/${encodeURIComponent(id)}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         setMessage('Queued item deleted.');
         await loadQueue();
@@ -239,7 +263,10 @@ const AdminPage = ({
   const handleFlushAll = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/queue/flush', { method: 'POST' });
+      const res = await fetch('/api/queue/flush', { 
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       if (res.ok) {
         setMessage(`Flush complete: ${data.processed || 0} processed.`);
@@ -264,7 +291,7 @@ const AdminPage = ({
     try {
       const response = await fetch(`/api/game/${gameId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           spread_home: editingGameData.spread_home ? Number(editingGameData.spread_home) : null,
           spread_away: editingGameData.spread_away ? Number(editingGameData.spread_away) : null,
@@ -291,7 +318,10 @@ const AdminPage = ({
     setLoading(true);
     setMessage('Syncing scores and odds from API...');
     try {
-      const response = await fetch('/api/sync-all', { method: 'POST' });
+      const response = await fetch('/api/sync-all', { 
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (response.ok) {
         const now = new Date();
@@ -320,7 +350,7 @@ const AdminPage = ({
     try {
       const response = await fetch('/api/import-historical', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ seasons: [2022, 2023, 2024, 2025] })
       });
       const data = await response.json();
@@ -348,7 +378,7 @@ const AdminPage = ({
     try {
       const response = await fetch(`/api/pick/${pickId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           selection_team: editingPickData.selection_team,
           selection_side: editingPickData.selection_side,
@@ -372,7 +402,20 @@ const AdminPage = ({
 
   return (
     <>
-      <HistoricalLockSection players={players} seasons={seasons} />
+      <section className="panel admin-panel" style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
+          <input 
+            type="password" 
+            value={adminToken} 
+            onChange={handleAdminTokenChange} 
+            placeholder="Enter admin token to enable actions"
+            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #444', background: '#111', color: '#fff', width: '300px' }}
+          />
+        </div>
+      </section>
+
+      <HistoricalLockSection players={players} seasons={seasons} adminToken={adminToken} />
       <section className="panel admin-panel">
         <h2>Admin: Update Game Lines</h2>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
@@ -869,7 +912,7 @@ const AdminPage = ({
   );
 };
 
-function HistoricalLockSection({ players, seasons }) {
+function HistoricalLockSection({ players, seasons, adminToken }) {
   const [lockSeason, setLockSeason] = useState('');
   const [lockWeek, setLockWeek] = useState('');
   const [availableWeeks, setAvailableWeeks] = useState([]);
@@ -925,7 +968,10 @@ function HistoricalLockSection({ players, seasons }) {
       await Promise.all(entries.map(([player, lock]) =>
         fetch('/api/picks/lock', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
           body: JSON.stringify({ player, week: lockWeek, season: lockSeason, gameId: lock.gameId, lockType: lock.lockType })
         }).then(r => r.json())
       ));

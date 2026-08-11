@@ -11,7 +11,7 @@ const RULES = [
 ];
 
 const SITE_DETAILS = [
-  'Live scores update every 5 minutes during active games.',
+  'Live scores update every 15 minutes during active games.',
   'Game odds and lines update every 4 hours.',
   'Weather forecasts update daily and show conditions at kickoff.',
   'Injury reports are fetched live when requested.',

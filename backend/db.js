@@ -1,4 +1,6 @@
+const path = require('path');
 const { Pool } = require('pg');
+const Database = require('better-sqlite3');
 const NodeCache = require('node-cache');
 const {
   buildSeasonWeeks,
@@ -8,10 +10,73 @@ const {
   getSeasonFromDate
 } = require('./utils');
 
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: { rejectUnauthorized: false }
-});
+const dialect = process.env.POSTGRES_URL ? 'postgres' : 'sqlite';
+const dbFile = process.env.DB_FILE || path.join(__dirname, 'data', 'bets.db');
+const idColumn = dialect === 'postgres' ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+
+function convertSqlPlaceholders(sql, params = []) {
+  let convertedSql = sql;
+  const expandedParams = [];
+
+  convertedSql = convertedSql.replace(/= ANY\(\$([0-9]+)\)/g, (match, idx) => {
+    const param = params[Number(idx) - 1];
+    if (!Array.isArray(param) || param.length === 0) {
+      return '= (?)';
+    }
+    return `IN (${param.map(() => '?').join(', ')})`;
+  });
+
+  convertedSql = convertedSql.replace(/\$([0-9]+)/g, (match, idx) => {
+    const param = params[Number(idx) - 1];
+    if (Array.isArray(param)) {
+      return param.map(() => '?').join(', ');
+    }
+    return '?';
+  });
+
+  for (const param of params) {
+    if (Array.isArray(param)) {
+      expandedParams.push(...param);
+    } else {
+      expandedParams.push(param);
+    }
+  }
+
+  return [convertedSql, expandedParams];
+}
+
+function nowMinus30Days() {
+  return dialect === 'postgres'
+    ? "NOW() - INTERVAL '30 days'"
+    : "datetime('now', '-30 days')";
+}
+
+const pool = dialect === 'postgres'
+  ? new Pool({
+      connectionString: process.env.POSTGRES_URL,
+      ssl: { rejectUnauthorized: false }
+    })
+  : (() => {
+      const sqliteDb = new Database(dbFile);
+      return {
+        async connect() {
+          return { release: () => {} };
+        },
+        async query(sql, params = []) {
+          const [convertedSql, convertedParams] = convertSqlPlaceholders(sql, params);
+          const stmt = sqliteDb.prepare(convertedSql);
+          const isSelect = /^\s*SELECT/i.test(convertedSql) || /\bRETURNING\b/i.test(convertedSql);
+          if (isSelect) {
+            return { rows: stmt.all(convertedParams) };
+          }
+          const info = stmt.run(convertedParams);
+          return { rows: [], lastInsertRowid: info.lastInsertRowid, changes: info.changes };
+        },
+        async end() {
+          sqliteDb.close();
+        }
+      };
+    })();
 
 // Initialize cache with standard TTL of 1 hour
 const cache = new NodeCache({ stdTTL: 3600 });
@@ -48,7 +113,7 @@ async function init() {
   await ensureConnected();
   await pool.query(`
     CREATE TABLE IF NOT EXISTS players (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       name TEXT NOT NULL UNIQUE
     )
   `);
@@ -57,7 +122,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       school TEXT NOT NULL UNIQUE,
       nickname TEXT,
       conference TEXT,
@@ -71,7 +136,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS weeks (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       week INTEGER,
       season TEXT,
       label TEXT,
@@ -85,7 +150,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS games (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       api_game_id TEXT UNIQUE,
       week INTEGER,
       season TEXT,
@@ -114,7 +179,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS picks (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       week INTEGER,
       player TEXT,
       game_id INTEGER,
@@ -152,7 +217,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS team_mappings (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       api_name TEXT NOT NULL UNIQUE,
       team_id INTEGER NOT NULL
     )
@@ -160,7 +225,7 @@ async function init() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS rivalries (
-      id SERIAL PRIMARY KEY,
+      id ${idColumn},
       team1 TEXT NOT NULL,
       team2 TEXT NOT NULL,
       trophy_name TEXT,
