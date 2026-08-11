@@ -95,13 +95,21 @@ async function ensureConnected() {
 }
 
 async function addColumnIfMissing(table, column, definition, defaultValue) {
-  const { rows } = await pool.query(`
-    SELECT column_name 
-    FROM information_schema.columns 
-    WHERE table_name = $1 AND column_name = $2
-  `, [table, column]);
+  let columnExists = false;
 
-  if (rows.length === 0) {
+  if (dialect === 'postgres') {
+    const { rows } = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = $1 AND column_name = $2
+    `, [table, column]);
+    columnExists = rows.length > 0;
+  } else {
+    const { rows } = await pool.query(`PRAGMA table_info(${table})`);
+    columnExists = rows.some(row => row.name === column);
+  }
+
+  if (!columnExists) {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     if (defaultValue !== undefined) {
       await pool.query(`UPDATE ${table} SET ${column} = $1 WHERE ${column} IS NULL`, [defaultValue]);
@@ -2659,8 +2667,13 @@ async function getInProgressWeeks() {
   return rows;
 }
 
+function getDialect() {
+  return dialect;
+}
+
 module.exports = {
   init,
+  getDialect,
   seedPlayers,
   seedTeams,
   seedWeeks,

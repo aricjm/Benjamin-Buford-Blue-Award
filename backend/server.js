@@ -38,7 +38,7 @@ function requireAdmin(req, res, next) {
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', dialect: db.getDialect() });
 });
 
 app.get('/api/players', async (req, res) => {

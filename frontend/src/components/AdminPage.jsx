@@ -52,6 +52,7 @@ const AdminPage = ({
   const [mappings, setMappings] = useState([]);
   const [mappingInput, setMappingInput] = useState({ api_name: '', team_id: '' });
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || '');
+  const [dbDialect, setDbDialect] = useState('');
 
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
@@ -162,17 +163,20 @@ const AdminPage = ({
     if (selectedWeek === null || !selectedSeason) return;
     setLoading(true);
     try {
-      const [gamesRes, picksRes, mappingsRes] = await Promise.all([
+      const [gamesRes, picksRes, mappingsRes, healthRes] = await Promise.all([
         fetch(`/api/week/${selectedWeek}/games?season=${selectedSeason}`),
         fetch(`/api/week/${selectedWeek}/picks?season=${selectedSeason}`),
-        fetch('/api/mappings')
+        fetch('/api/mappings'),
+        fetch('/api/health')
       ]);
       const gamesData = await gamesRes.json();
       const picksData = await picksRes.json();
       const mappingsData = await mappingsRes.json();
+      const healthData = await healthRes.json();
       setAdminGames(gamesData.games || []);
       setAdminPicks(picksData || []);
       setMappings(mappingsData || []);
+      setDbDialect(healthData.dialect || 'unknown');
     } catch (error) {
       setMessage('Unable to load admin data.');
     } finally {
@@ -403,15 +407,39 @@ const AdminPage = ({
   return (
     <>
       <section className="panel admin-panel" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-          <input 
-            type="password" 
-            value={adminToken} 
-            onChange={handleAdminTokenChange} 
-            placeholder="Enter admin token to enable actions"
-            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #444', background: '#111', color: '#fff', width: '300px' }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
+            <input 
+              type="password" 
+              value={adminToken} 
+              onChange={handleAdminTokenChange} 
+              placeholder="Enter admin token to enable actions"
+              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #444', background: '#111', color: '#fff', width: '300px' }}
+            />
+          </div>
+          {dbDialect && (
+            <div style={{ 
+              padding: '6px 12px', 
+              borderRadius: '4px', 
+              background: dbDialect === 'postgres' ? 'rgba(51, 103, 145, 0.2)' : 'rgba(15, 128, 204, 0.2)',
+              border: `1px solid ${dbDialect === 'postgres' ? '#336791' : '#0f80cc'}`,
+              color: dbDialect === 'postgres' ? '#61a5d8' : '#4db8ff',
+              fontSize: '0.9em',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <div style={{ 
+                width: '8px', 
+                height: '8px', 
+                borderRadius: '50%', 
+                background: dbDialect === 'postgres' ? '#61a5d8' : '#4db8ff' 
+              }}></div>
+              Database: {dbDialect.toUpperCase()}
+            </div>
+          )}
         </div>
       </section>
 
