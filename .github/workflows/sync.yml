@@ -1,0 +1,26 @@
+name: Scheduled Syncs
+
+on:
+  schedule:
+    # Run every 5 minutes for live scores
+    - cron: '*/5 * * * *'
+    # Run every 4 hours for odds (at minute 0)
+    - cron: '0 */4 * * *'
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Live Sync
+        if: github.event.schedule == '*/5 * * * *'
+        run: curl -X POST https://benjamin-burford-blue-award.vercel.app/api/cron/sync-live
+
+      - name: Trigger Odds Sync
+        if: github.event.schedule == '0 */4 * * *'
+        run: curl -X POST https://benjamin-burford-blue-award.vercel.app/api/cron/sync-odds
+
+      - name: Trigger Daily Sync
+        if: github.event.schedule == '0 0 * * *'
+        run: curl -X POST https://benjamin-burford-blue-award.vercel.app/api/cron/sync-daily
