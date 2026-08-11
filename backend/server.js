@@ -37,6 +37,26 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Ensure database is initialized before handling requests on Vercel
+let dbInitPromise = null;
+app.use(async (req, res, next) => {
+  if (process.env.VERCEL === '1') {
+    if (!dbInitPromise) {
+      dbInitPromise = db.init().catch(err => {
+        console.error('Database initialization failed', err);
+        dbInitPromise = null; // Allow retry on next request
+        throw err;
+      });
+    }
+    try {
+      await dbInitPromise;
+    } catch (err) {
+      return res.status(500).json({ error: 'Database initialization failed' });
+    }
+  }
+  next();
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', dialect: db.getDialect() });
 });
@@ -683,9 +703,6 @@ app.get('/api/cron/sync-odds', requireCronAuth, async (req, res) => {
       console.error('Failed to start backend', error);
       process.exit(1);
     }
-  } else {
-    // On Vercel, we only ensure the database tables exist.
-    db.init().catch(err => console.error('Database initialization failed', err));
   }
 })();
 
