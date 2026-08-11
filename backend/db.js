@@ -1641,15 +1641,14 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
       COALESCE(SUM(CASE WHEN p.selection_team != t.school THEN 1 ELSE 0 END), 0) as fade_total,
 
       -- Average Spread Taken
-      ROUND(CAST(COALESCE(AVG(p.spread), 0) AS FLOAT), 1) as avg_spread,
+      ROUND(CAST(COALESCE(AVG(p.spread), 0) AS NUMERIC), 1) as avg_spread,
 
       -- Net Units Won (flat 1-unit bet with -110 vig)
       ROUND(
         CAST(
           COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1.0 ELSE 0 END), 0) - 
           COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1.1 ELSE 0 END), 0)
-         AS FLOAT),
-        2
+        AS NUMERIC),
       ) as net_units,
 
       -- Involved record (betting FOR or AGAINST the team)
@@ -1713,7 +1712,7 @@ async function getPlayerConferenceStats(player) {
            SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
            SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END) as pushes,
            ROUND(
-             CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) /
+             CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) /
              NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
              2
            ) as win_pct
@@ -2353,7 +2352,7 @@ async function getResearchRankings(entity, stat, location, role, minGames, confe
       COALESCE(SUM(${pushExpr}), 0) as pushes,
       COUNT(*) as total,
       ROUND(
-        CAST(COALESCE(SUM(${winExpr}), 0) AS FLOAT) / 
+        CAST(COALESCE(SUM(${winExpr}), 0) AS NUMERIC) / 
         NULLIF(COALESCE(SUM(${winExpr}), 0) + COALESCE(SUM(${lossExpr}), 0), 0) * 100,
         2
       ) as win_pct
@@ -2456,7 +2455,7 @@ async function getSeasonAwards(season) {
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
            SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) as pushes,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.result IN ('win', 'loss')
@@ -2468,7 +2467,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.is_lock = 1 AND p.result IN ('win', 'loss')
@@ -2480,7 +2479,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END) as under_picks,
            COUNT(*) as total_picks,
-           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  COUNT(*) * 100, 2) as pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
@@ -2492,7 +2491,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_side = 'away' AND p.result IN ('win', 'loss')
@@ -2504,7 +2503,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END) as over_picks,
            COUNT(*) as total_picks,
-           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  COUNT(*) * 100, 2) as pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
@@ -2516,7 +2515,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) > 0 AND p.result IN ('win', 'loss')
@@ -2528,7 +2527,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_side = 'home' AND p.result IN ('win', 'loss')
@@ -2540,7 +2539,7 @@ async function getSeasonAwards(season) {
     SELECT player, 
            SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) < 0 AND p.result IN ('win', 'loss')
@@ -2568,7 +2567,7 @@ async function getSeasonAwards(season) {
     SELECT p.player, pl.full_name,
            SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
            SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
-           ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+           ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                  NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p 
     JOIN games g ON p.game_id = g.id
@@ -2583,10 +2582,10 @@ async function getSeasonAwards(season) {
       SELECT g.season, p.player, pl.full_name,
              SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
              SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
-             ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+             ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                    NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct,
              ROW_NUMBER() OVER (PARTITION BY g.season ORDER BY 
-               ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
+               ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS NUMERIC) / 
                      NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) DESC,
                SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) DESC
              ) as rank
