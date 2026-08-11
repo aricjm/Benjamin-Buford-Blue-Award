@@ -41,12 +41,10 @@ function requireAdmin(req, res, next) {
 let dbInitPromise = null;
 app.use(async (req, res, next) => {
   if (process.env.VERCEL === '1') {
+    // Skip db.init() on Vercel to avoid permission issues with information_schema
+    // We assume the schema is already set up via local init_db.js
     if (!dbInitPromise) {
-      dbInitPromise = db.init().catch(err => {
-        console.error('Database initialization failed', err);
-        dbInitPromise = null; // Allow retry on next request
-        throw err;
-      });
+      dbInitPromise = Promise.resolve();
     }
     try {
       await dbInitPromise;
