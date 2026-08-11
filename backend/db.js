@@ -632,7 +632,7 @@ async function getWeekGames(week, season) {
     if (cached) return cached;
 
     const { rows } = await pool.query(`
-      SELECT DISTINCT ON (g.id)
+      SELECT 
         g.*, 
         ht.logo as home_logo, at.logo as away_logo,
         ht.school_primary_color as home_color, at.school_primary_color as away_color,
@@ -661,10 +661,11 @@ async function getWeekGames(week, season) {
         (g.home_team LIKE r.team1 || '%' AND g.away_team LIKE r.team2 || '%') OR 
         (g.home_team LIKE r.team2 || '%' AND g.away_team LIKE r.team1 || '%')
       WHERE g.week = $1 AND g.season = $2 
+      GROUP BY g.id
       ORDER BY g.id ASC, g.commence_time ASC
     `, [week, season]);
     
-    // Sort by commence_time after DISTINCT ON
+    // Sort by commence_time
     rows.sort((a, b) => new Date(a.commence_time) - new Date(b.commence_time));
     cache.set(cacheKey, rows, 1800); // Cache for 30 minutes
     return rows;
