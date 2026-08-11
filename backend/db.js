@@ -10,7 +10,8 @@ const {
   getSeasonFromDate
 } = require('./utils');
 
-const dialect = process.env.POSTGRES_URL ? 'postgres' : 'sqlite';
+// Force postgres dialect to prevent SQLite fallback on Vercel preview
+const dialect = 'postgres';
 const dbFile = process.env.DB_FILE || path.join(__dirname, 'data', 'bets.db');
 const idColumn = dialect === 'postgres' ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
 
