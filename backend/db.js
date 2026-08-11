@@ -1639,14 +1639,14 @@ async function getConferenceStats(player, conference, timeRange, week, season) {
       COALESCE(SUM(CASE WHEN p.selection_team != t.school THEN 1 ELSE 0 END), 0) as fade_total,
 
       -- Average Spread Taken
-      ROUND(COALESCE(AVG(p.spread), 0)::numeric, 1) as avg_spread,
+      ROUND(CAST(COALESCE(AVG(p.spread), 0) AS FLOAT), 1) as avg_spread,
 
       -- Net Units Won (flat 1-unit bet with -110 vig)
       ROUND(
-        (
+        CAST(
           COALESCE(SUM(CASE WHEN p.result = 'win' THEN 1.0 ELSE 0 END), 0) - 
           COALESCE(SUM(CASE WHEN p.result = 'loss' THEN 1.1 ELSE 0 END), 0)
-        )::numeric,
+         AS FLOAT),
         2
       ) as net_units,
 
@@ -1711,7 +1711,7 @@ async function getPlayerConferenceStats(player) {
            SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
            SUM(CASE WHEN p.result = 'push' THEN 1 ELSE 0 END) as pushes,
            ROUND(
-             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric /
+             CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) /
              NULLIF(SUM(CASE WHEN p.result IN ('win','loss') THEN 1 ELSE 0 END), 0) * 100,
              2
            ) as win_pct
@@ -2351,7 +2351,7 @@ async function getResearchRankings(entity, stat, location, role, minGames, confe
       COALESCE(SUM(${pushExpr}), 0) as pushes,
       COUNT(*) as total,
       ROUND(
-        COALESCE(SUM(${winExpr}), 0)::numeric / 
+        CAST(COALESCE(SUM(${winExpr}), 0) AS FLOAT) / 
         NULLIF(COALESCE(SUM(${winExpr}), 0) + COALESCE(SUM(${lossExpr}), 0), 0) * 100,
         2
       ) as win_pct
@@ -2435,7 +2435,7 @@ async function getSeasonAwards(season) {
 
   // Check if the season has any graded picks (at least one win/loss/push)
   const { rows: [gradedCheck] } = await pool.query(`
-    SELECT COUNT(*)::int as count 
+    SELECT COUNT(*) as count 
     FROM picks p JOIN games g ON p.game_id = g.id 
     WHERE g.season = $1 AND p.result IN ('win', 'loss', 'push')
   `, [season]);
@@ -2451,10 +2451,10 @@ async function getSeasonAwards(season) {
   // 1. Golden Fade (Lowest win rate)
   const { rows: [goldenFade] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END)::int as pushes,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) as pushes,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.result IN ('win', 'loss')
@@ -2464,9 +2464,9 @@ async function getSeasonAwards(season) {
   // 2. Locksmith (Highest lock win rate)
   const { rows: [locksmith] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.is_lock = 1 AND p.result IN ('win', 'loss')
@@ -2476,9 +2476,9 @@ async function getSeasonAwards(season) {
   // 3. Down Under (Highest % of total picks on Under)
   const { rows: [downUnder] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END)::int as under_picks,
-           COUNT(*)::int as total_picks,
-           ROUND(SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END) as under_picks,
+           COUNT(*) as total_picks,
+           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'under' THEN 1 ELSE 0 END) AS FLOAT) / 
                  COUNT(*) * 100, 2) as pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
@@ -2488,9 +2488,9 @@ async function getSeasonAwards(season) {
   // 4. Road Warrior (Highest win % on away teams)
   const { rows: [roadWarrior] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_side = 'away' AND p.result IN ('win', 'loss')
@@ -2500,9 +2500,9 @@ async function getSeasonAwards(season) {
   // 5. Overlord (Highest % of total picks on Over)
   const { rows: [overlord] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END)::int as over_picks,
-           COUNT(*)::int as total_picks,
-           ROUND(SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END) as over_picks,
+           COUNT(*) as total_picks,
+           ROUND(CAST(SUM(CASE WHEN p.selection_total = 'over' THEN 1 ELSE 0 END) AS FLOAT) / 
                  COUNT(*) * 100, 2) as pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
@@ -2512,9 +2512,9 @@ async function getSeasonAwards(season) {
   // 6. Underdog Whisperer (Highest win % on underdogs)
   const { rows: [underdogWhisperer] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) > 0 AND p.result IN ('win', 'loss')
@@ -2524,9 +2524,9 @@ async function getSeasonAwards(season) {
   // 7. Home Field Advantage (Highest win % on home teams)
   const { rows: [homeField] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_side = 'home' AND p.result IN ('win', 'loss')
@@ -2536,9 +2536,9 @@ async function getSeasonAwards(season) {
   // 8. Chalk Eater (Highest win % on favorites)
   const { rows: [chalkEater] } = await pool.query(`
     SELECT player, 
-           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1 AND p.selection_team IS NOT NULL AND COALESCE(p.spread, 0) < 0 AND p.result IN ('win', 'loss')
@@ -2547,7 +2547,7 @@ async function getSeasonAwards(season) {
 
   // 8b. Volume Shooter (Most total picks made)
   const { rows: [volumeShooter] } = await pool.query(`
-    SELECT player, COUNT(*)::int as total_picks
+    SELECT player, COUNT(*) as total_picks
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
     GROUP BY player ORDER BY total_picks DESC LIMIT 1
@@ -2555,7 +2555,7 @@ async function getSeasonAwards(season) {
 
   // 8c. Push Master (Most pushes)
   const { rows: [pushMaster] } = await pool.query(`
-    SELECT player, SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END)::int as pushes
+    SELECT player, SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) as pushes
     FROM picks p JOIN games g ON p.game_id = g.id
     WHERE g.season = $1
     GROUP BY player ORDER BY pushes DESC LIMIT 1
@@ -2564,9 +2564,9 @@ async function getSeasonAwards(season) {
   // 9. Champion of the selected season
   const { rows: [champion] } = await pool.query(`
     SELECT p.player, pl.full_name,
-           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
-           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-           ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+           SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+           ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                  NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct
     FROM picks p 
     JOIN games g ON p.game_id = g.id
@@ -2579,12 +2579,12 @@ async function getSeasonAwards(season) {
   const { rows: allTimeChamps } = await pool.query(`
     WITH season_standings AS (
       SELECT g.season, p.player, pl.full_name,
-             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::int as wins,
-             SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END)::int as losses,
-             ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+             SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) as wins,
+             SUM(CASE WHEN p.result = 'loss' THEN 1 ELSE 0 END) as losses,
+             ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                    NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) as win_pct,
              ROW_NUMBER() OVER (PARTITION BY g.season ORDER BY 
-               ROUND(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END)::numeric / 
+               ROUND(CAST(SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) AS FLOAT) / 
                      NULLIF(SUM(CASE WHEN p.result IN ('win', 'loss') THEN 1 ELSE 0 END), 0) * 100, 2) DESC,
                SUM(CASE WHEN p.result = 'win' THEN 1 ELSE 0 END) DESC
              ) as rank
@@ -2656,13 +2656,16 @@ async function getPlayerAwards(player) {
 }
 
 async function getInProgressWeeks() {
+  const timeFilter = dialect === 'postgres'
+    ? "AND commence_time::timestamptz <= NOW() AND commence_time::timestamptz >= NOW() - INTERVAL '12 hours'"
+    : "AND datetime(commence_time) <= datetime('now') AND datetime(commence_time) >= datetime('now', '-12 hours')";
+
   const { rows } = await pool.query(`
     SELECT DISTINCT season, week 
     FROM games 
     WHERE completed = 0 
       AND commence_time IS NOT NULL 
-      AND commence_time::timestamptz <= NOW() 
-      AND commence_time::timestamptz >= NOW() - INTERVAL '12 hours'
+      ${timeFilter}
   `);
   return rows;
 }
