@@ -140,11 +140,95 @@ const getWeatherLabel = (code) => {
   return 'Cloudy';
 };
 
+function getHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Radius of the Earth in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+const InjuryItem = ({ inj }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ fontSize: '0.75em', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', paddingTop: '2px' }}>
+      <div 
+        onClick={() => setExpanded(!expanded)} 
+        style={{ 
+          cursor: 'pointer', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '4px',
+          userSelect: 'none',
+          color: '#fff'
+        }}
+      >
+        <span style={{ fontSize: '0.8em', color: '#888', width: '10px', display: 'inline-block' }}>
+          {expanded ? '▼' : '▶'}
+        </span>
+        <span style={{ fontWeight: 'bold' }}>{inj.player_name}</span> 
+        <span style={{ color: '#aaa' }}> </span>
+        <span style={{ color: '#aaa' }}>({inj.status}) </span>
+        <span style={{ color: '#aaa' }}> </span>
+        <span style={{ color: '#f1c40f' }}>{inj.position}</span>
+        <span style={{ color: '#aaa' }}> </span>
+        <span style={{ color: '#4d7cff' }}>{inj.team_name}</span>
+        
+        
+      </div>
+      {expanded && (
+        <div style={{ fontSize: '0.9em', color: '#aaa', marginTop: '4px', paddingLeft: '14px', lineHeight: '1.3' }}>
+          {inj.short_comment || inj.long_comment || 'No details'}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const getBetterStyle = (val1, val2, higherIsBetter = true) => {
+  if (val1 === null || val1 === undefined || val2 === null || val2 === undefined) return [{}, {}];
+  if (val1 === val2) return [{}, {}];
+  const isVal1Better = higherIsBetter ? val1 > val2 : val1 < val2;
+  const betterStyle = { fontWeight: 'bold', color: '#fff' };
+  const worseStyle = { color: '#888' };
+  return isVal1Better ? [betterStyle, worseStyle] : [worseStyle, betterStyle];
+};
+
+const parseRecord = (recordStr) => {
+  if (!recordStr) return null;
+  const parts = recordStr.split('-').map(Number);
+  if (parts.length < 2 || parts.some(isNaN)) return null;
+  const wins = parts[0];
+  const losses = parts[1];
+  const total = wins + losses;
+  return total > 0 ? wins / total : 0;
+};
+
+const parseTurnover = (toStr) => {
+  if (!toStr) return 0;
+  if (toStr.toUpperCase() === 'EVEN') return 0;
+  const val = parseInt(toStr);
+  return isNaN(val) ? 0 : val;
+};
+
+const countStreakWins = (streakStr) => {
+  if (!streakStr) return 0;
+  return (streakStr.match(/W/g) || []).length;
+};
+
 const GameIntel = ({ game, picks }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
   const [injuries, setInjuries] = useState(null);
   const [loadingInjuries, setLoadingInjuries] = useState(false);
+  const [travelDistance, setTravelDistance] = useState(null);
+  const [loadingTravel, setLoadingTravel] = useState(false);
+  const [matchupStats, setMatchupStats] = useState(null);
+  const [loadingMatchupStats, setLoadingMatchupStats] = useState(false);
 
   const fetchInjuries = async () => {
     setLoadingInjuries(true);
@@ -173,8 +257,54 @@ const GameIntel = ({ game, picks }) => {
     }
   };
 
+  const fetchMatchupStats = async () => {
+    setLoadingMatchupStats(true);
+    try {
+      const res = await fetch(`/api/matchup-stats?homeTeam=${encodeURIComponent(game.home_team)}&awayTeam=${encodeURIComponent(game.away_team)}&apiGameId=${game.api_game_id || ''}`);
+      const data = await res.json();
+      setMatchupStats(data);
+    } catch (err) {
+      console.error('Failed to fetch matchup stats:', err);
+      setMatchupStats({ h2h: [], espnStats: null });
+    } finally {
+      setLoadingMatchupStats(false);
+    }
+  };
+
   useEffect(() => {
     const fetchWeather = async () => {
+      // Calculate travel distance using away team's stadium city (run this first)
+      if (game.away_stadium_city) {
+        setLoadingTravel(true);
+        try {
+          const homeCity = game.home_stadium_city || game.home_team.split('(')[0].trim();
+          const homeQuery = game.home_stadium_state ? `${homeCity}, ${game.home_stadium_state}` : homeCity;
+          const awayCity = game.away_stadium_city;
+          const awayQuery = game.away_stadium_state ? `${awayCity}, ${game.away_stadium_state}` : awayCity;
+
+          const [homeGeoRes, awayGeoRes] = await Promise.all([
+            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(homeQuery)}&count=1&language=en&format=json`),
+            fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(awayQuery)}&count=1&language=en&format=json`)
+          ]);
+          
+          const [homeGeo, awayGeo] = await Promise.all([homeGeoRes.json(), awayGeoRes.json()]);
+          
+          if (homeGeo.results?.length && awayGeo.results?.length) {
+            const dist = getHaversineDistance(
+              homeGeo.results[0].latitude,
+              homeGeo.results[0].longitude,
+              awayGeo.results[0].latitude,
+              awayGeo.results[0].longitude
+            );
+            setTravelDistance(dist);
+          }
+        } catch (err) {
+          console.error('Travel distance error:', err);
+        } finally {
+          setLoadingTravel(false);
+        }
+      }
+
       const kickoff = new Date(game.commence_time);
       const now = new Date();
       const daysUntil = (kickoff - now) / (1000 * 60 * 60 * 24);
@@ -246,7 +376,7 @@ const GameIntel = ({ game, picks }) => {
     };
 
     fetchWeather();
-  }, [game.id, game.commence_time, game.home_stadium_city, game.home_stadium_state, game.home_team]);
+  }, [game.id, game.commence_time, game.home_stadium_city, game.home_stadium_state, game.home_team, game.away_stadium_city, game.away_stadium_state]);
 
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -286,9 +416,37 @@ const GameIntel = ({ game, picks }) => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div>
-          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>COBW</div>
-          <div style={{ fontSize: '0.85em' }}>{game.away_team}: {game.away_cobw || 'No'}</div>
-          <div style={{ fontSize: '0.85em' }}>{game.home_team}: {game.home_cobw || 'No'}</div>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Rest & Travel</div>
+          <div style={{ fontSize: '0.85em', display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+            <div>
+              <span style={{ color: '#aaa' }}>{game.away_team.split('(')[0].trim()}:</span>{' '}
+              <span style={{ 
+                fontWeight: 'bold', 
+                color: game.away_days_rest >= 9 ? '#4caf50' : game.away_days_rest <= 5 ? '#f44336' : '#fff' 
+              }}>
+                {game.away_days_rest != null 
+                  ? `${game.away_days_rest}d${game.away_days_rest >= 9 ? ' (Bye)' : game.away_days_rest <= 5 ? ' (Short)' : ''}` 
+                  : '1st Game'}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: '#aaa' }}>{game.home_team.split('(')[0].trim()}:</span>{' '}
+              <span style={{ 
+                fontWeight: 'bold', 
+                color: game.home_days_rest >= 9 ? '#4caf50' : game.home_days_rest <= 5 ? '#f44336' : '#fff' 
+              }}>
+                {game.home_days_rest != null 
+                  ? `${game.home_days_rest}d${game.home_days_rest >= 9 ? ' (Bye)' : game.home_days_rest <= 5 ? ' (Short)' : ''}` 
+                  : '1st Game'}
+              </span>
+            </div>
+            <div style={{ marginTop: '4px', fontSize: '0.9em' }}>
+              <span style={{ color: '#aaa' }}>Travel:</span>{' '}
+              <strong style={{ color: '#fff' }}>
+                {loadingTravel ? 'Calculating...' : travelDistance != null ? `${travelDistance} miles` : '--'}
+              </strong>
+            </div>
+          </div>
         </div>
         <div>
           <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>Injuries</div>
@@ -317,18 +475,15 @@ const GameIntel = ({ game, picks }) => {
           ) : injuries.length === 0 ? (
             <div style={{ fontSize: '0.8em', color: '#888' }}>None reported</div>
           ) : (
-            <div style={{ maxHeight: '80px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {injuries.map((inj, idx) => (
-                <div key={idx} style={{ fontSize: '0.75em', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px' }}>
-                  <span style={{ fontWeight: 'bold', color: '#fff' }}>{inj.player_name}</span> ({inj.status})
-                  <div style={{ fontSize: '0.9em', color: '#aaa' }}>{inj.team_name} - {inj.short_comment || inj.long_comment || 'No details'}</div>
-                </div>
+                <InjuryItem key={idx} inj={inj} />
               ))}
             </div>
           )}
         </div>
       </div>
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
         <div>
           <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Stadium</div>
           <div style={{ fontSize: '0.85em' }}>{game.home_stadium_name || '--'}</div>
@@ -337,27 +492,34 @@ const GameIntel = ({ game, picks }) => {
           <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>Location</div>
           <div style={{ fontSize: '0.85em' }}>{game.home_stadium_city && game.home_stadium_state ? `${game.home_stadium_city}, ${game.home_stadium_state}` : '--'}</div>
         </div>
-      </div>
-      <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'start' }}>
         <div>
-        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>Weather at Kickoff</div>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold' }}>TV</div>
+          <div style={{ fontSize: '0.85em', fontWeight: 'bold', color: '#fff' }}>{game.tv_network || '--'}</div>
+        </div>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '6px' }}>Weather at Kickoff</div>
         {loading ? (
           <div style={{ fontSize: '0.85em', color: '#aaa' }}>Fetching forecast...</div>
         ) : weather?.success ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ flexShrink: 0 }}>{getWeatherIcon(weather.code)}</div>
-            <div>
-              <div style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flexShrink: 0 }}>{getWeatherIcon(weather.code, 32)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
                 {weather.temp}°F &nbsp;
                 <span style={{ fontSize: '0.75em', fontWeight: 'normal', color: '#aaa' }}>{getWeatherLabel(weather.code)}</span>
                 {weather.isMock && <span style={{ fontSize: '0.65em', color: '#555', marginLeft: '6px' }}>(preview)</span>}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78em', color: '#888', marginTop: '3px' }}>
-                <Wind size={12} strokeWidth={1.5} />
-                <span>{weather.wind} mph</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85em', color: '#ccc' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Wind size={14} strokeWidth={1.5} />
+                  <span>{weather.wind} mph wind</span>
+                </div>
                 <span style={{ color: '#444' }}>·</span>
-                <Droplets size={12} strokeWidth={1.5} />
-                <span>{weather.precip}% precip</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Droplets size={14} strokeWidth={1.5} />
+                  <span>{weather.precip}% precip</span>
+                </div>
               </div>
             </div>
           </div>
@@ -366,15 +528,196 @@ const GameIntel = ({ game, picks }) => {
             {weather?.reason || 'Forecast unavailable'}
           </div>
         )}
-        </div>
-        {game.tv_network && (
-          <div>
-            <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>TV</div>
-            <div style={{ fontSize: '1em', fontWeight: 'bold', color: '#fff' }}>{game.tv_network}</div>
-          </div>
-        )}
       </div>
-    </div>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '6px' }}>Matchup Statistics</div>
+        {matchupStats === null ? (
+          loadingMatchupStats ? (
+            <div style={{ fontSize: '0.8em', color: '#aaa' }}>Fetching stats...</div>
+          ) : (
+            <button
+              onClick={fetchMatchupStats}
+              style={{
+                padding: '2px 6px',
+                fontSize: '0.75em',
+                borderRadius: '4px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+            >
+              Fetch Matchup Stats
+            </button>
+          )
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', fontSize: '0.8em' }}>
+            {/* Recent Matchups */}
+            <div>
+              <div style={{ fontWeight: 'bold', color: '#aaa', fontSize: '0.9em', marginBottom: '4px' }}>Recent Matchups:</div>
+              {matchupStats.h2h.length === 0 ? (
+                <div style={{ color: '#666', fontStyle: 'italic' }}>No recent meetings</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {matchupStats.h2h.map((h, idx) => {
+                    const isHomeWinner = h.score_home > h.score_away;
+                    const winner = isHomeWinner ? h.home_team : h.away_team;
+                    const loser = isHomeWinner ? h.away_team : h.home_team;
+                    const winScore = isHomeWinner ? h.score_home : h.score_away;
+                    const loseScore = isHomeWinner ? h.score_away : h.score_home;
+                    const cleanName = (name) => name.split('(')[0].trim();
+                    
+                    let coverText = '';
+                    if (h.spread_home !== null && h.spread_away !== null) {
+                      const homeCovered = h.score_home + h.spread_home > h.score_away;
+                      const awayCovered = h.score_away + h.spread_away > h.score_home;
+                      if (homeCovered) coverText = `${cleanName(h.home_team)} Cover`;
+                      else if (awayCovered) coverText = `${cleanName(h.away_team)} Cover`;
+                      else coverText = 'Push';
+                    }
+                    
+                    let ouText = '';
+                    if (h.over_under !== null) {
+                      const total = h.score_home + h.score_away;
+                      if (total > h.over_under) ouText = `Over ${h.over_under}`;
+                      else if (total < h.over_under) ouText = `Under ${h.over_under}`;
+                      else ouText = `Push ${h.over_under}`;
+                    }
+                    
+                    const year = new Date(h.commence_time).getFullYear();
+                    return (
+                      <div key={idx} style={{ color: '#ccc' }}>
+                        {year}: <strong style={{ color: '#fff' }}>{cleanName(winner)} {winScore}-{loseScore}</strong> ({coverText}, {ouText})
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+              {/* ESPN Team Stats */}
+              {matchupStats.espnStats ? (() => {
+                const away = matchupStats.espnStats.away;
+                const home = matchupStats.espnStats.home;
+                
+                const [offAwayStyle, offHomeStyle] = getBetterStyle(away.scoringOffense, home.scoringOffense, true);
+                const [defAwayStyle, defHomeStyle] = getBetterStyle(away.scoringDefense, home.scoringDefense, false);
+                const [yppAwayStyle, yppHomeStyle] = getBetterStyle(away.yardsPerPlay, home.yardsPerPlay, true);
+                const [yppaAwayStyle, yppaHomeStyle] = getBetterStyle(away.yardsPerPlayAllowed, home.yardsPerPlayAllowed, false);
+                const [toAwayStyle, toHomeStyle] = getBetterStyle(parseTurnover(away.turnoverMargin), parseTurnover(home.turnoverMargin), true);
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', fontWeight: 'bold', color: '#aaa', fontSize: '0.9em' }}>
+                      <span>Stat</span>
+                      <span>{game.away_team.split('(')[0].trim()}</span>
+                      <span>{game.home_team.split('(')[0].trim()}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="Points scored per game">Scoring Offense</span>
+                      <span style={offAwayStyle}>{away.scoringOffense != null ? `${away.scoringOffense} PPG` : '--'}</span>
+                      <span style={offHomeStyle}>{home.scoringOffense != null ? `${home.scoringOffense} PPG` : '--'}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="Points allowed per game">Scoring Defense</span>
+                      <span style={defAwayStyle}>{away.scoringDefense != null ? `${away.scoringDefense} PPG` : '--'}</span>
+                      <span style={defHomeStyle}>{home.scoringDefense != null ? `${home.scoringDefense} PPG` : '--'}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="Yards gained per play on offense">Yards Per Play</span>
+                      <span style={yppAwayStyle}>{away.yardsPerPlay != null ? away.yardsPerPlay : '--'}</span>
+                      <span style={yppHomeStyle}>{home.yardsPerPlay != null ? home.yardsPerPlay : '--'}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="Yards allowed per play on defense">Yards/Play Allowed</span>
+                      <span style={yppaAwayStyle}>{away.yardsPerPlayAllowed != null ? away.yardsPerPlayAllowed : '--'}</span>
+                      <span style={yppaHomeStyle}>{home.yardsPerPlayAllowed != null ? home.yardsPerPlayAllowed : '--'}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="Average turnovers gained vs. lost per game">Turnover Margin</span>
+                      <span style={toAwayStyle}>{away.turnoverMargin || '--'}</span>
+                      <span style={toHomeStyle}>{home.turnoverMargin || '--'}</span>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div style={{ color: '#666', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
+                  ESPN season stats unavailable for this matchup
+                </div>
+              )}
+
+              {/* Historical Betting Stats */}
+              {matchupStats.researchStats && (() => {
+                const away = matchupStats.researchStats.away;
+                const home = matchupStats.researchStats.home;
+
+                const [overallAwayStyle, overallHomeStyle] = getBetterStyle(parseRecord(away.ats.overall), parseRecord(home.ats.overall), true);
+                const [haAwayStyle, haHomeStyle] = getBetterStyle(parseRecord(away.ats.away), parseRecord(home.ats.home), true);
+                const [streakAwayStyle, streakHomeStyle] = getBetterStyle(countStreakWins(away.streak.ats), countStreakWins(home.streak.ats), true);
+
+                const isHomeFav = game.spread_home !== null && game.spread_home < 0;
+                const isHomeDog = game.spread_home !== null && game.spread_home > 0;
+                const isAwayFav = game.spread_away !== null && game.spread_away < 0;
+                const isAwayDog = game.spread_away !== null && game.spread_away > 0;
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', fontWeight: 'bold', color: '#aaa', fontSize: '0.9em' }}>
+                      <span>Betting Stat</span>
+                      <span>{game.away_team.split('(')[0].trim()}</span>
+                      <span>{game.home_team.split('(')[0].trim()}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="How often each team covers the spread overall">ATS Overall</span>
+                      <span style={overallAwayStyle}>{away.ats.overall}</span>
+                      <span style={overallHomeStyle}>{home.ats.overall}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="How often each team covers the spread in home/away splits">ATS Home/Away</span>
+                      <span style={haAwayStyle}>{away.ats.away} (Away)</span>
+                      <span style={haHomeStyle}>{home.ats.home} (Home)</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="How often each team covers the spread as favorite/underdog">ATS Fav/Dog</span>
+                      <span>
+                        <span style={{ fontWeight: isAwayFav ? 'bold' : 'normal', color: isAwayFav ? '#fff' : 'inherit' }}>{away.ats.favorite}</span> /{' '}
+                        <span style={{ fontWeight: isAwayDog ? 'bold' : 'normal', color: isAwayDog ? '#fff' : 'inherit' }}>{away.ats.underdog}</span>
+                      </span>
+                      <span>
+                        <span style={{ fontWeight: isHomeFav ? 'bold' : 'normal', color: isHomeFav ? '#fff' : 'inherit' }}>{home.ats.favorite}</span> /{' '}
+                        <span style={{ fontWeight: isHomeDog ? 'bold' : 'normal', color: isHomeDog ? '#fff' : 'inherit' }}>{home.ats.underdog}</span>
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="How often each team's games go over or under the total line overall">O/U Overall</span>
+                      <span>{away.ou.overall}</span>
+                      <span>{home.ou.overall}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="How often each team's games go over or under the total line in home/away splits">O/U Home/Away</span>
+                      <span>{away.ou.away} (Away)</span>
+                      <span>{home.ou.home} (Home)</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="ATS performance over the last 5 games">ATS Streak (Last 5)</span>
+                      <span style={{ ...streakAwayStyle, fontFamily: 'monospace' }}>{away.streak.ats}</span>
+                      <span style={{ ...streakHomeStyle, fontFamily: 'monospace' }}>{home.streak.ats}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                      <span title="O/U performance over the last 5 games">O/U Streak (Last 5)</span>
+                      <span style={{ fontFamily: 'monospace' }}>{away.streak.ou}</span>
+                      <span style={{ fontFamily: 'monospace' }}>{home.streak.ou}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      </div>
   );
 };
 

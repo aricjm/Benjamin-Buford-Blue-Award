@@ -520,6 +520,119 @@ app.get('/api/bbbmlp/current', async (req, res) => {
   }
 });
 
+app.get('/api/matchup-stats', async (req, res) => {
+  try {
+    const { homeTeam, awayTeam, apiGameId } = req.query;
+    if (!homeTeam || !awayTeam) {
+      return res.status(400).json({ error: 'homeTeam and awayTeam are required' });
+    }
+
+    // 1. Get head-to-head history from database
+    const h2h = await db.getHeadToHeadHistory(homeTeam, awayTeam);
+
+    // 2. Get team research stats (ATS, O/U, and recent games for streaks)
+    const [homeResearch, awayResearch] = await Promise.all([
+      db.getTeamResearchStats(homeTeam, 'All-Time'),
+      db.getTeamResearchStats(awayTeam, 'All-Time')
+    ]);
+
+    const formatResearchStats = (r) => {
+      // Get last 5 games for streak
+      const last5 = r.recent.slice(0, 5);
+      const atsStreak = last5.map(g => g.atsResult === 'win' ? 'W' : g.atsResult === 'loss' ? 'L' : 'P').join('-');
+      const ouStreak = last5.map(g => g.ouResult === 'over' ? 'O' : g.ouResult === 'under' ? 'U' : 'P').join('-');
+
+      return {
+        ats: {
+          overall: `${r.ats.wins}-${r.ats.losses}-${r.ats.pushes}`,
+          home: `${r.atsHome.wins}-${r.atsHome.losses}-${r.atsHome.pushes}`,
+          away: `${r.atsAway.wins}-${r.atsAway.losses}-${r.atsAway.pushes}`,
+          favorite: `${r.atsFav.wins}-${r.atsFav.losses}-${r.atsFav.pushes}`,
+          underdog: `${r.atsDog.wins}-${r.atsDog.losses}-${r.atsDog.pushes}`
+        },
+        ou: {
+          overall: `${r.ou.overs}-${r.ou.unders}-${r.ou.pushes}`,
+          home: `${r.ouHome.overs}-${r.ouHome.unders}-${r.ouHome.pushes}`,
+          away: `${r.ouAway.overs}-${r.ouAway.unders}-${r.ouAway.pushes}`
+        },
+        streak: {
+          ats: atsStreak || 'N/A',
+          ou: ouStreak || 'N/A'
+        }
+      };
+    };
+
+    const researchStats = {
+      home: formatResearchStats(homeResearch),
+      away: formatResearchStats(awayResearch)
+    };
+
+    // 3. Fetch ESPN stats if apiGameId is provided
+    let espnStats = null;
+    if (apiGameId) {
+      const axios = require('axios');
+      try {
+        // Fetch game summary to get team IDs
+        const summaryRes = await axios.get(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${apiGameId}`);
+        const competitors = summaryRes.data?.header?.competitions?.[0]?.competitors || [];
+        
+        const homeCompetitor = competitors.find(c => c.homeAway === 'home');
+        const awayCompetitor = competitors.find(c => c.homeAway === 'away');
+
+        if (homeCompetitor?.id && awayCompetitor?.id) {
+          // Fetch stats for both teams
+          const [homeStatsRes, awayStatsRes] = await Promise.all([
+            axios.get(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${homeCompetitor.id}/statistics`),
+            axios.get(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${awayCompetitor.id}/statistics`)
+          ]);
+
+          const parseStats = (data) => {
+            const stats = {};
+            const findStat = (categories, catName, statName) => {
+              const cat = categories.find(c => c.name === catName);
+              const stat = cat?.stats?.find(s => s.name === statName);
+              return stat ? parseFloat(stat.displayValue.replace(/,/g, '')) : null;
+            };
+            const findStatString = (categories, catName, statName) => {
+              const cat = categories.find(c => c.name === catName);
+              const stat = cat?.stats?.find(s => s.name === statName);
+              return stat ? stat.displayValue : null;
+            };
+
+            const cats = data.results?.stats?.categories || [];
+            const oppCats = data.results?.opponent || [];
+
+            stats.scoringOffense = findStat(cats, 'scoring', 'totalPointsPerGame');
+            stats.scoringDefense = findStat(oppCats, 'scoring', 'totalPointsPerGame');
+
+            const totalYards = findStat(cats, 'rushing', 'totalYards');
+            const totalPlays = findStat(cats, 'rushing', 'totalOffensivePlays');
+            stats.yardsPerPlay = totalYards && totalPlays ? parseFloat((totalYards / totalPlays).toFixed(2)) : null;
+
+            const totalYardsAllowed = findStat(oppCats, 'rushing', 'totalYards');
+            const totalPlaysAllowed = findStat(oppCats, 'rushing', 'totalOffensivePlays');
+            stats.yardsPerPlayAllowed = totalYardsAllowed && totalPlaysAllowed ? parseFloat((totalYardsAllowed / totalPlaysAllowed).toFixed(2)) : null;
+
+            stats.turnoverMargin = findStatString(cats, 'miscellaneous', 'turnOverDifferential');
+            return stats;
+          };
+
+          espnStats = {
+            home: parseStats(homeStatsRes.data),
+            away: parseStats(awayStatsRes.data)
+          };
+        }
+      } catch (err) {
+        console.error('Failed to fetch ESPN matchup stats:', err.message);
+      }
+    }
+
+    res.json({ h2h, researchStats, espnStats });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/injuries', async (req, res) => {
   try {
     const injuries = await api.fetchInjuries();

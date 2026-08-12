@@ -642,6 +642,8 @@ async function getWeekGames(week, season) {
         ht.stadium_name as home_stadium_name,
         ht.stadium_city as home_stadium_city,
         ht.stadium_state as home_stadium_state,
+        at.stadium_city as away_stadium_city,
+        at.stadium_state as away_stadium_state,
         ht.nickname as home_nickname, at.nickname as away_nickname,
         ht.conference as home_conference, at.conference as away_conference,
         r.trophy_name as rivalry_trophy,
@@ -650,13 +652,29 @@ async function getWeekGames(week, season) {
           WHERE (prev_g.home_team = g.home_team OR prev_g.away_team = g.home_team) 
             AND prev_g.season = g.season 
             AND prev_g.week = g.week - 1
-        ) THEN 'No' ELSE 'Yes' END as home_cobw,
+        ) THEN 'Yes' ELSE 'No' END as home_cobw,
         CASE WHEN EXISTS (
           SELECT 1 FROM games prev_g 
           WHERE (prev_g.home_team = g.away_team OR prev_g.away_team = g.away_team) 
             AND prev_g.season = g.season 
             AND prev_g.week = g.week - 1
-        ) THEN 'No' ELSE 'Yes' END as away_cobw
+        ) THEN 'Yes' ELSE 'No' END as away_cobw,
+        ROUND(EXTRACT(EPOCH FROM (g.commence_time::timestamp - (
+          SELECT prev_g.commence_time::timestamp FROM games prev_g
+          WHERE (prev_g.home_team = g.home_team OR prev_g.away_team = g.home_team)
+            AND prev_g.season = g.season
+            AND prev_g.commence_time < g.commence_time
+          ORDER BY prev_g.commence_time DESC
+          LIMIT 1
+        ))) / 86400) as home_days_rest,
+        ROUND(EXTRACT(EPOCH FROM (g.commence_time::timestamp - (
+          SELECT prev_g.commence_time::timestamp FROM games prev_g
+          WHERE (prev_g.home_team = g.away_team OR prev_g.away_team = g.away_team)
+            AND prev_g.season = g.season
+            AND prev_g.commence_time < g.commence_time
+          ORDER BY prev_g.commence_time DESC
+          LIMIT 1
+        ))) / 86400) as away_days_rest
       FROM games g
       LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
       LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
@@ -664,7 +682,7 @@ async function getWeekGames(week, season) {
         (g.home_team LIKE r.team1 || '%' AND g.away_team LIKE r.team2 || '%') OR 
         (g.home_team LIKE r.team2 || '%' AND g.away_team LIKE r.team1 || '%')
       WHERE g.week = $1 AND g.season = $2 
-      GROUP BY g.id, ht.logo, at.logo, ht.school_primary_color, at.school_primary_color, ht.stadium_name, ht.stadium_city, ht.stadium_state, ht.nickname, at.nickname, ht.conference, at.conference, r.trophy_name
+      GROUP BY g.id, ht.logo, at.logo, ht.school_primary_color, at.school_primary_color, ht.stadium_name, ht.stadium_city, ht.stadium_state, at.stadium_city, at.stadium_state, ht.nickname, at.nickname, ht.conference, at.conference, r.trophy_name
       ORDER BY g.id ASC, g.commence_time ASC
     `, [week, season]);
     
@@ -2745,6 +2763,21 @@ async function getCurrentWeekLocks() {
   return { season, week, locks, missingPlayers };
 }
 
+async function getHeadToHeadHistory(team1, team2) {
+  const { rows } = await pool.query(`
+    SELECT g.*, 
+      ht.logo as home_logo, at.logo as away_logo
+    FROM games g
+    LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
+    LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+    WHERE ((g.home_team = $1 AND g.away_team = $2) OR (g.home_team = $2 AND g.away_team = $1))
+      AND g.completed = 1
+    ORDER BY g.commence_time DESC
+    LIMIT 5
+  `, [team1, team2]);
+  return rows;
+}
+
 async function getBBBMLPData(season) {
   // Fetch all lock picks grouped by season+week
   const seasonFilter = season ? 'AND g.season = $1' : '';
@@ -2916,5 +2949,6 @@ module.exports = {
   getPlayerAwards,
   getInProgressWeeks,
   getBBBMLPData,
-  getCurrentWeekLocks
+  getCurrentWeekLocks,
+  getHeadToHeadHistory
 };

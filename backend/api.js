@@ -122,6 +122,7 @@ async function fetchInjuries() {
             team_id: team.id,
             team_name: team.displayName,
             player_name: injury.athlete?.displayName || 'Unknown',
+            position: injury.athlete?.position?.abbreviation || 'N/A',
             status: injury.status,
             date: injury.date,
             short_comment: injury.shortComment,
