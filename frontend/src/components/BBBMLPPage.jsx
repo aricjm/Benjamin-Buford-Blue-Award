@@ -162,92 +162,125 @@ export default function BBBMLPPage({ seasons, players = [] }) {
       {error && <div style={{ color: '#f44336', padding: '20px' }}>{error}</div>}
 
       {/* Current Week Hero - Only show if 'All' or the current season is selected */}
-      {!loading && currentWeek && currentWeek.week != null && (selectedSeason === 'All' || selectedSeason === currentWeek.season) && (
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(241,196,15,0.12) 0%, rgba(77,124,255,0.08) 100%)',
-          border: '1px solid rgba(241,196,15,0.35)',
-          borderRadius: '14px',
-          padding: '20px 24px',
-          marginBottom: '28px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-              {currentWeek.season} — Week {currentWeek.week} Mortal Lock Parlay
-            </span>
+      {!loading && currentWeek && currentWeek.week != null && (selectedSeason === 'All' || selectedSeason === currentWeek.season) && (() => {
+        const anyLoss = currentWeek.locks.some(l => l.result === 'loss');
+        const anyPending = currentWeek.locks.some(l => l.result === 'pending') || currentWeek.missingPlayers.length > 0;
+        const allWinOrPush = currentWeek.locks.every(l => l.result === 'win' || l.result === 'push') && currentWeek.locks.length > 0;
+        
+        let parlayStatus = 'ALIVE';
+        let statusColor = '#4d7cff';
+        if (anyLoss) {
+          parlayStatus = 'DEAD';
+          statusColor = '#f44336';
+        } else if (!anyPending && allWinOrPush) {
+          parlayStatus = 'WON';
+          statusColor = '#4caf50';
+        }
+
+        return (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(241,196,15,0.12) 0%, rgba(77,124,255,0.08) 100%)',
+            border: '1px solid rgba(241,196,15,0.35)',
+            borderRadius: '14px',
+            padding: '20px 24px',
+            marginBottom: '28px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                {currentWeek.season} — Week {currentWeek.week} Mortal Lock Parlay
+              </span>
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ 
+                  background: statusColor, 
+                  color: '#fff', 
+                  padding: '4px 10px', 
+                  borderRadius: '6px', 
+                  fontSize: '0.8em', 
+                  fontWeight: 'bold',
+                  letterSpacing: '0.05em'
+                }}>
+                  STATUS: {parlayStatus}
+                </span>
+                {currentWeek.locks.length > 0 && currentWeek.missingPlayers.length === 0 && (
+                  <span style={{ fontSize: '0.8em', color: '#4caf50', fontWeight: 'bold' }}>ALL LOCKS IN</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {currentWeek.locks.map((lock, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+                  background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px 14px',
+                  opacity: lock.result === 'loss' ? 0.6 : 1,
+                  borderLeft: lock.result === 'loss' ? '4px solid #f44336' : lock.result === 'win' ? '4px solid #4caf50' : lock.result === 'push' ? '4px solid #ff9800' : '4px solid transparent'
+                }}>
+                  <span style={{ color: '#f1c40f', fontWeight: 'bold', minWidth: '60px', fontSize: '0.9em' }}>{lock.player}</span>
+                  <span style={{ flex: 1, textDecoration: lock.result === 'loss' ? 'line-through' : 'none', color: lock.result === 'loss' ? '#888' : 'inherit' }}>
+                    <LockPickLabel lock={lock} />
+                  </span>
+                  <ResultBadge result={lock.result} />
+                </div>
+              ))}
+              {currentWeek.missingPlayers.map(player => (
+                <div key={player} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px 14px',
+                  border: '1px dashed rgba(255,255,255,0.1)'
+                }}>
+                  <span style={{ color: '#f1c40f', fontWeight: 'bold', minWidth: '60px', fontSize: '0.9em' }}>{player}</span>
+                  <span style={{ color: '#666', fontStyle: 'italic' }}>Still waiting on {player}'s mortal lock…</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Place Parlay Link */}
             {currentWeek.locks.length > 0 && currentWeek.missingPlayers.length === 0 && (
-              <span style={{ marginLeft: 'auto', fontSize: '0.8em', color: '#4caf50', fontWeight: 'bold' }}>ALL LOCKS IN</span>
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <a
+                  href="https://sportsbook.draftkings.com/leagues/football/cfb"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    const text = currentWeek.locks.map(l => {
+                      if (l.selectionTeam) {
+                        return `${l.selectionTeam} ${l.spreadText || ''}`;
+                      } else {
+                        return `${l.awayTeam} @ ${l.homeTeam} ${l.selectionTotal.toUpperCase()} ${l.totalLine}`;
+                      }
+                    }).join('\n');
+                    navigator.clipboard.writeText(text);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 3000);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: '#51b022',
+                    color: '#fff',
+                    textDecoration: 'none',
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '0.9em',
+                    transition: 'background 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#43941c'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#51b022'}
+                >
+                  Place BBB Mortal Lock Parlay <ExternalLink size={16} />
+                </a>
+                {copied && (
+                  <span style={{ color: '#4caf50', fontSize: '0.85em', fontWeight: 'bold' }}>
+                    ✓ Picks copied to clipboard for easy searching!
+                  </span>
+                )}
+              </div>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {currentWeek.locks.map((lock, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
-                background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px 14px'
-              }}>
-                <span style={{ color: '#f1c40f', fontWeight: 'bold', minWidth: '60px', fontSize: '0.9em' }}>{lock.player}</span>
-                <span style={{ flex: 1 }}><LockPickLabel lock={lock} /></span>
-                <ResultBadge result={lock.result} />
-              </div>
-            ))}
-            {currentWeek.missingPlayers.map(player => (
-              <div key={player} style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                background: 'rgba(255,255,255,0.02)', borderRadius: '8px', padding: '10px 14px',
-                border: '1px dashed rgba(255,255,255,0.1)'
-              }}>
-                <span style={{ color: '#f1c40f', fontWeight: 'bold', minWidth: '60px', fontSize: '0.9em' }}>{player}</span>
-                <span style={{ color: '#666', fontStyle: 'italic' }}>Still waiting on {player}'s mortal lock…</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Place Parlay Link */}
-          {currentWeek.locks.length > 0 && currentWeek.missingPlayers.length === 0 && (
-            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <a
-                href="https://sportsbook.draftkings.com/leagues/football/cfb"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  const text = currentWeek.locks.map(l => {
-                    if (l.selectionTeam) {
-                      return `${l.selectionTeam} ${l.spreadText || ''}`;
-                    } else {
-                      return `${l.awayTeam} @ ${l.homeTeam} ${l.selectionTotal.toUpperCase()} ${l.totalLine}`;
-                    }
-                  }).join('\n');
-                  navigator.clipboard.writeText(text);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 3000);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: '#51b022',
-                  color: '#fff',
-                  textDecoration: 'none',
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  fontSize: '0.9em',
-                  transition: 'background 0.2s',
-                  cursor: 'pointer'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#43941c'}
-                onMouseLeave={e => e.currentTarget.style.background = '#51b022'}
-              >
-                Place BBB Mortal Lock Parlay <ExternalLink size={16} />
-              </a>
-              {copied && (
-                <span style={{ color: '#4caf50', fontSize: '0.85em', fontWeight: 'bold' }}>
-                  ✓ Picks copied to clipboard for easy searching!
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {!loading && !error && data && (
         <>
