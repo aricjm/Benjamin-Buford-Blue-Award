@@ -419,7 +419,7 @@ const GameIntel = ({ game, picks }) => {
 
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ fontSize: '0.75em', color: '#888', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
+      <div style={{ fontSize: '0.75em', color: '#E8979F', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
       
       {!!game.completed && picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '4px' }}>
@@ -461,7 +461,7 @@ const GameIntel = ({ game, picks }) => {
               <span style={{ color: '#aaa' }}>{game.away_team.split('(')[0].trim()}:</span>{' '}
               <span style={{ 
                 fontWeight: 'bold', 
-                color: game.away_days_rest >= 9 ? '#4caf50' : game.away_days_rest <= 5 ? '#f44336' : '#fff' 
+                color: game.away_days_rest >= 9 ? '#4caf50' : game.away_days_rest <= 5 ? '#fff' : '#fff' 
               }}>
                 {game.away_days_rest != null 
                   ? `${game.away_days_rest}d${game.away_days_rest >= 9 ? ' (Bye)' : game.away_days_rest <= 5 ? ' (Short)' : ''}` 
@@ -472,7 +472,7 @@ const GameIntel = ({ game, picks }) => {
               <span style={{ color: '#aaa' }}>{game.home_team.split('(')[0].trim()}:</span>{' '}
               <span style={{ 
                 fontWeight: 'bold', 
-                color: game.home_days_rest >= 9 ? '#4caf50' : game.home_days_rest <= 5 ? '#f44336' : '#fff' 
+                color: game.home_days_rest >= 9 ? '#4caf50' : game.home_days_rest <= 5 ? '#fff' : '#fff' 
               }}>
                 {game.home_days_rest != null 
                   ? `${game.home_days_rest}d${game.home_days_rest >= 9 ? ' (Bye)' : game.home_days_rest <= 5 ? ' (Short)' : ''}` 
@@ -541,18 +541,19 @@ const GameIntel = ({ game, picks }) => {
         {loading ? (
           <div style={{ fontSize: '0.85em', color: '#aaa' }}>Fetching forecast...</div>
         ) : weather?.success ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <div style={{ flexShrink: 0 }}>{getWeatherIcon(weather.code, 32)}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
-                {weather.temp}°F &nbsp;
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'wrap' }}>
+            {/* <div style={{ flexShrink: 0 }}>{getWeatherIcon(weather.code, 32)}</div> */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '1.0em', fontWeight: 'bold', color: '#fff' }}>
+                {getWeatherIcon(weather.code, 20)} {weather.temp}°F &nbsp;
                 <span style={{ fontSize: '0.75em', fontWeight: 'normal', color: '#aaa' }}>{getWeatherLabel(weather.code)}</span>
-                {weather.isMock && <span style={{ fontSize: '0.65em', color: '#555', marginLeft: '6px' }}>(preview)</span>}
+                {weather.isMock && <span style={{ fontSize: '0.65em', color: '#555', marginLeft: '6px' }}>(fake)</span>}
+                <span style={{ color: '#444' }}>·</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85em', color: '#ccc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85em', color: '#ccc' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Wind size={14} strokeWidth={1.5} />
-                  <span>{weather.wind} mph wind</span>
+                  <span>{weather.wind} mph</span>
                 </div>
                 <span style={{ color: '#444' }}>·</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -650,32 +651,32 @@ const GameIntel = ({ game, picks }) => {
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', fontWeight: 'bold', color: '#aaa', fontSize: '0.9em' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1.2fr', gap: '4px', fontWeight: 'bold', color: '#E8979F', fontSize: '0.9em' }}>
                       <span>Stat</span>
                       <span>{game.away_team.split('(')[0].trim()}</span>
                       <span>{game.home_team.split('(')[0].trim()}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="Points scored per game">Scoring Offense</span>
                       <span style={offAwayStyle}>{away.scoringOffense != null ? `${away.scoringOffense} PPG` : '--'}</span>
                       <span style={offHomeStyle}>{home.scoringOffense != null ? `${home.scoringOffense} PPG` : '--'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="Points allowed per game">Scoring Defense</span>
                       <span style={defAwayStyle}>{away.scoringDefense != null ? `${away.scoringDefense} PPG` : '--'}</span>
                       <span style={defHomeStyle}>{home.scoringDefense != null ? `${home.scoringDefense} PPG` : '--'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="Yards gained per play on offense">Yards Per Play</span>
                       <span style={yppAwayStyle}>{away.yardsPerPlay != null ? away.yardsPerPlay : '--'}</span>
                       <span style={yppHomeStyle}>{home.yardsPerPlay != null ? home.yardsPerPlay : '--'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="Yards allowed per play on defense">Yards/Play Allowed</span>
                       <span style={yppaAwayStyle}>{away.yardsPerPlayAllowed != null ? away.yardsPerPlayAllowed : '--'}</span>
                       <span style={yppaHomeStyle}>{home.yardsPerPlayAllowed != null ? home.yardsPerPlayAllowed : '--'}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="Average turnovers gained vs. lost per game">Turnover Margin</span>
                       <span style={toAwayStyle}>{away.turnoverMargin || '--'}</span>
                       <span style={toHomeStyle}>{home.turnoverMargin || '--'}</span>
@@ -702,22 +703,22 @@ const GameIntel = ({ game, picks }) => {
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', fontWeight: 'bold', color: '#aaa', fontSize: '0.9em' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', fontWeight: 'bold', color: '#E8979F', fontSize: '0.9em' }}>
                       <span>Betting Stat</span>
                       <span>{game.away_team.split('(')[0].trim()}</span>
                       <span>{game.home_team.split('(')[0].trim()}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread overall">ATS Overall</span>
                       <span>{away.ats.overall}</span>
                       <span>{home.ats.overall}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread in home/away splits">ATS Home/Away</span>
                       <span>{away.ats.away} (Away)</span>
                       <span>{home.ats.home} (Home)</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread as favorite/underdog">ATS Fav/Dog</span>
                       <span>
                         <span style={{ fontWeight: isAwayFav ? 'bold' : 'normal', color: isAwayFav ? '#fff' : 'inherit' }}>{away.ats.favorite}</span> /{' '}
@@ -728,22 +729,22 @@ const GameIntel = ({ game, picks }) => {
                         <span style={{ fontWeight: isHomeDog ? 'bold' : 'normal', color: isHomeDog ? '#fff' : 'inherit' }}>{home.ats.underdog}</span>
                       </span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team's games go over or under the total line overall (Overs-Unders-Pushes)">O/U Overall</span>
                       <span>{away.ou.overall}</span>
                       <span>{home.ou.overall}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team's games go over or under the total line in home/away splits (Overs-Unders-Pushes)">O/U Home/Away</span>
                       {ouHomeAway.awayJsx}
                       {ouHomeAway.homeJsx}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="ATS performance over the last 5 games">ATS Streak (Last 5)</span>
                       <span style={{fontFamily: 'monospace' }}>{away.streak.ats}</span>
                       <span style={{fontFamily: 'monospace' }}>{home.streak.ats}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
                       <span title="O/U performance over the last 5 games">O/U Streak (Last 5)</span>
                       <span style={{ fontFamily: 'monospace' }}>{away.streak.ou}</span>
                       <span style={{ fontFamily: 'monospace' }}>{home.streak.ou}</span>
