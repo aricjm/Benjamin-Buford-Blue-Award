@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react';
+import { Lock, TrendingUp, TrendingDown, AlertTriangle, DollarSign, ExternalLink } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const UNIT = 10; // dollars risked per parlay
@@ -67,6 +67,7 @@ export default function BBBMLPPage({ seasons, players = [] }) {
   const [currentWeek, setCurrentWeek] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   
   // Default to the most recent season if available, otherwise 'All'
   const defaultSeason = seasons && seasons.length > 0 ? seasons[0] : 'All';
@@ -199,6 +200,52 @@ export default function BBBMLPPage({ seasons, players = [] }) {
               </div>
             ))}
           </div>
+
+          {/* Place Parlay Link */}
+          {currentWeek.locks.length > 0 && currentWeek.missingPlayers.length === 0 && (
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <a
+                href="https://sportsbook.draftkings.com/leagues/football/cfb"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  const text = currentWeek.locks.map(l => {
+                    if (l.selectionTeam) {
+                      return `${l.selectionTeam} ${l.spreadText || ''}`;
+                    } else {
+                      return `${l.awayTeam} @ ${l.homeTeam} ${l.selectionTotal.toUpperCase()} ${l.totalLine}`;
+                    }
+                  }).join('\n');
+                  navigator.clipboard.writeText(text);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 3000);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#51b022',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em',
+                  transition: 'background 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#43941c'}
+                onMouseLeave={e => e.currentTarget.style.background = '#51b022'}
+              >
+                Place BBB Mortal Lock Parlay <ExternalLink size={16} />
+              </a>
+              {copied && (
+                <span style={{ color: '#4caf50', fontSize: '0.85em', fontWeight: 'bold' }}>
+                  ✓ Picks copied to clipboard for easy searching!
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
