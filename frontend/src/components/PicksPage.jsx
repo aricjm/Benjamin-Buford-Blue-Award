@@ -13,7 +13,7 @@ const RULES = [
 const SITE_DETAILS = [
   'Live scores update every 5 minutes during active games.',
   'Game odds and lines update every 4 hours.',
-  'Weather forecasts update daily and show conditions at kickoff.',
+  'Weather forecasts update daily and show conditions at kickoff (14 days in advance).',
   'Injury reports are fetched live when requested.',
 ];
 
@@ -72,7 +72,7 @@ const getSpreadStyle = (game, team, isActive, pick) => {
   if (isActive) return { color: '#fff' };
   const spread = getEffectiveSpread(game, team, pick);
   if (spread === null || spread === 0) return {};
-  return { color: spread < 0 ? '#4caf50' : '#fc6363', fontWeight: 'bold' };
+  return { color: spread < 0 ? '#1F1F75' : '#1F1F75', fontWeight: 'bold' };
 };
 
 const CountdownTimer = ({ commenceTime }) => {
@@ -652,7 +652,7 @@ const GameIntel = ({ game, picks }) => {
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1.2fr', gap: '4px', fontWeight: 'bold', color: '#E8979F', fontSize: '0.9em' }}>
-                      <span>Stat</span>
+                      <span>Stats</span>
                       <span>{game.away_team.split('(')[0].trim()}</span>
                       <span>{game.home_team.split('(')[0].trim()}</span>
                     </div>
@@ -704,7 +704,7 @@ const GameIntel = ({ game, picks }) => {
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', fontWeight: 'bold', color: '#E8979F', fontSize: '0.9em' }}>
-                      <span>Betting Stat</span>
+                      <span>Betting Stats</span>
                       <span>{game.away_team.split('(')[0].trim()}</span>
                       <span>{game.home_team.split('(')[0].trim()}</span>
                     </div>
@@ -714,7 +714,7 @@ const GameIntel = ({ game, picks }) => {
                       <span>{home.ats.overall}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="How often each team covers the spread in home/away splits">ATS Home/Away</span>
+                      <span title="How often each team covers the spread in home/away splits">ATS H/A</span>
                       <span>{away.ats.away} (Away)</span>
                       <span>{home.ats.home} (Home)</span>
                     </div>
@@ -735,17 +735,17 @@ const GameIntel = ({ game, picks }) => {
                       <span>{home.ou.overall}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="How often each team's games go over or under the total line in home/away splits (Overs-Unders-Pushes)">O/U Home/Away</span>
+                      <span title="How often each team's games go over or under the total line in home/away splits (Overs-Unders-Pushes)">O/U H/A</span>
                       {ouHomeAway.awayJsx}
                       {ouHomeAway.homeJsx}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="ATS performance over the last 5 games">ATS Streak (Last 5)</span>
+                      <span title="ATS performance over the last 5 games">ATS Streak</span>
                       <span style={{fontFamily: 'monospace' }}>{away.streak.ats}</span>
                       <span style={{fontFamily: 'monospace' }}>{home.streak.ats}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.1fr 1.1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="O/U performance over the last 5 games">O/U Streak (Last 5)</span>
+                      <span title="O/U performance over the last 5 games">O/U Streak</span>
                       <span style={{ fontFamily: 'monospace' }}>{away.streak.ou}</span>
                       <span style={{ fontFamily: 'monospace' }}>{home.streak.ou}</span>
                     </div>
@@ -1031,7 +1031,7 @@ const PicksPage = ({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', gap: isMobile ? '4px' : '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                     <div className="game-switch">
                       <button
                         type="button"
@@ -1119,7 +1119,7 @@ const PicksPage = ({
                           title={title}
                         >
                           <Lock 
-                            size={20} 
+                            size={30} 
                             fill="none" 
                             strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? 3 : 2} 
                           />
@@ -1129,16 +1129,18 @@ const PicksPage = ({
                   </div>
 
                   {(game.over_under != null || picks[game.id]?.totalLine != null) && (
-                    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', gap: isMobile ? '4px' : '10px', marginTop: '10px' }}>
-                      <div className="game-switch" style={{ marginTop: 0 }}>
-                        <button
-                          type="button"
-                          className={`game-switch-option ${picks[game.id]?.selectionTotal === 'under' ? 'active' : ''}`}
-                          onClick={() => handleTotalChange(game, 'under')}
-                          disabled={isGameLocked(game)}
-                        >
-                          <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Under</span>
-                        </button>
+                    <>
+                      <div style={{ width: '100%', height: '1px', backgroundColor: 'rgba(255,255,255,0.05)', margin: '10px 0' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <div className="game-switch" style={{ marginTop: 0 }}>
+                          <button
+                            type="button"
+                            className={`game-switch-option ${picks[game.id]?.selectionTotal === 'under' ? 'active' : ''}`}
+                            onClick={() => handleTotalChange(game, 'under')}
+                            disabled={isGameLocked(game)}
+                          >
+                            <span style={{ fontWeight: 'bold', fontSize: '1.2em' }}>Under</span>
+                          </button>
                         <button
                           type="button"
                           className={`game-switch-option ${!picks[game.id]?.selectionTotal ? 'active' : ''}`}
@@ -1164,9 +1166,9 @@ const PicksPage = ({
                                 ? 'translateX(0)' 
                                 : 'translateX(100%)',
                             backgroundColor: picks[game.id]?.selectionTotal === 'over'
-                              ? '#4caf50' 
+                              ? '#E8979F' 
                               : picks[game.id]?.selectionTotal === 'under'
-                                ? '#f44336' 
+                                ? '#E8979F' 
                                 : '#E8979F'
                           }}
                         />
@@ -1201,7 +1203,7 @@ const PicksPage = ({
                             title={title}
                           >
                             <Lock 
-                              size={20} 
+                              size={30} 
                               fill="none" 
                               strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? 3 : 2} 
                             />
@@ -1209,6 +1211,7 @@ const PicksPage = ({
                         );
                       })()}
                     </div>
+                  </>
                   )}
 
                   <div style={{ marginTop: '12px', fontSize: '0.85em', color: '#888' }}>
