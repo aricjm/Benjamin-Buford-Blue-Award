@@ -693,10 +693,6 @@ const GameIntel = ({ game, picks }) => {
                 const away = matchupStats.researchStats.away;
                 const home = matchupStats.researchStats.home;
 
-                const [overallAwayStyle, overallHomeStyle] = getBetterStyle(parseRecord(away.ats.overall), parseRecord(home.ats.overall), true);
-                const [haAwayStyle, haHomeStyle] = getBetterStyle(parseRecord(away.ats.away), parseRecord(home.ats.home), true);
-                const [streakAwayStyle, streakHomeStyle] = getBetterStyle(countStreakWins(away.streak.ats), countStreakWins(home.streak.ats), true);
-
                 const isHomeFav = game.spread_home !== null && game.spread_home < 0;
                 const isHomeDog = game.spread_home !== null && game.spread_home > 0;
                 const isAwayFav = game.spread_away !== null && game.spread_away < 0;
@@ -713,13 +709,13 @@ const GameIntel = ({ game, picks }) => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread overall">ATS Overall</span>
-                      <span style={overallAwayStyle}>{away.ats.overall}</span>
-                      <span style={overallHomeStyle}>{home.ats.overall}</span>
+                      <span>{away.ats.overall}</span>
+                      <span>{home.ats.overall}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread in home/away splits">ATS Home/Away</span>
-                      <span style={haAwayStyle}>{away.ats.away} (Away)</span>
-                      <span style={haHomeStyle}>{home.ats.home} (Home)</span>
+                      <span>{away.ats.away} (Away)</span>
+                      <span>{home.ats.home} (Home)</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="How often each team covers the spread as favorite/underdog">ATS Fav/Dog</span>
@@ -744,8 +740,8 @@ const GameIntel = ({ game, picks }) => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="ATS performance over the last 5 games">ATS Streak (Last 5)</span>
-                      <span style={{ ...streakAwayStyle, fontFamily: 'monospace' }}>{away.streak.ats}</span>
-                      <span style={{ ...streakHomeStyle, fontFamily: 'monospace' }}>{home.streak.ats}</span>
+                      <span style={{fontFamily: 'monospace' }}>{away.streak.ats}</span>
+                      <span style={{fontFamily: 'monospace' }}>{home.streak.ats}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="O/U performance over the last 5 games">O/U Streak (Last 5)</span>
