@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, Award } from 'lucide-react';
+import { Library, Award, Lock } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -79,6 +79,23 @@ const Sidebar = ({
         >
           <FootballIcon />
           {!isSidebarCollapsed && <span>Picks</span>}
+        </button>
+        <button
+          className={activePage === 'bbbmlp' ? 'active' : ''}
+          onClick={() => handlePageChange('bbbmlp')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "BBBMLP" : ""}
+        >
+          <Lock size={20} />
+          {!isSidebarCollapsed && <span>BBBMLP</span>}
         </button>
         <button
           className={activePage === 'stats' ? 'active' : ''}

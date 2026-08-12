@@ -85,12 +85,14 @@ const cache = new NodeCache({ stdTTL: 3600 });
 async function ensureConnected() {
   try {
     console.log('Attempting to connect to the database...');
-    console.log(`Using connection string: ${process.env.POSTGRES_URL}`);
+    console.log(`Using connection string: ${process.env.POSTGRES_URL ? 'Provided (hidden for security)' : 'MISSING'}`);
+    console.log(`Dialect: ${dialect}`);
     const client = await pool.connect();
     client.release();
     console.log('Database connected successfully');
   } catch (error) {
     console.error('Database connection failed:', error.message);
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     throw error;
   }
 }
@@ -662,7 +664,7 @@ async function getWeekGames(week, season) {
         (g.home_team LIKE r.team1 || '%' AND g.away_team LIKE r.team2 || '%') OR 
         (g.home_team LIKE r.team2 || '%' AND g.away_team LIKE r.team1 || '%')
       WHERE g.week = $1 AND g.season = $2 
-      GROUP BY g.id
+      GROUP BY g.id, ht.logo, at.logo, ht.school_primary_color, at.school_primary_color, ht.stadium_name, ht.stadium_city, ht.stadium_state, ht.nickname, at.nickname, ht.conference, at.conference, r.trophy_name
       ORDER BY g.id ASC, g.commence_time ASC
     `, [week, season]);
     
@@ -2675,6 +2677,198 @@ function getDialect() {
   return dialect;
 }
 
+// Parlay payout for N legs at -110 each, $10 unit — returns total return on win (e.g. $69.57)
+function calcParlayNet(legs, result) {
+  if (result === 'pending') return null;
+  if (result === 'push') return 0;
+  if (result === 'loss') return -10;
+  const decimalOdds = 100 / 110 + 1;
+  return parseFloat((10 * Math.pow(decimalOdds, legs)).toFixed(2));
+}
+
+async function getCurrentWeekLocks() {
+  // Use cached weeks and players — no raw DB queries
+  const [allWeeks, playerRows] = await Promise.all([
+    getWeeks(),
+    getPlayers()
+  ]);
+  const allPlayers = playerRows.map(r => r.name);
+
+  // Find the week whose window contains today
+  const now = new Date();
+  let current = allWeeks.find(w => w.starts_on && w.ends_on && now >= new Date(w.starts_on) && now <= new Date(w.ends_on));
+  
+  if (!current) {
+    // If no active week, find the next upcoming week
+    const upcoming = allWeeks.filter(w => w.starts_on && now < new Date(w.starts_on))
+      .sort((a, b) => new Date(a.starts_on) - new Date(b.starts_on));
+    
+    if (upcoming.length > 0) {
+      current = upcoming[0];
+    } else {
+      // If no upcoming weeks, fall back to the absolute latest week
+      const sorted = [...allWeeks].sort((a, b) => {
+        if (a.season !== b.season) return b.season - a.season;
+        return b.week - a.week;
+      });
+      current = sorted[0];
+    }
+  }
+  if (!current) return { season: null, week: null, locks: [], missingPlayers: allPlayers };
+
+  const { season, week } = current;
+
+  // getPicksByWeek is cached (30 min TTL)
+  const picks = await getPicksByWeek(week, season);
+  const lockPicks = picks.filter(p => p.is_lock == 1);
+
+  const locks = lockPicks.map(row => {
+    const spreadText = row.spread === 0 ? 'PK' : (row.spread > 0 ? `+${row.spread}` : `${row.spread}`);
+    const result = row.selection_team ? row.result : row.result_total;
+    const resolvedResult = result || (row.completed ? 'loss' : 'pending');
+    
+    return { 
+      player: row.player, 
+      awayTeam: row.away_team,
+      homeTeam: row.home_team,
+      selectionTeam: row.selection_team,
+      spreadText: row.selection_team ? spreadText : null,
+      selectionTotal: row.selection_total,
+      totalLine: row.total_line,
+      result: resolvedResult 
+    };
+  });
+
+  const submittedPlayers = new Set(locks.map(l => l.player));
+  const missingPlayers = allPlayers.filter(p => !submittedPlayers.has(p));
+
+  return { season, week, locks, missingPlayers };
+}
+
+async function getBBBMLPData(season) {
+  // Fetch all lock picks grouped by season+week
+  const seasonFilter = season ? 'AND g.season = $1' : '';
+  const params = season ? [season] : [];
+
+  const { rows: lockRows } = await pool.query(`
+    SELECT
+      p.player,
+      p.week,
+      g.season,
+      p.game_id,
+      p.selection_team,
+      p.selection_side,
+      p.spread,
+      p.selection_total,
+      p.total_line,
+      p.result,
+      p.result_total,
+      p.is_lock,
+      g.home_team,
+      g.away_team,
+      g.completed
+    FROM picks p
+    JOIN games g ON p.game_id = g.id
+    WHERE p.is_lock = 1 ${seasonFilter}
+    ORDER BY g.season ASC, p.week ASC, p.player ASC
+  `, params);
+
+  // Group by season+week
+  const weekMap = new Map();
+  for (const row of lockRows) {
+    const key = `${row.season}__${row.week}`;
+    if (!weekMap.has(key)) weekMap.set(key, { season: row.season, week: row.week, locks: [] });
+    const entry = weekMap.get(key);
+
+    const spread = row.spread;
+    const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : `${spread}`);
+
+    const result = row.selection_team ? row.result : row.result_total;
+    // If game is completed but result wasn't recorded, treat as loss (data gap)
+    const resolvedResult = result || (row.completed ? 'loss' : 'pending');
+
+    // Deduplicate: if same player already has a lock this week, skip (shouldn't happen but guard)
+    if (!entry.locks.find(l => l.player === row.player)) {
+      entry.locks.push({ 
+        player: row.player, 
+        awayTeam: row.away_team,
+        homeTeam: row.home_team,
+        selectionTeam: row.selection_team,
+        spreadText: row.selection_team ? spreadText : null,
+        selectionTotal: row.selection_total,
+        totalLine: row.total_line,
+        result: resolvedResult, 
+        gameId: row.game_id 
+      });
+    }
+  }
+
+  // Compute parlay result and net for each week
+  const weeks = [];
+  for (const [, w] of weekMap) {
+    const locks = w.locks;
+    if (locks.length === 0) continue;
+
+    // Deduplicate legs: if two players picked the same game+direction, count as one leg
+    const uniqueLegs = [];
+    const seenGames = new Set();
+    for (const lock of locks) {
+      // Deduplicate by gameId + selection type/team
+      const dedupKey = lock.selectionTeam 
+        ? `${lock.gameId}_team_${lock.selectionTeam}`
+        : `${lock.gameId}_total_${lock.selectionTotal}`;
+        
+      if (!seenGames.has(dedupKey)) {
+        seenGames.add(dedupKey);
+        uniqueLegs.push(lock);
+      }
+    }
+
+    const anyPending = locks.some(l => l.result === 'pending');
+    const anyLoss = locks.some(l => l.result === 'loss');
+    // Pushes drop off the parlay; count only winning legs for payout
+    const winLegs = uniqueLegs.filter(l => l.result === 'win').length;
+
+    let parlayResult;
+    if (anyPending) parlayResult = 'pending';
+    else if (anyLoss) parlayResult = 'loss';
+    else if (winLegs === 0) parlayResult = 'push'; // all legs pushed — stake returned
+    else parlayResult = 'win';
+
+    // push returns stake ($10); win returns total return; loss returns -10
+    const netResult = parlayResult === 'push'
+      ? 10
+      : calcParlayNet(winLegs, parlayResult);
+
+    weeks.push({ season: w.season, week: w.week, locks, uniqueLegs: uniqueLegs.length, winLegs, parlayResult, netResult });
+  }
+
+  // Compute per-player stats
+  const playerStats = {};
+  for (const w of weeks) {
+    for (const lock of w.locks) {
+      if (!playerStats[lock.player]) {
+        playerStats[lock.player] = { wins: 0, losses: 0, pushes: 0, pending: 0, soleBust: 0 };
+      }
+      const s = playerStats[lock.player];
+      if (lock.result === 'win') s.wins++;
+      else if (lock.result === 'loss') s.losses++;
+      else if (lock.result === 'push') s.pushes++;
+      else s.pending++;
+
+      // Sole bust: this player lost, and every other player either won or pushed
+      if (lock.result === 'loss' && w.locks.length > 1) {
+        const otherLocks = w.locks.filter(l => l.player !== lock.player);
+        if (otherLocks.every(l => l.result === 'win' || l.result === 'push')) {
+          s.soleBust++;
+        }
+      }
+    }
+  }
+
+  return { weeks, playerStats };
+}
+
 module.exports = {
   init,
   getDialect,
@@ -2720,5 +2914,7 @@ module.exports = {
   setHistoricalLock,
   getSeasonAwards,
   getPlayerAwards,
-  getInProgressWeeks
+  getInProgressWeeks,
+  getBBBMLPData,
+  getCurrentWeekLocks
 };

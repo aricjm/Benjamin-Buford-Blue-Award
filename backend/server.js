@@ -44,11 +44,18 @@ app.use(async (req, res, next) => {
     // Skip db.init() on Vercel to avoid permission issues with information_schema
     // We assume the schema is already set up via local init_db.js
     if (!dbInitPromise) {
+      console.log(`[Vercel Init] Starting serverless function. Database dialect configured as: ${db.getDialect()}`);
+      if (db.getDialect() === 'postgres') {
+        console.log(`[Vercel Init] POSTGRES_URL is present. Connecting to PostgreSQL...`);
+      } else {
+        console.warn(`[Vercel Init] WARNING: POSTGRES_URL is missing! Falling back to SQLite.`);
+      }
       dbInitPromise = Promise.resolve();
     }
     try {
       await dbInitPromise;
     } catch (err) {
+      console.error(`[Vercel Init] Database initialization failed:`, err);
       return res.status(500).json({ error: 'Database initialization failed' });
     }
   }
@@ -489,6 +496,25 @@ app.get('/api/summary/alltime', async (req, res) => {
   try {
     const summary = await db.getAllTimeSummary();
     res.json(summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/bbbmlp', async (req, res) => {
+  try {
+    const season = req.query.season || null;
+    const result = await db.getBBBMLPData(season);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/bbbmlp/current', async (req, res) => {
+  try {
+    const result = await db.getCurrentWeekLocks();
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
