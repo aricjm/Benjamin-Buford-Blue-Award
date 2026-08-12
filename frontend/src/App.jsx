@@ -49,7 +49,7 @@ function App() {
   // Consume the custom hooks
   const isMobile = useIsMobile();
   const {
-    players, seasons, weeks, teams, games, picks, loadedPicks,
+    players, seasons, weeks, teams, games, picks, loadedPicks, otherPlayersLocks,
     summary, seasonSummary, allTimeSummary,
     loading, message, playerStats, conferenceStats, allPlayerStats,
     setLoading, setMessage, loadStats, loadWeek, 
@@ -641,6 +641,7 @@ function App() {
               <PicksPage 
                 pickGames={pickGames}
                 picks={picks}
+                otherPlayersLocks={otherPlayersLocks}
                 handlePickChange={handlePickChange}
                 handleTotalChange={handleTotalChange}
                 handleLockToggle={handleLockToggle}
@@ -672,7 +673,7 @@ function App() {
             )}
 
             {isBBBMLPPage && (
-              <BBBMLPPage seasons={seasons} />
+              <BBBMLPPage seasons={seasons} players={players} />
             )}
           </Suspense>
 

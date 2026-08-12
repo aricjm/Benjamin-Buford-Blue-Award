@@ -62,7 +62,7 @@ function LockPickLabel({ lock }) {
   return <span style={{ color: '#ccc' }}>{lock.label}</span>;
 }
 
-export default function BBBMLPPage({ seasons }) {
+export default function BBBMLPPage({ seasons, players = [] }) {
   const [data, setData] = useState(null);
   const [currentWeek, setCurrentWeek] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -96,7 +96,11 @@ export default function BBBMLPPage({ seasons }) {
 
   const weeks = data?.weeks || [];
   const playerStats = data?.playerStats || {};
-  const players = Object.keys(playerStats);
+
+  // Get list of player names from props or fallback to standard three
+  const displayPlayers = players.length > 0 
+    ? players.map(p => p.name) 
+    : ['Aric', 'Nick', 'Cisco'];
 
   // netResult from backend: totalReturn on win (e.g. $69.57), -10 on loss, 0 on push, null on pending
   // Net P&L = sum of (return - stake) for wins + losses
@@ -216,12 +220,12 @@ export default function BBBMLPPage({ seasons }) {
           </div>
 
           {/* Player Lock Records */}
-          {players.length > 0 && (
+          {displayPlayers.length > 0 && (
             <div style={{ marginBottom: '28px' }}>
               <h3 style={{ marginBottom: '12px', fontSize: '1rem', color: '#ccc' }}>Player Lock Records</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                {players.map(player => {
-                  const s = playerStats[player];
+                {displayPlayers.map(player => {
+                  const s = playerStats[player] || { wins: 0, losses: 0, pushes: 0, pending: 0, soleBust: 0 };
                   return (
                     <div key={player} style={{
                       background: 'rgba(255,255,255,0.05)',

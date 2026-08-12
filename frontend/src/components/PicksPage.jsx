@@ -11,7 +11,7 @@ const RULES = [
 ];
 
 const SITE_DETAILS = [
-  'Live scores update every 15 minutes during active games.',
+  'Live scores update every 5 minutes during active games.',
   'Game odds and lines update every 4 hours.',
   'Weather forecasts update daily and show conditions at kickoff.',
   'Injury reports are fetched live when requested.',
@@ -381,6 +381,7 @@ const GameIntel = ({ game, picks }) => {
 const PicksPage = ({
   pickGames,
   picks,
+  otherPlayersLocks = [],
   games,
   handlePickChange,
   handleTotalChange,
@@ -514,6 +515,36 @@ const PicksPage = ({
     });
   };
 
+  const isSpreadLockConflicted = (gameId, selectionTeam) => {
+    const game = pickGames.find(g => g.id === gameId);
+    if (!game) return false;
+    const oppositeTeam = selectionTeam === game.home_team ? game.away_team : game.home_team;
+    return otherPlayersLocks.some(l => l.gameId === gameId && l.selectionTeam === oppositeTeam);
+  };
+
+  const isTotalLockConflicted = (gameId, selectionTotal) => {
+    const oppositeTotal = selectionTotal === 'over' ? 'under' : 'over';
+    return otherPlayersLocks.some(l => l.gameId === gameId && l.selectionTotal === oppositeTotal);
+  };
+
+  const getConflictingPlayer = (gameId, selectionTeam, selectionTotal) => {
+    const game = pickGames.find(g => g.id === gameId);
+    if (!game) return null;
+    
+    if (selectionTeam) {
+      const oppositeTeam = selectionTeam === game.home_team ? game.away_team : game.home_team;
+      const conflict = otherPlayersLocks.find(l => l.gameId === gameId && l.selectionTeam === oppositeTeam);
+      return conflict ? conflict.player : null;
+    }
+    
+    if (selectionTotal) {
+      const oppositeTotal = selectionTotal === 'over' ? 'under' : 'over';
+      const conflict = otherPlayersLocks.find(l => l.gameId === gameId && l.selectionTotal === oppositeTotal);
+      return conflict ? conflict.player : null;
+    }
+    
+    return null;
+  };
 
   return (
     <>
@@ -677,31 +708,43 @@ const PicksPage = ({
                         }}
                       />
                     </div>
-                    {(isAwayActive || isHomeActive) && (
-                      <button
-                        type="button"
-                        onClick={() => handleLockToggle(game, 'spread')}
-                        disabled={isGameLocked(game)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: isGameLocked(game) ? 'not-allowed' : 'pointer',
-                          padding: '4px 8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? '#f1c40f' : 'rgba(255,255,255,0.2)',
-                          transition: 'color 0.2s'
-                        }}
-                        title={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? "Unlock Spread" : "Lock Spread"}
-                      >
-                        <Lock 
-                          size={20} 
-                          fill="none" 
-                          strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? 3 : 2} 
-                        />
-                      </button>
-                    )}
+                    {(isAwayActive || isHomeActive) && (() => {
+                      const selectionTeam = isAwayActive ? game.away_team : game.home_team;
+                      const isConflicted = isSpreadLockConflicted(game.id, selectionTeam);
+                      const conflictPlayer = isConflicted ? getConflictingPlayer(game.id, selectionTeam, null) : null;
+                      const isLocked = isGameLocked(game);
+                      const isDisabled = isLocked || isConflicted;
+                      
+                      let title = picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? "Unlock Spread" : "Lock Spread";
+                      if (isConflicted) title = `Cannot lock: ${conflictPlayer} already locked this pick`;
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleLockToggle(game, 'spread')}
+                          disabled={isDisabled}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            padding: '4px 8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isConflicted ? '#f44336' : (picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? '#f1c40f' : 'rgba(255,255,255,0.2)'),
+                            transition: 'color 0.2s',
+                            opacity: isConflicted ? 0.5 : 1
+                          }}
+                          title={title}
+                        >
+                          <Lock 
+                            size={20} 
+                            fill="none" 
+                            strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'spread' ? 3 : 2} 
+                          />
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   {(game.over_under != null || picks[game.id]?.totalLine != null) && (
@@ -747,31 +790,43 @@ const PicksPage = ({
                           }}
                         />
                       </div>
-                      {(picks[game.id]?.selectionTotal === 'under' || picks[game.id]?.selectionTotal === 'over') && (
-                        <button
-                          type="button"
-                          onClick={() => handleLockToggle(game, 'total')}
-                          disabled={isGameLocked(game)}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: isGameLocked(game) ? 'not-allowed' : 'pointer',
-                            padding: '4px 8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? '#f1c40f' : 'rgba(255,255,255,0.2)',
-                            transition: 'color 0.2s'
-                          }}
-                          title={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? "Unlock Total" : "Lock Total"}
-                        >
-                          <Lock 
-                            size={20} 
-                            fill="none" 
-                            strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? 3 : 2} 
-                          />
-                        </button>
-                      )}
+                      {(picks[game.id]?.selectionTotal === 'under' || picks[game.id]?.selectionTotal === 'over') && (() => {
+                        const selectionTotal = picks[game.id].selectionTotal;
+                        const isConflicted = isTotalLockConflicted(game.id, selectionTotal);
+                        const conflictPlayer = isConflicted ? getConflictingPlayer(game.id, null, selectionTotal) : null;
+                        const isLocked = isGameLocked(game);
+                        const isDisabled = isLocked || isConflicted;
+                        
+                        let title = picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? "Unlock Total" : "Lock Total";
+                        if (isConflicted) title = `Cannot lock: ${conflictPlayer} already locked this pick`;
+
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleLockToggle(game, 'total')}
+                            disabled={isDisabled}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              padding: '4px 8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: isConflicted ? '#f44336' : (picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? '#f1c40f' : 'rgba(255,255,255,0.2)'),
+                              transition: 'color 0.2s',
+                              opacity: isConflicted ? 0.5 : 1
+                            }}
+                            title={title}
+                          >
+                            <Lock 
+                              size={20} 
+                              fill="none" 
+                              strokeWidth={picks[game.id]?.isLock && picks[game.id]?.lockType === 'total' ? 3 : 2} 
+                            />
+                          </button>
+                        );
+                      })()}
                     </div>
                   )}
 

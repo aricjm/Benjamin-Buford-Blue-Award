@@ -10,6 +10,7 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
   const [games, setGames] = useState([]);
   const [picks, setPicks] = useState({});
   const [loadedPicks, setLoadedPicks] = useState({});
+  const [otherPlayersLocks, setOtherPlayersLocks] = useState([]);
   const [summary, setSummary] = useState([]);
   const [seasonSummary, setSeasonSummary] = useState([]);
   const [allTimeSummary, setAllTimeSummary] = useState([]);
@@ -53,7 +54,8 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
       setSummary(data.summary || []);
 
       const picksObj = {};
-      if (data.picks && player) {
+      const otherLocks = [];
+      if (data.picks) {
         data.picks.forEach((p) => {
           if (p.player === player) {
             const existing = picksObj[p.game_id] || {};
@@ -74,11 +76,19 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
               isLock: isLock || existing.isLock || false,
               lockType: isLock ? lockType : existing.lockType || null
             };
+          } else if (p.is_lock === 1 || p.is_lock === true) {
+            otherLocks.push({
+              player: p.player,
+              gameId: p.game_id,
+              selectionTeam: p.selection_team,
+              selectionTotal: p.selection_total
+            });
           }
         });
       }
       setPicks(picksObj);
       setLoadedPicks(picksObj);
+      setOtherPlayersLocks(otherLocks);
       setMessage('');
     } catch (error) {
       setMessage('Unable to load week data.');
@@ -299,6 +309,7 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     games,
     picks,
     loadedPicks,
+    otherPlayersLocks,
     summary,
     seasonSummary,
     allTimeSummary,
