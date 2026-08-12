@@ -419,7 +419,7 @@ const GameIntel = ({ game, picks }) => {
 
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ fontSize: '0.75em', color: '#E8979F', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
+      <div style={{ fontSize: '0.75em', color: '#fff', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
       
       {!!game.completed && picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '4px' }}>
