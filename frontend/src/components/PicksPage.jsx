@@ -220,6 +220,45 @@ const countStreakWins = (streakStr) => {
   return (streakStr.match(/W/g) || []).length;
 };
 
+const formatOUHomeAway = (awayRecord, homeRecord) => {
+  const parse = (str) => {
+    if (!str) return null;
+    const parts = str.split('-').map(Number);
+    if (parts.length < 3 || parts.some(isNaN)) return null;
+    const [overs, unders, pushes] = parts;
+    const total = overs + unders;
+    return { overs, unders, pushes, total, overPct: total > 0 ? overs / total : 0, underPct: total > 0 ? unders / total : 0 };
+  };
+
+  const away = parse(awayRecord);
+  const home = parse(homeRecord);
+
+  if (!away || !home) {
+    return {
+      awayJsx: <span>{awayRecord} (Away)</span>,
+      homeJsx: <span>{homeRecord} (Home)</span>
+    };
+  }
+
+  const bothOver = away.overPct > 0.51 && home.overPct > 0.51;
+  const bothUnder = away.underPct > 0.51 && home.underPct > 0.51;
+
+  const renderRecord = (rec, isAway) => {
+    return (
+      <span>
+        <span style={{ color: bothOver ? '#4caf50' : 'inherit', fontWeight: bothOver ? 'bold' : 'inherit' }}>{rec.overs}</span>-
+        <span style={{ color: bothUnder ? '#4caf50' : 'inherit', fontWeight: bothUnder ? 'bold' : 'inherit' }}>{rec.unders}</span>-
+        <span>{rec.pushes}</span> {isAway ? '(Away)' : '(Home)'}
+      </span>
+    );
+  };
+
+  return {
+    awayJsx: renderRecord(away, true),
+    homeJsx: renderRecord(home, false)
+  };
+};
+
 const GameIntel = ({ game, picks }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -663,6 +702,8 @@ const GameIntel = ({ game, picks }) => {
                 const isAwayFav = game.spread_away !== null && game.spread_away < 0;
                 const isAwayDog = game.spread_away !== null && game.spread_away > 0;
 
+                const ouHomeAway = formatOUHomeAway(away.ou.away, home.ou.home);
+
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '4px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', fontWeight: 'bold', color: '#aaa', fontSize: '0.9em' }}>
@@ -692,14 +733,14 @@ const GameIntel = ({ game, picks }) => {
                       </span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="How often each team's games go over or under the total line overall">O/U Overall</span>
+                      <span title="How often each team's games go over or under the total line overall (Overs-Unders-Pushes)">O/U Overall</span>
                       <span>{away.ou.overall}</span>
                       <span>{home.ou.overall}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
-                      <span title="How often each team's games go over or under the total line in home/away splits">O/U Home/Away</span>
-                      <span>{away.ou.away} (Away)</span>
-                      <span>{home.ou.home} (Home)</span>
+                      <span title="How often each team's games go over or under the total line in home/away splits (Overs-Unders-Pushes)">O/U Home/Away</span>
+                      {ouHomeAway.awayJsx}
+                      {ouHomeAway.homeJsx}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '4px', color: '#ccc' }}>
                       <span title="ATS performance over the last 5 games">ATS Streak (Last 5)</span>
