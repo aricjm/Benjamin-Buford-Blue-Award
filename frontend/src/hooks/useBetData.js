@@ -228,7 +228,6 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           [key]: { 
             ...existing, 
             selectionTotal: null, 
-            totalLine: null,
             isLock: existing.lockType === 'total' ? false : existing.isLock,
             lockType: existing.lockType === 'total' ? null : existing.lockType
           } 
@@ -240,9 +239,28 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
         [key]: {
           ...existing,
           selectionTotal: totalPick,
-          totalLine: game.over_under
+          totalLine: existing.totalLine ?? game.over_under
         }
       };
+    });
+  };
+
+  const handleSpreadAdjust = (game, delta) => {
+    setPicks((prev) => {
+      const key = game.id;
+      const existing = prev[key];
+      if (!existing || !existing.selectionTeam) return prev;
+      const current = existing.spread ?? (existing.selectionTeam === game.home_team ? game.spread_home : game.spread_away) ?? 0;
+      return { ...prev, [key]: { ...existing, spread: Math.round((current + delta) * 2) / 2 } };
+    });
+  };
+
+  const handleTotalAdjust = (game, delta) => {
+    setPicks((prev) => {
+      const key = game.id;
+      const existing = prev[key] ?? { gameId: game.id, isMandatory: game.is_mandatory };
+      const current = existing.totalLine ?? game.over_under ?? 0;
+      return { ...prev, [key]: { ...existing, totalLine: Math.round((current + delta) * 2) / 2 } };
     });
   };
 
@@ -324,6 +342,8 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     loadWeek,
     handlePickChange,
     handleTotalChange,
+    handleSpreadAdjust,
+    handleTotalAdjust,
     handleLockToggle,
     addManualGame,
     savePicks: async (playerPicks) => {

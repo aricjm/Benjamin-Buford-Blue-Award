@@ -766,6 +766,8 @@ const PicksPage = ({
   games,
   handlePickChange,
   handleTotalChange,
+  handleSpreadAdjust,
+  handleTotalAdjust,
   handleLockToggle,
   isGameLocked,
   isGameLive,
@@ -1047,6 +1049,12 @@ const PicksPage = ({
                           game.away_team
                         )}
                         <span className="switch-option-label" style={getSpreadStyle(game, game.away_team, isAwayActive, picks[game.id])}>
+                          {isAwayActive && !isGameLocked(game) && (
+                            <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px', marginRight: '3px', verticalAlign: 'middle' }}>
+                              <button type="button" onClick={() => handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
+                              <button type="button" onClick={() => handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                            </span>
+                          )}
                           {formatSpread(game, game.away_team, picks[game.id])}
                         </span>
                       </button>
@@ -1055,7 +1063,7 @@ const PicksPage = ({
                         className={`game-switch-option ${!picks[game.id] ? 'active' : ''}`}
                         onClick={() => handlePickChange(game, null)}
                         disabled={isGameLocked(game)}
-                      > 
+                      >
                         <span style={{ fontSize: '2.7em', color: '#1F1F75' }}>@</span>
                       </button>
                       <button
@@ -1072,6 +1080,12 @@ const PicksPage = ({
                           game.home_team
                         )}
                         <span className="switch-option-label" style={getSpreadStyle(game, game.home_team, isHomeActive, picks[game.id])}>
+                          {isHomeActive && !isGameLocked(game) && (
+                            <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px', marginRight: '3px', verticalAlign: 'middle' }}>
+                              <button type="button" onClick={() => handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
+                              <button type="button" onClick={() => handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                            </span>
+                          )}
                           {formatSpread(game, game.home_team, picks[game.id])}
                         </span>
                       </button>
@@ -1146,8 +1160,16 @@ const PicksPage = ({
                           className={`game-switch-option ${!picks[game.id]?.selectionTotal ? 'active' : ''}`}
                           onClick={() => handleTotalChange(game, null)}
                           disabled={isGameLocked(game)}
-                        > 
-                          <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold' }}>{game.over_under ?? picks[game.id]?.totalLine}</span>
+                        >
+                          <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {!isGameLocked(game) && (
+                              <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px' }}>
+                                <button type="button" onClick={() => handleTotalAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
+                                <button type="button" onClick={() => handleTotalAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                              </span>
+                            )}
+                            {picks[game.id]?.totalLine ?? game.over_under}
+                          </span>
                         </button>
                         <button
                           type="button"

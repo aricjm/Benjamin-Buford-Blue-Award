@@ -53,7 +53,7 @@ function App() {
     summary, seasonSummary, allTimeSummary,
     loading, message, playerStats, conferenceStats, allPlayerStats,
     setLoading, setMessage, loadStats, loadWeek, 
-    handlePickChange, handleTotalChange, handleLockToggle, addManualGame, savePicks
+    handlePickChange, handleTotalChange, handleSpreadAdjust, handleTotalAdjust, handleLockToggle, addManualGame, savePicks
   } = useBetData(selectedSeason, selectedWeek, selectedPlayer, selectedConference, statsTimeRange);
 
   const handlePageChange = (page) => {
@@ -306,25 +306,36 @@ function App() {
     if (pick.selectionTeam) {
       const spread = pick.spread ?? (pick.selectionSide === 'home' ? game.spread_home : game.spread_away);
       const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : spread);
-      selectableBets.push({
-        gameId: pick.gameId,
-        type: 'spread',
-        label: `${pick.selectionTeam} ${spreadText}`,
-        gameLabel: `${game.away_team} @ ${game.home_team}`,
-        isLock: pick.isLock && pick.lockType === 'spread',
-        gameObj: game
-      });
+      
+      const oppositeTeam = pick.selectionTeam === game.home_team ? game.away_team : game.home_team;
+      const isConflicted = otherPlayersLocks.some(l => l.gameId === game.id && l.selectionTeam === oppositeTeam);
+
+      if (!isConflicted) {
+        selectableBets.push({
+          gameId: pick.gameId,
+          type: 'spread',
+          label: `${pick.selectionTeam} ${spreadText}`,
+          gameLabel: `${game.away_team} @ ${game.home_team}`,
+          isLock: pick.isLock && pick.lockType === 'spread',
+          gameObj: game
+        });
+      }
     }
 
     if (pick.selectionTotal) {
-      selectableBets.push({
-        gameId: pick.gameId,
-        type: 'total',
-        label: `${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`,
-        gameLabel: `${game.away_team} @ ${game.home_team}`,
-        isLock: pick.isLock && pick.lockType === 'total',
-        gameObj: game
-      });
+      const oppositeTotal = pick.selectionTotal === 'over' ? 'under' : 'over';
+      const isConflicted = otherPlayersLocks.some(l => l.gameId === game.id && l.selectionTotal === oppositeTotal);
+
+      if (!isConflicted) {
+        selectableBets.push({
+          gameId: pick.gameId,
+          type: 'total',
+          label: `${pick.selectionTotal.toUpperCase()} ${pick.totalLine}`,
+          gameLabel: `${game.away_team} @ ${game.home_team}`,
+          isLock: pick.isLock && pick.lockType === 'total',
+          gameObj: game
+        });
+      }
     }
   });
 
@@ -469,44 +480,52 @@ function App() {
                 ) : (
                   <div style={{ marginTop: 12, textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px' }}>
                     <div style={{ color: '#ffcc00', fontWeight: 'bold', marginBottom: '12px', border: '1px solid #ffcc00', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(255, 204, 0, 0.1)', fontSize: '0.9em' }}>
-                      <AlertTriangle size={18} /> You must select one Lock for this week before saving. Please select one of your picks below:
+                      <AlertTriangle size={18} /> {selectableBets.length === 0 ? "You have no valid picks available to lock. Please make a pick that hasn't been locked by another player." : "You must select one Lock for this week before saving. Please select one of your picks below:"}
                     </div>
                     <div style={{ maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
-                      {selectableBets.map((bet) => (
-                        <label 
-                          key={`${bet.gameId}-${bet.type}`} 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '10px', 
-                            padding: '8px', 
-                            borderRadius: '6px', 
-                            cursor: 'pointer',
-                            background: bet.isLock ? 'rgba(241, 196, 15, 0.15)' : 'transparent',
-                            border: bet.isLock ? '1px solid #f1c40f' : '1px solid transparent',
-                            marginBottom: '6px',
-                            userSelect: 'none'
-                          }}
-                        >
-                          <input 
-                            type="radio" 
-                            name="lock-selection" 
-                            checked={bet.isLock}
-                            onChange={() => handleLockToggle(bet.gameObj, bet.type)}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.8em', color: '#aaa' }}>{bet.gameLabel}</div>
-                            <strong style={{ color: bet.isLock ? '#f1c40f' : '#2196f3', fontSize: '0.95em', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              {bet.label} {bet.isLock && <Lock size={13} />}
-                            </strong>
-                          </div>
-                        </label>
-                      ))}
+                      {selectableBets.length === 0 ? (
+                        <div style={{ color: '#aaa', fontStyle: 'italic', padding: '8px' }}>
+                          No valid picks available to lock. Please make a pick that hasn't been locked by another player.
+                        </div>
+                      ) : (
+                        selectableBets.map((bet) => (
+                          <label 
+                            key={`${bet.gameId}-${bet.type}`} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '10px', 
+                              padding: '8px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer',
+                              background: bet.isLock ? 'rgba(241, 196, 15, 0.15)' : 'transparent',
+                              border: bet.isLock ? '1px solid #f1c40f' : '1px solid transparent',
+                              marginBottom: '6px',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <input 
+                              type="radio" 
+                              name="lock-selection" 
+                              checked={bet.isLock}
+                              onChange={() => handleLockToggle(bet.gameObj, bet.type)}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.8em', color: '#aaa' }}>{bet.gameLabel}</div>
+                              <strong style={{ color: bet.isLock ? '#f1c40f' : '#2196f3', fontSize: '0.95em', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {bet.label} {bet.isLock && <Lock size={13} />}
+                              </strong>
+                            </div>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                  <button className="continue-button" onClick={() => performSave()} disabled={loading || !hasLock}>Yes, save</button>
+                  {(!hasLock && selectableBets.length === 0) ? null : (
+                    <button className="continue-button" onClick={() => performSave()} disabled={loading || !hasLock}>Yes, save</button>
+                  )}
                   <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
                 </div>
               </div>
@@ -644,6 +663,8 @@ function App() {
                 otherPlayersLocks={otherPlayersLocks}
                 handlePickChange={handlePickChange}
                 handleTotalChange={handleTotalChange}
+                handleSpreadAdjust={handleSpreadAdjust}
+                handleTotalAdjust={handleTotalAdjust}
                 handleLockToggle={handleLockToggle}
                 isGameLocked={isGameLocked}
                 isGameLive={isGameLive}
