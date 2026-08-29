@@ -75,7 +75,7 @@ function start(db) {
   });
 
   // Weekly rankings sync every Sunday at 2:30 PM EST (14:30 America/New_York)
-  const rankingsTask = cron.schedule('30 14 * * 0', async () => {
+  rankingsTask = cron.schedule('30 14 * * 0', async () => {
     try {
       console.log('[scheduler] syncing Top 25 rankings');
       const seasons = await db.getSeasons();

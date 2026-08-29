@@ -653,6 +653,16 @@ app.get('/api/injuries', async (req, res) => {
   }
 });
 
+app.get('/api/experts/tweets', async (req, res) => {
+  try {
+    const handle = req.query.handle || null;
+    const tweets = await api.fetchExpertTweets(handle);
+    res.json(tweets);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Queue endpoint: accept picks and append to pending JSONL file for later flushing
 const fs = require('fs');
 const path = require('path');

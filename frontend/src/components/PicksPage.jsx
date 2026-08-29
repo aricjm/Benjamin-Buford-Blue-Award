@@ -1502,8 +1502,8 @@ const PicksPage = ({
                         <span className="switch-option-label" style={getSpreadStyle(game, game.away_team, isAwayActive, picks[game.id])}>
                           {isAwayActive && !isGameLocked(game) && (
                             <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px', marginRight: '3px', verticalAlign: 'middle' }}>
-                              <button type="button" onClick={() => handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
-                              <button type="button" onClick={() => handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                              <span role="button" tabIndex={0} onClick={() => handleSpreadAdjust(game, 0.5)} onKeyDown={e => e.key === 'Enter' && handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▲</span>
+                              <span role="button" tabIndex={0} onClick={() => handleSpreadAdjust(game, -0.5)} onKeyDown={e => e.key === 'Enter' && handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▼</span>
                             </span>
                           )}
                           {formatSpread(game, game.away_team, picks[game.id])}
@@ -1533,8 +1533,8 @@ const PicksPage = ({
                         <span className="switch-option-label" style={getSpreadStyle(game, game.home_team, isHomeActive, picks[game.id])}>
                           {isHomeActive && !isGameLocked(game) && (
                             <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px', marginRight: '3px', verticalAlign: 'middle' }}>
-                              <button type="button" onClick={() => handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
-                              <button type="button" onClick={() => handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                              <span role="button" tabIndex={0} onClick={() => handleSpreadAdjust(game, 0.5)} onKeyDown={e => e.key === 'Enter' && handleSpreadAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▲</span>
+                              <span role="button" tabIndex={0} onClick={() => handleSpreadAdjust(game, -0.5)} onKeyDown={e => e.key === 'Enter' && handleSpreadAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: 'inherit', cursor: 'pointer', fontSize: '0.6em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▼</span>
                             </span>
                           )}
                           {formatSpread(game, game.home_team, picks[game.id])}
@@ -1615,8 +1615,8 @@ const PicksPage = ({
                           <span style={{ fontSize: '1.5em', color: '#1F1F75', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             {!isGameLocked(game) && (
                               <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', flexDirection: 'column', gap: '1px' }}>
-                                <button type="button" onClick={() => handleTotalAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px' }}>▲</button>
-                                <button type="button" onClick={() => handleTotalAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px' }}>▼</button>
+                                <span role="button" tabIndex={0} onClick={() => handleTotalAdjust(game, 0.5)} onKeyDown={e => e.key === 'Enter' && handleTotalAdjust(game, 0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▲</span>
+                                <span role="button" tabIndex={0} onClick={() => handleTotalAdjust(game, -0.5)} onKeyDown={e => e.key === 'Enter' && handleTotalAdjust(game, -0.5)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '2px', color: '#1F1F75', cursor: 'pointer', fontSize: '0.55em', lineHeight: 1, padding: '1px 3px', userSelect: 'none' }}>▼</span>
                               </span>
                             )}
                             {picks[game.id]?.totalLine ?? game.over_under}

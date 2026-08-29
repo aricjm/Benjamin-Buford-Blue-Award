@@ -104,6 +104,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
               {[
                 { key: 'team', label: 'Team Stats' },
+                { key: 'touchdowns', label: 'Touchdowns' },
                 { key: 'passing', label: 'Passing' },
                 { key: 'rushing', label: 'Rushing' },
                 { key: 'receiving', label: 'Receiving' },
@@ -198,8 +199,131 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
             </div>
           )}
 
-          {/* 2. Player Stats Tabs (Passing, Rushing, Receiving, Defense) */}
-          {!loading && activeTab !== 'team' && (
+          {/* 2. Touchdowns Tab */}
+          {!loading && activeTab === 'touchdowns' && (() => {
+            const tdScorersByTeam = players.map(teamPlayerObj => {
+              const rushingCat = teamPlayerObj.statistics?.find(s => s.name === 'rushing');
+              const receivingCat = teamPlayerObj.statistics?.find(s => s.name === 'receiving');
+
+              const rushTdIdx = rushingCat?.labels?.indexOf('TD') ?? 3;
+              const recTdIdx = receivingCat?.labels?.indexOf('TD') ?? 3;
+
+              const scorersMap = new Map();
+
+              // Check rushing TDs
+              if (rushingCat && rushTdIdx !== -1) {
+                (rushingCat.athletes || []).forEach(a => {
+                  const tdCount = parseInt(a.stats?.[rushTdIdx], 10) || 0;
+                  if (tdCount > 0) {
+                    const id = a.athlete?.id || a.athlete?.displayName;
+                    scorersMap.set(id, {
+                      athlete: a.athlete,
+                      rushingTDs: tdCount,
+                      receivingTDs: 0
+                    });
+                  }
+                });
+              }
+
+              // Check receiving TDs
+              if (receivingCat && recTdIdx !== -1) {
+                (receivingCat.athletes || []).forEach(a => {
+                  const tdCount = parseInt(a.stats?.[recTdIdx], 10) || 0;
+                  if (tdCount > 0) {
+                    const id = a.athlete?.id || a.athlete?.displayName;
+                    const existing = scorersMap.get(id) || { athlete: a.athlete, rushingTDs: 0, receivingTDs: 0 };
+                    existing.receivingTDs = tdCount;
+                    scorersMap.set(id, existing);
+                  }
+                });
+              }
+
+              const scorers = Array.from(scorersMap.values()).map(s => ({
+                ...s,
+                totalTDs: s.rushingTDs + s.receivingTDs
+              })).sort((a, b) => b.totalTDs - a.totalTDs);
+
+              return {
+                team: teamPlayerObj.team,
+                scorers
+              };
+            });
+
+            const hasAnyTDs = tdScorersByTeam.some(t => t.scorers.length > 0);
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {!hasAnyTDs ? (
+                  <div style={{ textAlign: 'center', color: '#888', padding: '12px' }}>
+                    No rushing or receiving touchdowns recorded in this game yet.
+                  </div>
+                ) : (
+                  tdScorersByTeam.map(tObj => (
+                    <div key={tObj.team?.id || tObj.team?.displayName}>
+                      <div style={{
+                        fontWeight: 'bold',
+                        color: '#4d7cff',
+                        marginBottom: '6px',
+                        fontSize: '0.85em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        {tObj.team?.logo && (
+                          <img src={tObj.team.logo} alt="" style={{ height: '14px', width: '14px', objectFit: 'contain' }} />
+                        )}
+                        {tObj.team?.displayName} ({tObj.scorers.reduce((sum, s) => sum + s.totalTDs, 0)} TDs)
+                      </div>
+
+                      {tObj.scorers.length === 0 ? (
+                        <div style={{ color: '#666', fontSize: '0.8em', fontStyle: 'italic', paddingLeft: '4px' }}>
+                          No touchdowns
+                        </div>
+                      ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82em' }}>
+                          <thead>
+                            <tr style={{ color: 'rgba(255, 255, 255, 0.4)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                              <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Player</th>
+                              <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rush TD</th>
+                              <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rec TD</th>
+                              <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold' }}>Total TD</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tObj.scorers.map(s => (
+                              <tr key={s.athlete?.id || s.athlete?.displayName} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
+                                <td style={{ padding: '5px 6px', color: '#fff' }}>
+                                  <span style={{ fontWeight: '600' }}>{s.athlete?.shortName || s.athlete?.displayName || 'Unknown'}</span>
+                                  {s.athlete?.jersey && <span style={{ color: '#888', marginLeft: '4px' }}>#{s.athlete.jersey}</span>}
+                                  {s.athlete?.position?.abbreviation && (
+                                    <span style={{ color: 'rgba(255,255,255,0.4)', marginLeft: '4px', fontSize: '0.85em' }}>
+                                      ({s.athlete.position.abbreviation})
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'center', padding: '5px 6px', color: s.rushingTDs > 0 ? '#4caf50' : '#666', fontWeight: s.rushingTDs > 0 ? 'bold' : 'normal' }}>
+                                  {s.rushingTDs || '—'}
+                                </td>
+                                <td style={{ textAlign: 'center', padding: '5px 6px', color: s.receivingTDs > 0 ? '#4caf50' : '#666', fontWeight: s.receivingTDs > 0 ? 'bold' : 'normal' }}>
+                                  {s.receivingTDs || '—'}
+                                </td>
+                                <td style={{ textAlign: 'right', padding: '5px 6px', color: '#f1c40f', fontWeight: 'bold', fontSize: '1.05em' }}>
+                                  {s.totalTDs}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 3. Player Stats Tabs (Passing, Rushing, Receiving, Defense) */}
+          {!loading && activeTab !== 'team' && activeTab !== 'touchdowns' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {players.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#666', padding: '12px' }}>Player stats not available yet.</div>

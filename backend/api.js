@@ -176,11 +176,81 @@ async function fetchRankings(season = DEFAULT_SEASON, week = null, pollType = '1
   }));
 }
 
+const EXPERT_ACCOUNTS = [
+  { handle: '_Collin1', name: 'Collin Wilson', focus: 'Action Network Senior CFB Writer' },
+  { handle: 'Stuckey2', name: 'Stuckey', focus: 'Action Network Senior CFB Analyst' },
+  { handle: 'ActionColleges', name: 'Action CFB', focus: 'Action Network College Sports' },
+  { handle: 'ActionNetworkHQ', name: 'Action Network', focus: 'Sports Betting Insights & News' },
+  { handle: 'Shaggy_Bets', name: 'Shaggy Bets', focus: 'CFB Spread & Totals Specialist' },
+  { handle: 'Steponaduck', name: 'Step On A Duck', focus: 'College Football Betting & Trends' },
+  { handle: 'ChrisTheBear', name: 'Chris Fallica ("The Bear")', focus: 'FOX Sports Betting Analyst' },
+  { handle: 'CFBWinningEdge', name: 'CFB Winning Edge', focus: 'CFB Analytics & Roster Insights' },
+  { handle: 'PickDawgz', name: 'Pick Dawgz', focus: 'Free College Football Picks & Analysis' },
+  { handle: 'VegasInsider', name: 'VegasInsider', focus: 'Vegas Odds, Lines & Expert Picks' },
+];
+
+async function fetchExpertTweets(accountHandle = null) {
+  const handlesToFetch = accountHandle
+    ? EXPERT_ACCOUNTS.filter(a => a.handle.toLowerCase() === accountHandle.toLowerCase())
+    : EXPERT_ACCOUNTS;
+
+  const allTweets = [];
+
+  for (const account of handlesToFetch) {
+    try {
+      const res = await axios.get(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${account.handle}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        timeout: 6000
+      });
+
+      const match = res.data.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]+?)<\/script>/);
+      if (match) {
+        const json = JSON.parse(match[1]);
+        const entries = json.props?.pageProps?.timeline?.entries || [];
+
+        for (const entry of entries) {
+          const tweet = entry?.content?.tweet || entry?.content?.item?.content?.tweet;
+          if (tweet && tweet.text) {
+            allTweets.push({
+              id: tweet.id_str,
+              text: tweet.text,
+              created_at: tweet.created_at,
+              user: {
+                name: tweet.user?.name || account.name,
+                screen_name: tweet.user?.screen_name || account.handle,
+                profile_image_url_https: tweet.user?.profile_image_url_https || `https://unavatar.io/x/${account.handle}`,
+                verified: tweet.user?.is_blue_verified || false
+              },
+              focus: account.focus,
+              favorite_count: tweet.favorite_count || 0,
+              conversation_count: tweet.conversation_count || 0,
+              permalink: tweet.permalink || `https://twitter.com/${account.handle}/status/${tweet.id_str}`,
+              media: tweet.mediaDetails || []
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Error fetching tweets for ${account.handle}:`, err.message);
+    }
+  }
+
+  // Sort unified feed by newest created_at timestamp
+  allTweets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return allTweets;
+}
+
 module.exports = {
   fetchSeasonGames,
   fetchWeekGames,
   fetchSeasonScores,
   fetchWeekScores,
   fetchInjuries,
-  fetchRankings
+  fetchRankings,
+  fetchExpertTweets,
+  EXPERT_ACCOUNTS
 };

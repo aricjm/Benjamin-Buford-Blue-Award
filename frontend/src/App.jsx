@@ -17,6 +17,7 @@ const BBBMLPPage = lazy(() => import('./components/BBBMLPPage'));
 const OddsHistoryPage = lazy(() => import('./components/OddsHistoryPage'));
 const LiveScoresPage = lazy(() => import('./components/LiveScoresPage'));
 const RankingsHistoryPage = lazy(() => import('./components/RankingsHistoryPage'));
+const ExpertsPage = lazy(() => import('./components/ExpertsPage'));
 
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
@@ -152,6 +153,7 @@ function App() {
   const isOddsHistoryPage = activePage === 'odds-history';
   const isLiveScoresPage = activePage === 'live-scores';
   const isRankingsHistoryPage = activePage === 'rankings-history';
+  const isExpertsPage = activePage === 'experts';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -600,7 +602,7 @@ function App() {
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && (
+          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && !isExpertsPage && (
             <section className="controls">
               <label>
                 Season:
@@ -749,6 +751,10 @@ function App() {
                 selectedSeason={selectedSeason}
                 selectedWeek={selectedWeek}
               />
+            )}
+
+            {isExpertsPage && (
+              <ExpertsPage />
             )}
           </Suspense>
 

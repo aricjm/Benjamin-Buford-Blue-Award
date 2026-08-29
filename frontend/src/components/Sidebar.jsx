@@ -7,6 +7,7 @@ import StatsIcon from "../resources/icons/StatsIcon";
 import LeaderboardIcon from "../resources/icons/LeaderboardIcon";
 import AdminIcon from "../resources/icons/AdminIcon";
 import ComponentsIcon from "../resources/icons/ComponentsIcon";
+import TwitterIcon from "../resources/icons/TwitterIcon";
 
 const Sidebar = ({ 
   menuOpen, 
@@ -190,6 +191,23 @@ const Sidebar = ({
         >
           <ListOrdered size={20} />
           {!isSidebarCollapsed && <span>Rankings History</span>}
+        </button>
+        <button
+          className={activePage === 'experts' ? 'active' : ''}
+          onClick={() => handlePageChange('experts')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Experts" : ""}
+        >
+          <TwitterIcon size={20} color="rgb(255, 255, 255), 255, 255)" />
+          {!isSidebarCollapsed && <span>Experts</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}
