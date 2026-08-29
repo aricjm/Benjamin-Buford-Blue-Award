@@ -83,13 +83,13 @@ function shuffle(array) {
 }
 
 async function fetchSeasonGames(season = DEFAULT_SEASON) {
-  const url = `${BASE_URL}/scoreboard`;
+  const url = `${BASE_URL}/scoreboard?groups=80&limit=300`;
   const data = await fetchJson(url);
   return data.events.map(mapGame);
 }
 
 async function fetchWeekGames(week, season = DEFAULT_SEASON) {
-  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}`;
+  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}&groups=80&limit=300`;
   const data = await fetchJson(url);
   const weekGames = data.events.map(mapGame);
 
@@ -104,7 +104,7 @@ async function fetchWeekGames(week, season = DEFAULT_SEASON) {
 }
 
 async function fetchSeasonScores(season = DEFAULT_SEASON) {
-  const url = `${BASE_URL}/scoreboard`;
+  const url = `${BASE_URL}/scoreboard?groups=80&limit=300`;
   const data = await fetchJson(url);
   return data.events.map(mapScore);
 }
@@ -136,7 +136,7 @@ async function fetchInjuries() {
 }
 
 async function fetchWeekScores(week, season = DEFAULT_SEASON) {
-  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}`;
+  const url = `${BASE_URL}/scoreboard?week=${week}&season=${season}&groups=80&limit=300`;
   const data = await fetchJson(url);
   return data.events.map(mapScore);
 }

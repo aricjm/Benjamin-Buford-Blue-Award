@@ -1113,11 +1113,11 @@ const PicksPage = ({
 
     const fetchLiveScores = async () => {
       try {
-        const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard');
+        const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
         const data = await res.json();
         
         const newLiveScores = {};
-        data.events.forEach(event => {
+        (data.events || []).forEach(event => {
           const comp = event.competitions[0];
           const home = comp.competitors.find(c => c.homeAway === 'home');
           const away = comp.competitors.find(c => c.homeAway === 'away');
