@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
 const RULES = [
@@ -44,6 +44,171 @@ const RulesTooltip = () => {
             <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: '0.85em', lineHeight: 1.6 }}>
               {SITE_DETAILS.map((detail, i) => <li key={i}>{detail}</li>)}
             </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const OddsMovementTooltip = ({ games = [] }) => {
+  const [visible, setVisible] = useState(false);
+
+  const formatSpreadVal = (spread) => {
+    if (spread === null || spread === undefined) return '--';
+    const num = Number(spread);
+    if (isNaN(num)) return '--';
+    if (num === 0) return 'PK';
+    return num > 0 ? `+${num}` : `${num}`;
+  };
+
+  // Find games where spread or over_under moved from the opening snapshot
+  const movedGames = games.map((game) => {
+    const openSpread = game.open_spread_home ?? game.spread_home;
+    const currentSpread = game.spread_home;
+    const openOU = game.open_over_under ?? game.over_under;
+    const currentOU = game.over_under;
+
+    const spreadDiff = (currentSpread !== null && currentSpread !== undefined && openSpread !== null && openSpread !== undefined)
+      ? +(currentSpread - openSpread).toFixed(1)
+      : 0;
+
+    const ouDiff = (currentOU !== null && currentOU !== undefined && openOU !== null && openOU !== undefined)
+      ? +(currentOU - openOU).toFixed(1)
+      : 0;
+
+    const hasSpreadMovement = spreadDiff !== 0;
+    const hasOUMovement = ouDiff !== 0;
+
+    if (!hasSpreadMovement && !hasOUMovement) return null;
+
+    return {
+      game,
+      openSpread,
+      currentSpread,
+      spreadDiff,
+      openOU,
+      currentOU,
+      ouDiff,
+      hasSpreadMovement,
+      hasOUMovement
+    };
+  }).filter(Boolean);
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <button
+        onClick={() => setVisible(v => !v)}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          color: '#4d7cff',
+          display: 'inline-flex',
+          alignItems: 'center',
+          transition: 'color 0.2s, transform 0.15s'
+        }}
+        title="View Line Movements"
+        aria-label="View Line Movements"
+      >
+        <TrendingUp size={15} />
+      </button>
+
+      {visible && (
+        <>
+          <div onClick={() => setVisible(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 1000,
+            marginTop: 8,
+            background: '#1a1a2e',
+            border: '1px solid rgba(255,255,255,0.2)',
+            borderRadius: 8,
+            padding: '12px 14px',
+            width: '360px',
+            maxWidth: '90vw',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.6)',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px' }}>
+              <span style={{ fontWeight: 'bold', color: '#4d7cff', fontSize: '0.88em' }}>
+                Line Movements ({movedGames.length})
+              </span>
+              <span style={{ fontSize: '0.75em', color: '#888' }}>
+                Opening vs. Current
+              </span>
+            </div>
+
+            {movedGames.length === 0 ? (
+              <div style={{ fontSize: '0.8em', color: '#aaa', padding: '10px 0', textAlign: 'center' }}>
+                No line movements recorded for this week's games.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {movedGames.map(({ game, openSpread, currentSpread, spreadDiff, openOU, currentOU, ouDiff, hasSpreadMovement, hasOUMovement }) => (
+                  <div 
+                    key={game.id} 
+                    style={{ 
+                      backgroundColor: 'rgba(255,255,255,0.03)', 
+                      padding: '7px 9px', 
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.06)'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.82em', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>
+                      {game.away_team} @ {game.home_team}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.78em' }}>
+                      {hasSpreadMovement && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#aaa' }}>{game.home_team.split('(')[0].trim()} Spread:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: '#888' }}>{formatSpreadVal(openSpread)}</span>
+                            <span style={{ color: '#555' }}>→</span>
+                            <span style={{ fontWeight: 'bold', color: '#fff' }}>{formatSpreadVal(currentSpread)}</span>
+                            <span style={{
+                              fontWeight: 'bold',
+                              color: spreadDiff > 0 ? '#4d7cff' : '#00e676',
+                              backgroundColor: spreadDiff > 0 ? 'rgba(77, 124, 255, 0.15)' : 'rgba(0, 230, 118, 0.15)',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              fontSize: '0.9em'
+                            }}>
+                              {spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {hasOUMovement && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#aaa' }}>Over / Under:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: '#888' }}>{openOU ?? '--'}</span>
+                            <span style={{ color: '#555' }}>→</span>
+                            <span style={{ fontWeight: 'bold', color: '#ffb300' }}>{currentOU ?? '--'}</span>
+                            <span style={{
+                              fontWeight: 'bold',
+                              color: ouDiff > 0 ? '#00e676' : '#ff5252',
+                              backgroundColor: ouDiff > 0 ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 82, 82, 0.15)',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              fontSize: '0.9em'
+                            }}>
+                              {ouDiff > 0 ? `+${ouDiff}` : ouDiff}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1020,8 +1185,9 @@ const PicksPage = ({
                 <RulesTooltip />
               </div>
               {latestOddsUpdateTime && (
-                <div style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '4px' }}>
-                  Odds last updated: {latestOddsUpdateTime.toLocaleString()}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '4px' }}>
+                  <span>Odds last updated: {latestOddsUpdateTime.toLocaleString()}</span>
+                  <OddsMovementTooltip games={pickGames} />
                 </div>
               )}
             </div>
