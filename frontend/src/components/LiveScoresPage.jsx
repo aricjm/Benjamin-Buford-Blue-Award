@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Radio, Lock, Filter, Search, Award } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
+import BoxScore from './BoxScore';
 
 const LiveScoresPage = ({ pickGames = [], picks = {}, teams = [] }) => {
   const [liveEvents, setLiveEvents] = useState([]);
@@ -617,6 +618,13 @@ const LiveScoresPage = ({ pickGames = [], picks = {}, teams = [] }) => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Collapsible Box Score */}
+                <BoxScore 
+                  apiGameId={event.id}
+                  homeTeamName={event.homeTeam.name}
+                  awayTeamName={event.awayTeam.name}
+                />
               </div>
             );
           })}

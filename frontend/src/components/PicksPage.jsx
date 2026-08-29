@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
+import BoxScore from './BoxScore';
 
 const RULES = [
   'Pick the spread and/or over/under for any game each week.',
@@ -1878,6 +1879,13 @@ const PicksPage = ({
                             Score last updated: {scoresLastUpdated.toLocaleTimeString()}
                           </div>
                         )}
+
+                        {/* Collapsible Box Score for Live Game */}
+                        <BoxScore
+                          apiGameId={game.api_game_id}
+                          homeTeamName={game.home_team}
+                          awayTeamName={game.away_team}
+                        />
                       </div>
                     );
                   })()}
@@ -1940,6 +1948,13 @@ const PicksPage = ({
                           {game.score_home}
                         </span>
                       </div>
+
+                      {/* Collapsible Box Score for Final Game */}
+                      <BoxScore
+                        apiGameId={game.api_game_id}
+                        homeTeamName={game.home_team}
+                        awayTeamName={game.away_team}
+                      />
                     </div>
                   )}
                 </div>
