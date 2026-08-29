@@ -109,10 +109,64 @@ function determineTotalResult(game, pick) {
   return 'push';
 }
 
+function determineFavorableLine(game, pick) {
+  if (!game || !game.commence_time) return null;
+  const isStarted = new Date(game.commence_time) <= new Date();
+  if (!isStarted) return null;
+
+  // 1. Spread Pick
+  if (pick.selection_team) {
+    if (pick.spread === null || pick.spread === undefined) return null;
+    const isHome = pick.selection_team === game.home_team;
+    const closingSpread = isHome ? game.spread_home : game.spread_away;
+    if (closingSpread === null || closingSpread === undefined) return null;
+
+    const userSpread = Number(pick.spread);
+    const finalSpread = Number(closingSpread);
+
+    if (userSpread === finalSpread) return null; // No movement / got at closing line
+    // Having more points / a larger number is better for spread:
+    // e.g. Got -7.5 vs -8.5 closing (-7.5 > -8.5) => true
+    // e.g. Got +8 vs +9 closing (+8 < +9) => false (could have had +9)
+    // e.g. Got -7 vs -6 closing (-7 < -6) => false
+    // e.g. Got +9.5 vs +8.5 closing (+9.5 > +8.5) => true
+    return userSpread > finalSpread;
+  }
+
+  // 2. Total Pick
+  if (pick.selection_total) {
+    if (pick.total_line === null || pick.total_line === undefined) return null;
+    const closingOU = game.over_under;
+    if (closingOU === null || closingOU === undefined) return null;
+
+    const userTotal = Number(pick.total_line);
+    const finalTotal = Number(closingOU);
+
+    if (userTotal === finalTotal) return null; // No movement / got at closing line
+
+    if (pick.selection_total === 'over') {
+      // For OVER: A lower total is better
+      // e.g. Got over 50 vs 49 closing => got 50 when could have had 49 => false (50 > 49 => false)
+      // e.g. Got over 48 vs 50 closing => got 48 when moved to 50 => true (48 < 50 => true)
+      return userTotal < finalTotal;
+    }
+
+    if (pick.selection_total === 'under') {
+      // For UNDER: A higher total is better
+      // e.g. Got under 35 vs 34 closing => got 35 when moved to 34 => true (35 > 34 => true)
+      // e.g. Got under 34 vs 35 closing => got 34 when moved to 35 => false (34 < 35 => false)
+      return userTotal > finalTotal;
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
   buildSeasonWeeks,
   getWeekNumberFromDate,
   getSeasonFromDate,
   determinePickResult,
-  determineTotalResult
+  determineTotalResult,
+  determineFavorableLine
 };

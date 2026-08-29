@@ -7,6 +7,7 @@ const {
   getWeekNumberFromDate,
   determinePickResult,
   determineTotalResult,
+  determineFavorableLine,
   getSeasonFromDate
 } = require('./utils');
 
@@ -212,6 +213,7 @@ async function init() {
   await addColumnIfMissing('picks', 'total_line', 'REAL');
   await addColumnIfMissing('picks', 'result_total', 'TEXT');
   await addColumnIfMissing('picks', 'is_lock', 'INTEGER', 0);
+  await addColumnIfMissing('picks', 'favorable_line', 'BOOLEAN');
 
   // Drop the old unique index if it exists
   await pool.query(`DROP INDEX IF EXISTS idx_picks_unique`);
@@ -721,7 +723,7 @@ async function getPicksByWeek(week, season) {
 
   if (season) {
     const { rows } = await pool.query(`
-      SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
+      SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away, g.over_under
       FROM picks p
       JOIN games g ON p.game_id = g.id
       WHERE p.week = $1 AND g.season = $2 
@@ -731,7 +733,7 @@ async function getPicksByWeek(week, season) {
     return rows;
   }
   const { rows } = await pool.query(`
-    SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away
+    SELECT p.*, g.home_team, g.away_team, g.commence_time, g.is_mandatory, g.spread_home, g.spread_away, g.over_under
     FROM picks p
     JOIN games g ON p.game_id = g.id
     WHERE p.week = $1 
@@ -1138,8 +1140,16 @@ async function updatePickResults(gameId) {
   if (!game) return;
   const { rows: picks } = await pool.query('SELECT * FROM picks WHERE game_id = $1', [gameId]);
   for (const pick of picks) {
-    const result = determinePickResult(game, pick);
-    await pool.query('UPDATE picks SET result = $1, updated_at = $2 WHERE id = $3', [result, new Date().toISOString(), pick.id]);
+    const result = pick.selection_team 
+      ? determinePickResult(game, pick)
+      : determineTotalResult(game, pick);
+
+    const favorable_line = determineFavorableLine(game, pick);
+
+    await pool.query(
+      'UPDATE picks SET result = $1, favorable_line = $2, updated_at = $3 WHERE id = $4',
+      [result, favorable_line, new Date().toISOString(), pick.id]
+    );
   }
 }
 
@@ -1153,20 +1163,22 @@ async function savePick(week, player, pick) {
 
   // 1. Save Spread Pick if present
   if (pick.selectionTeam) {
-    const result = determinePickResult(game, {
+    const spreadPickPayload = {
       selection_team: pick.selectionTeam,
       selection_side: pick.selectionSide,
       spread: pick.spread
-    });
+    };
+    const result = determinePickResult(game, spreadPickPayload);
+    const favorable_line = determineFavorableLine(game, spreadPickPayload);
 
     const isSpreadLock = pick.isLock && pick.lockType === 'spread';
 
     const { rows } = await pool.query(`
       INSERT INTO picks (
         week, player, game_id, selection_team, selection_side, spread,
-        is_mandatory, result, picked_at, updated_at, is_lock
+        is_mandatory, result, picked_at, updated_at, is_lock, favorable_line
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
       )
       ON CONFLICT (week, player, game_id) WHERE selection_team IS NOT NULL DO UPDATE SET
         selection_team = EXCLUDED.selection_team,
@@ -1175,31 +1187,34 @@ async function savePick(week, player, pick) {
         is_mandatory = EXCLUDED.is_mandatory,
         result = EXCLUDED.result,
         updated_at = EXCLUDED.updated_at,
-        is_lock = EXCLUDED.is_lock
+        is_lock = EXCLUDED.is_lock,
+        favorable_line = EXCLUDED.favorable_line
       RETURNING *
     `, [
       week, player, pick.gameId, pick.selectionTeam, pick.selectionSide, pick.spread,
       pick.isMandatory ? 1 : 0, result, new Date().toISOString(), new Date().toISOString(),
-      isSpreadLock ? 1 : 0
+      isSpreadLock ? 1 : 0, favorable_line
     ]);
     savedPicks.push(rows[0]);
   }
 
   // 2. Save Total Pick if present
   if (pick.selectionTotal) {
-    const result_total = determineTotalResult(game, {
+    const totalPickPayload = {
       selection_total: pick.selectionTotal,
       total_line: pick.totalLine
-    });
+    };
+    const result_total = determineTotalResult(game, totalPickPayload);
+    const favorable_line = determineFavorableLine(game, totalPickPayload);
 
     const isTotalLock = pick.isLock && pick.lockType === 'total';
 
     const { rows } = await pool.query(`
       INSERT INTO picks (
         week, player, game_id, selection_total, total_line, result,
-        is_mandatory, picked_at, updated_at, is_lock
+        is_mandatory, picked_at, updated_at, is_lock, favorable_line
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
       )
       ON CONFLICT (week, player, game_id) WHERE selection_total IS NOT NULL DO UPDATE SET
         selection_total = EXCLUDED.selection_total,
@@ -1207,12 +1222,13 @@ async function savePick(week, player, pick) {
         result = EXCLUDED.result,
         is_mandatory = EXCLUDED.is_mandatory,
         updated_at = EXCLUDED.updated_at,
-        is_lock = EXCLUDED.is_lock
+        is_lock = EXCLUDED.is_lock,
+        favorable_line = EXCLUDED.favorable_line
       RETURNING *
     `, [
       week, player, pick.gameId, pick.selectionTotal, pick.totalLine, result_total,
       pick.isMandatory ? 1 : 0, new Date().toISOString(), new Date().toISOString(),
-      isTotalLock ? 1 : 0
+      isTotalLock ? 1 : 0, favorable_line
     ]);
     savedPicks.push(rows[0]);
   }

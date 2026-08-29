@@ -73,6 +73,7 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
               isMandatory: p.is_mandatory ? true : existing.isMandatory,
               result: p.result !== null ? p.result : existing.result,
               result_total: p.result_total !== null ? p.result_total : existing.result_total,
+              favorable_line: p.favorable_line !== undefined ? p.favorable_line : existing.favorable_line,
               isLock: isLock || existing.isLock || false,
               lockType: isLock ? lockType : existing.lockType || null
             };

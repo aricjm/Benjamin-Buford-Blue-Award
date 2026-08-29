@@ -603,6 +603,53 @@ const GameIntel = ({ game, picks }) => {
     return num > 0 ? `+${num}` : `${num}`;
   };
 
+  // User pick line vs current line evaluation
+  const userPick = picks?.[game.id];
+  const userSelectionTeam = userPick?.selectionTeam;
+  const userSelectionTotal = userPick?.selectionTotal;
+
+  // Spread deal calculation
+  let spreadDealStatus = null; // { isDeal, isWorse, isSame, pickedLine, currentLine }
+  if (userSelectionTeam) {
+    const isHome = userSelectionTeam === game.home_team;
+    const currentLine = isHome ? game.spread_home : game.spread_away;
+    const pickedLine = userPick.spread ?? (isHome ? game.spread_home : game.spread_away);
+    if (pickedLine !== null && pickedLine !== undefined && currentLine !== null && currentLine !== undefined) {
+      spreadDealStatus = {
+        isDeal: pickedLine > currentLine,
+        isWorse: pickedLine < currentLine,
+        isSame: pickedLine === currentLine,
+        pickedLine,
+        currentLine
+      };
+    }
+  }
+
+  // Total deal calculation
+  let totalDealStatus = null; // { isDeal, isWorse, isSame, pickedTotal, currentTotal }
+  if (userSelectionTotal) {
+    const pickedTotal = userPick.totalLine ?? game.over_under;
+    const currentTotal = game.over_under;
+    if (pickedTotal !== null && pickedTotal !== undefined && currentTotal !== null && currentTotal !== undefined) {
+      let isDeal = false;
+      let isWorse = false;
+      if (userSelectionTotal === 'over') {
+        isDeal = pickedTotal < currentTotal;
+        isWorse = pickedTotal > currentTotal;
+      } else if (userSelectionTotal === 'under') {
+        isDeal = pickedTotal > currentTotal;
+        isWorse = pickedTotal < currentTotal;
+      }
+      totalDealStatus = {
+        isDeal,
+        isWorse,
+        isSame: pickedTotal === currentTotal,
+        pickedTotal,
+        currentTotal
+      };
+    }
+  }
+
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ fontSize: '0.75em', color: '#fff', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
@@ -626,11 +673,29 @@ const GameIntel = ({ game, picks }) => {
                     backgroundColor: spreadDiff > 0 ? 'rgba(77, 124, 255, 0.1)' : 'rgba(0, 230, 118, 0.1)',
                     padding: '1px 4px',
                     borderRadius: '3px'
-                  }}>
-                    {spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
+                  }}>\n                    {spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
                   </span>
                 )}
               </div>
+
+              {spreadDealStatus && (
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.73rem',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    backgroundColor: spreadDealStatus.isDeal ? 'rgba(0, 230, 118, 0.12)' : spreadDealStatus.isWorse ? 'rgba(255, 82, 82, 0.12)' : 'rgba(255, 255, 255, 0.06)',
+                    border: spreadDealStatus.isDeal ? '1px solid rgba(0, 230, 118, 0.3)' : spreadDealStatus.isWorse ? '1px solid rgba(255, 82, 82, 0.3)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    color: spreadDealStatus.isDeal ? '#00e676' : spreadDealStatus.isWorse ? '#ff5252' : '#aaa'
+                  }}>
+                    <strong style={{ textTransform: 'capitalize' }}>{spreadDealStatus.isDeal ? 'Deal!' : spreadDealStatus.isWorse ? 'Worse' : 'Same'}</strong>
+                    <span style={{ color: '#ccc' }}>({formatSpreadValue(spreadDealStatus.pickedLine)} vs {formatSpreadValue(spreadDealStatus.currentLine)})</span>
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '5px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
@@ -652,6 +717,25 @@ const GameIntel = ({ game, picks }) => {
                   </span>
                 )}
               </div>
+
+              {totalDealStatus && (
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.73rem',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    backgroundColor: totalDealStatus.isDeal ? 'rgba(0, 230, 118, 0.12)' : totalDealStatus.isWorse ? 'rgba(255, 82, 82, 0.12)' : 'rgba(255, 255, 255, 0.06)',
+                    border: totalDealStatus.isDeal ? '1px solid rgba(0, 230, 118, 0.3)' : totalDealStatus.isWorse ? '1px solid rgba(255, 82, 82, 0.3)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    color: totalDealStatus.isDeal ? '#00e676' : totalDealStatus.isWorse ? '#ff5252' : '#aaa'
+                  }}>
+                    <strong style={{ textTransform: 'capitalize' }}>{totalDealStatus.isDeal ? 'Deal!' : totalDealStatus.isWorse ? 'Worse' : 'Same'}</strong>
+                    <span style={{ color: '#ccc' }}>({totalDealStatus.pickedTotal} vs {totalDealStatus.currentTotal})</span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
