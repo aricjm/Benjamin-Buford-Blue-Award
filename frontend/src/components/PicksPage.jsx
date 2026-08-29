@@ -417,9 +417,80 @@ const GameIntel = ({ game, picks }) => {
     fetchWeather();
   }, [game.id, game.commence_time, game.home_stadium_city, game.home_stadium_state, game.home_team, game.away_stadium_city, game.away_stadium_state]);
 
+  const openSpreadHome = game.open_spread_home ?? game.spread_home;
+  const currentSpreadHome = game.spread_home;
+  const openOverUnder = game.open_over_under ?? game.over_under;
+  const currentOverUnder = game.over_under;
+
+  const spreadDiff = (currentSpreadHome !== null && currentSpreadHome !== undefined && openSpreadHome !== null && openSpreadHome !== undefined)
+    ? +(currentSpreadHome - openSpreadHome).toFixed(1)
+    : 0;
+
+  const ouDiff = (currentOverUnder !== null && currentOverUnder !== undefined && openOverUnder !== null && openOverUnder !== undefined)
+    ? +(currentOverUnder - openOverUnder).toFixed(1)
+    : 0;
+
+  const formatSpreadValue = (spread) => {
+    if (spread === null || spread === undefined) return '--';
+    const num = Number(spread);
+    if (isNaN(num)) return '--';
+    if (num === 0) return 'PK';
+    return num > 0 ? `+${num}` : `${num}`;
+  };
+
   return (
     <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ fontSize: '0.75em', color: '#fff', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
+      
+      {/* Odds Movement Section */}
+      {(openSpreadHome !== null || openOverUnder !== null || currentSpreadHome !== null || currentOverUnder !== null) && (
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '2px' }}>
+          <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '4px' }}>Odds Movement</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.82em' }}>
+            <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '5px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ fontSize: '0.72em', color: '#888' }}>Spread ({game.home_team.split('(')[0].trim()})</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#aaa' }}>Open: <strong style={{ color: '#fff' }}>{formatSpreadValue(openSpreadHome)}</strong></span>
+                <span style={{ color: '#555' }}>→</span>
+                <span style={{ fontWeight: 'bold', color: '#4d7cff' }}>{formatSpreadValue(currentSpreadHome)}</span>
+                {spreadDiff !== 0 && (
+                  <span style={{ 
+                    fontSize: '0.75em', 
+                    fontWeight: 'bold', 
+                    color: spreadDiff > 0 ? '#4d7cff' : '#00e676',
+                    backgroundColor: spreadDiff > 0 ? 'rgba(77, 124, 255, 0.1)' : 'rgba(0, 230, 118, 0.1)',
+                    padding: '1px 4px',
+                    borderRadius: '3px'
+                  }}>
+                    {spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '5px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ fontSize: '0.72em', color: '#888' }}>Over / Under</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#aaa' }}>Open: <strong style={{ color: '#fff' }}>{openOverUnder ?? '--'}</strong></span>
+                <span style={{ color: '#555' }}>→</span>
+                <span style={{ fontWeight: 'bold', color: '#ffb300' }}>{currentOverUnder ?? '--'}</span>
+                {ouDiff !== 0 && (
+                  <span style={{ 
+                    fontSize: '0.75em', 
+                    fontWeight: 'bold', 
+                    color: ouDiff > 0 ? '#00e676' : '#ff5252',
+                    backgroundColor: ouDiff > 0 ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 82, 82, 0.1)',
+                    padding: '1px 4px',
+                    borderRadius: '3px'
+                  }}>
+                    {ouDiff > 0 ? `+${ouDiff}` : ouDiff}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {!!game.completed && picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '4px' }}>
@@ -783,6 +854,7 @@ const PicksPage = ({
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
   const [liveScores, setLiveScores] = useState({});
+  const [scoresLastUpdated, setScoresLastUpdated] = useState(null);
   const isMobile = useIsMobile();
 
   // Poll ESPN for live scores every 30 seconds if there are live games
@@ -813,6 +885,7 @@ const PicksPage = ({
         });
         
         setLiveScores(newLiveScores);
+        setScoresLastUpdated(new Date());
       } catch (err) {
         console.error('Failed to fetch live scores from ESPN', err);
       }
@@ -861,6 +934,13 @@ const PicksPage = ({
     );
     return matchesSearch && matchesConference && matchesMyPicks;
   });
+
+  // Determine the most recent odds update time among all pickGames
+  const latestOddsUpdateTime = pickGames.reduce((latest, game) => {
+    if (!game.updated_at) return latest;
+    const updateDate = new Date(game.updated_at);
+    return !latest || updateDate > latest ? updateDate : latest;
+  }, null);
 
   const handleCopyPicks = () => {
     const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
@@ -934,9 +1014,16 @@ const PicksPage = ({
       <section className="layout-grid">
         <article className="panel" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ margin: 0 }}>Pick Games</h2>
-              <RulesTooltip />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ margin: 0 }}>Pick Games</h2>
+                <RulesTooltip />
+              </div>
+              {latestOddsUpdateTime && (
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '4px' }}>
+                  Odds last updated: {latestOddsUpdateTime.toLocaleString()}
+                </div>
+              )}
             </div>
             <div className="search-container" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '8px', alignItems: isMobile ? 'stretch' : 'center', width: isMobile ? '100%' : 'auto' }}>
               <input
@@ -1307,6 +1394,12 @@ const PicksPage = ({
                           {liveScores[game.api_game_id].score_home}
                         </span>
                       </div>
+
+                      {scoresLastUpdated && (
+                        <div style={{ fontSize: '0.72em', color: 'rgba(255, 255, 255, 0.45)', textAlign: 'right', marginTop: '2px' }}>
+                          Score last updated: {scoresLastUpdated.toLocaleTimeString()}
+                        </div>
+                      )}
                     </div>
                   )}
 

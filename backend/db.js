@@ -243,6 +243,23 @@ async function init() {
       UNIQUE(team1, team2)
     )
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS odds_history (
+      id ${idColumn},
+      game_id INTEGER NOT NULL,
+      api_game_id TEXT,
+      spread_home REAL,
+      spread_away REAL,
+      over_under REAL,
+      home_price REAL,
+      away_price REAL,
+      recorded_at TEXT NOT NULL
+    )
+  `);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_odds_history_game_id ON odds_history(game_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_odds_history_recorded_at ON odds_history(recorded_at)`);
 }
 
 function buildBulkInsertQuery(table, columns, rows, conflictTarget, updateColumns = []) {
@@ -647,6 +664,9 @@ async function getWeekGames(week, season) {
         ht.nickname as home_nickname, at.nickname as away_nickname,
         ht.conference as home_conference, at.conference as away_conference,
         r.trophy_name as rivalry_trophy,
+        (SELECT oh.spread_home FROM odds_history oh WHERE oh.game_id = g.id ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1) as open_spread_home,
+        (SELECT oh.spread_away FROM odds_history oh WHERE oh.game_id = g.id ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1) as open_spread_away,
+        (SELECT oh.over_under FROM odds_history oh WHERE oh.game_id = g.id ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1) as open_over_under,
         CASE WHEN EXISTS (
           SELECT 1 FROM games prev_g 
           WHERE (prev_g.home_team = g.home_team OR prev_g.away_team = g.home_team) 
@@ -751,6 +771,52 @@ function resolveGameWeek(game, existing) {
   return existing?.week ?? null;
 }
 
+async function recordOddsHistory(gameId, apiGameId, spread_home, spread_away, over_under, home_price, away_price, recordedAt = new Date().toISOString()) {
+  try {
+    if (spread_home === null && spread_away === null && over_under === null && home_price === null && away_price === null) {
+      return;
+    }
+    await pool.query(`
+      INSERT INTO odds_history (
+        game_id, api_game_id, spread_home, spread_away, over_under, home_price, away_price, recorded_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [gameId, apiGameId, spread_home, spread_away, over_under, home_price, away_price, recordedAt]);
+  } catch (err) {
+    console.error('Error recording odds history:', err.message);
+  }
+}
+
+async function getOddsHistoryForWeek(week, season) {
+  const { rows } = await pool.query(`
+    SELECT 
+      oh.id,
+      oh.game_id,
+      oh.api_game_id,
+      oh.spread_home,
+      oh.spread_away,
+      oh.over_under,
+      oh.home_price,
+      oh.away_price,
+      oh.recorded_at,
+      g.week,
+      g.season,
+      g.commence_time,
+      g.home_team,
+      g.away_team,
+      ht.logo as home_logo,
+      at.logo as away_logo,
+      ht.school_primary_color as home_color,
+      at.school_primary_color as away_color
+    FROM odds_history oh
+    JOIN games g ON oh.game_id = g.id
+    LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
+    LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+    WHERE g.week = $1 AND g.season = $2
+    ORDER BY oh.game_id ASC, oh.recorded_at ASC
+  `, [week, season]);
+  return rows;
+}
+
 async function upsertGame(game) {
   const existing = game.api_game_id ? await getGameByApiId(game.api_game_id) : null;
   const normalizedWeek = resolveGameWeek(game, existing);
@@ -781,6 +847,10 @@ async function upsertGame(game) {
         game.is_televised ? 1 : 0, game.is_mandatory ? 1 : 0, game.spread_home, game.spread_away,
         game.home_price, game.away_price, game.score_home, game.score_away, game.completed ? 1 : 0,
         new Date().toISOString(), game.api_game_id, game.tv_network ?? null, game.over_under ?? null]);
+
+    if (existing.spread_home !== game.spread_home || existing.over_under !== game.over_under || existing.spread_away !== game.spread_away) {
+      await recordOddsHistory(existing.id, game.api_game_id, game.spread_home, game.spread_away, game.over_under, game.home_price, game.away_price);
+    }
     return existing.id;
   }
 
@@ -796,7 +866,10 @@ async function upsertGame(game) {
       game.is_televised ? 1 : 0, game.is_mandatory ? 1 : 0, game.spread_home, game.spread_away,
       game.home_price, game.away_price, game.score_home, game.score_away, game.completed ? 1 : 0,
       new Date().toISOString(), game.tv_network ?? null, game.over_under ?? null]);
-  return rows[0].id;
+
+  const newGameId = rows[0].id;
+  await recordOddsHistory(newGameId, game.api_game_id, game.spread_home, game.spread_away, game.over_under, game.home_price, game.away_price);
+  return newGameId;
 }
 
 async function saveGamesForWeek(week, games, season) {
@@ -859,6 +932,22 @@ async function saveGamesForSeason(games) {
       await pool.query(query, values);
     }
     saved += inserts.length;
+
+    // Record initial odds history for new games with odds
+    try {
+      const apiIds = inserts.map(g => g.api_game_id);
+      const { rows: insertedDbGames } = await pool.query(
+        'SELECT id, api_game_id, spread_home, spread_away, over_under, home_price, away_price FROM games WHERE api_game_id = ANY($1)',
+        [apiIds]
+      );
+      for (const g of insertedDbGames) {
+        if (g.spread_home !== null || g.over_under !== null) {
+          await recordOddsHistory(g.id, g.api_game_id, g.spread_home, g.spread_away, g.over_under, g.home_price, g.away_price);
+        }
+      }
+    } catch (e) {
+      console.error('Error inserting initial odds history for bulk inserts:', e.message);
+    }
   }
 
   if (updates.length > 0) {
@@ -894,6 +983,23 @@ async function saveGamesForSeason(games) {
 
     await pool.query(query, values);
     saved += updates.length;
+
+    // Record odds history for updated games where spread or over_under changed
+    try {
+      const apiIds = updates.map(g => g.api_game_id);
+      const { rows: updatedDbGames } = await pool.query(
+        'SELECT id, api_game_id, spread_home, spread_away, over_under, home_price, away_price FROM games WHERE api_game_id = ANY($1)',
+        [apiIds]
+      );
+      for (const g of updatedDbGames) {
+        const existing = existingMap.get(g.api_game_id);
+        if (existing && (existing.spread_home !== g.spread_home || existing.over_under !== g.over_under || existing.spread_away !== g.spread_away)) {
+          await recordOddsHistory(g.id, g.api_game_id, g.spread_home, g.spread_away, g.over_under, g.home_price, g.away_price);
+        }
+      }
+    } catch (e) {
+      console.error('Error recording odds history for bulk updates:', e.message);
+    }
   }
 
   if (saved > 0) {
@@ -2389,6 +2495,7 @@ async function getResearchRankings(entity, stat, location, role, minGames, confe
 
 async function updateGameLine(gameId, updates) {
   const { spread_home, spread_away, home_price, away_price } = updates;
+  const existing = await getGameById(gameId);
   await pool.query(`
     UPDATE games SET 
       spread_home = $1, 
@@ -2398,6 +2505,10 @@ async function updateGameLine(gameId, updates) {
       updated_at = $5 
     WHERE id = $6
   `, [spread_home, spread_away, home_price, away_price, new Date().toISOString(), gameId]);
+  
+  if (existing) {
+    await recordOddsHistory(gameId, existing.api_game_id, spread_home, spread_away, existing.over_under, home_price, away_price);
+  }
   return await getGameById(gameId);
 }
 
@@ -2950,5 +3061,8 @@ module.exports = {
   getInProgressWeeks,
   getBBBMLPData,
   getCurrentWeekLocks,
-  getHeadToHeadHistory
+  getHeadToHeadHistory,
+  recordOddsHistory,
+  getOddsHistoryForWeek,
+  pool
 };

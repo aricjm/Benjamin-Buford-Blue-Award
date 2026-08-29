@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, Award, Lock } from 'lucide-react';
+import { Library, Award, Lock, TrendingUp } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -130,6 +130,23 @@ const Sidebar = ({
         >
           <Library size={20} />
           {!isSidebarCollapsed && <span>Research</span>}
+        </button>
+        <button
+          className={activePage === 'odds-history' ? 'active' : ''}
+          onClick={() => handlePageChange('odds-history')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Odds History" : ""}
+        >
+          <TrendingUp size={20} />
+          {!isSidebarCollapsed && <span>Odds History</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}

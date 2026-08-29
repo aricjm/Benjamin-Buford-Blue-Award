@@ -103,6 +103,17 @@ app.get('/api/weeks', async (req, res) => {
   }
 });
 
+app.get('/api/week/:week/odds-history', async (req, res) => {
+  try {
+    const week = Number(req.params.week);
+    const season = getSeason(req);
+    const history = await db.getOddsHistoryForWeek(week, season);
+    res.json({ history });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
