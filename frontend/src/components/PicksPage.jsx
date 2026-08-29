@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
 const RULES = [
@@ -1104,7 +1104,56 @@ const PicksPage = ({
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
   const [liveScores, setLiveScores] = useState({});
   const [scoresLastUpdated, setScoresLastUpdated] = useState(null);
+  const [refreshingGameId, setRefreshingGameId] = useState(null);
   const isMobile = useIsMobile();
+
+  const parseScoreboardEvents = (data) => {
+    const newLiveScores = {};
+    (data.events || []).forEach(event => {
+      const comp = event.competitions?.[0] || {};
+      const home = comp.competitors?.find(c => c.homeAway === 'home');
+      const away = comp.competitors?.find(c => c.homeAway === 'away');
+      
+      newLiveScores[event.id] = {
+        score_home: home?.score ? parseInt(home.score) : 0,
+        score_away: away?.score ? parseInt(away.score) : 0,
+        linescores_home: (home?.linescores || []).map(l => ({ period: l.period, score: l.value ?? parseInt(l.displayValue) ?? 0 })),
+        linescores_away: (away?.linescores || []).map(l => ({ period: l.period, score: l.value ?? parseInt(l.displayValue) ?? 0 })),
+        clock: event.status?.displayClock,
+        period: event.status?.period,
+        status: event.status?.type?.description,
+        possession: comp.situation?.possession,
+        downDistance: comp.situation?.downDistanceText,
+        possessionText: comp.situation?.possessionText,
+        yardLine: comp.situation?.yardLine,
+        lastPlayText: comp.situation?.lastPlay?.text
+      };
+    });
+    return newLiveScores;
+  };
+
+  const refreshSingleGame = async (apiGameId) => {
+    if (!apiGameId) return;
+    setRefreshingGameId(apiGameId);
+    try {
+      const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
+      const data = await res.json();
+      const updated = parseScoreboardEvents(data);
+      if (updated[apiGameId]) {
+        setLiveScores(prev => ({
+          ...prev,
+          [apiGameId]: updated[apiGameId]
+        }));
+      } else {
+        setLiveScores(prev => ({ ...prev, ...updated }));
+      }
+      setScoresLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to refresh game score from ESPN', err);
+    } finally {
+      setRefreshingGameId(null);
+    }
+  };
 
   // Poll ESPN for live scores every 30 seconds if there are live games
   useEffect(() => {
@@ -1115,25 +1164,8 @@ const PicksPage = ({
       try {
         const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
         const data = await res.json();
-        
-        const newLiveScores = {};
-        (data.events || []).forEach(event => {
-          const comp = event.competitions[0];
-          const home = comp.competitors.find(c => c.homeAway === 'home');
-          const away = comp.competitors.find(c => c.homeAway === 'away');
-          
-          newLiveScores[event.id] = {
-            score_home: home.score ? parseInt(home.score) : 0,
-            score_away: away.score ? parseInt(away.score) : 0,
-            clock: event.status.displayClock,
-            period: event.status.period,
-            status: event.status.type.description,
-            possession: comp.situation?.possession,
-            downDistance: comp.situation?.downDistanceText
-          };
-        });
-        
-        setLiveScores(newLiveScores);
+        const newScores = parseScoreboardEvents(data);
+        setLiveScores(newScores);
         setScoresLastUpdated(new Date());
       } catch (err) {
         console.error('Failed to fetch live scores from ESPN', err);
@@ -1584,74 +1616,190 @@ const PicksPage = ({
                     )}
                   </div>
 
-                  {/* Live Scoreboard */}
-                  {isGameLive(game) && liveScores[game.api_game_id] && (
-                    <div className="scoreboard-box" style={{
+                  {/* Live Scoreboard Header / Refresh Control */}
+                  {isGameLive(game) && (
+                    <div style={{
                       marginTop: '15px',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(77, 124, 255, 0.1)',
-                      border: '1px solid rgba(77, 124, 255, 0.3)',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#4d7cff', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '4px', marginBottom: '2px' }}>
-                        <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>
-                          {liveScores[game.api_game_id].status === 'Halftime' ? 'HALFTIME' : `Q${liveScores[game.api_game_id].period} - ${liveScores[game.api_game_id].clock}`}
-                        </span>
-                        {liveScores[game.api_game_id].downDistance && (
-                          <span style={{ color: '#fff' }}>{liveScores[game.api_game_id].downDistance}</span>
-                        )}
-                      </div>
-                      
-                      {/* Away Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
-                          <span style={{ 
-                            fontWeight: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? 'bold' : 'normal',
-                            color: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? '#fff' : '#aaa'
-                          }}>
-                            {game.away_team}
-                          </span>
-                        </div>
-                        <span style={{ 
-                          fontSize: '1.2em', 
-                          fontWeight: 'bold',
-                          color: liveScores[game.api_game_id].score_away > liveScores[game.api_game_id].score_home ? '#4caf50' : '#fff'
-                        }}>
-                          {liveScores[game.api_game_id].score_away}
-                        </span>
-                      </div>
-
-                      {/* Home Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
-                          <span style={{ 
-                            fontWeight: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? 'bold' : 'normal',
-                            color: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? '#fff' : '#aaa'
-                          }}>
-                            {game.home_team}
-                          </span>
-                        </div>
-                        <span style={{ 
-                          fontSize: '1.2em', 
-                          fontWeight: 'bold',
-                          color: liveScores[game.api_game_id].score_home > liveScores[game.api_game_id].score_away ? '#4caf50' : '#fff'
-                        }}>
-                          {liveScores[game.api_game_id].score_home}
-                        </span>
-                      </div>
-
-                      {scoresLastUpdated && (
-                        <div style={{ fontSize: '0.72em', color: 'rgba(255, 255, 255, 0.45)', textAlign: 'right', marginTop: '2px' }}>
-                          Score last updated: {scoresLastUpdated.toLocaleTimeString()}
-                        </div>
-                      )}
+                      <span style={{ fontSize: '0.78em', fontWeight: 'bold', letterSpacing: '0.05em', color: '#4d7cff', textTransform: 'uppercase' }}>
+                        Live Game Center
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => refreshSingleGame(game.api_game_id)}
+                        disabled={refreshingGameId === game.api_game_id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.75em',
+                          fontWeight: '600',
+                          backgroundColor: 'rgba(77, 124, 255, 0.15)',
+                          border: '1px solid rgba(77, 124, 255, 0.35)',
+                          color: '#fff',
+                          cursor: refreshingGameId === game.api_game_id ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Refresh live score, time, down & distance, and field placement"
+                      >
+                        <RefreshCw size={12} className={refreshingGameId === game.api_game_id ? 'animate-spin' : ''} />
+                        {refreshingGameId === game.api_game_id ? 'Refreshing...' : 'Refresh Game'}
+                      </button>
                     </div>
                   )}
+
+                  {/* Live Scoreboard */}
+                  {isGameLive(game) && liveScores[game.api_game_id] && (() => {
+                    const live = liveScores[game.api_game_id];
+                    const maxPeriods = Math.max(
+                      4,
+                      live.period || 4,
+                      live.linescores_away?.length || 0,
+                      live.linescores_home?.length || 0
+                    );
+                    const periodHeaders = Array.from({ length: maxPeriods }, (_, i) => (i < 4 ? `Q${i + 1}` : `OT${i - 3}`));
+
+                    return (
+                      <div className="scoreboard-box" style={{
+                        marginTop: '8px',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(77, 124, 255, 0.1)',
+                        border: '1px solid rgba(77, 124, 255, 0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#4d7cff', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '4px', marginBottom: '2px', flexWrap: 'wrap', gap: '6px' }}>
+                          <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>
+                            {live.status === 'Halftime' ? 'HALFTIME' : `Q${live.period} - ${live.clock}`}
+                          </span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            {live.downDistance && (
+                              <span style={{ color: '#fff', fontWeight: '500' }}>{live.downDistance}</span>
+                            )}
+                            {!live.downDistance && live.possessionText && (
+                              <span style={{ color: '#fff', fontWeight: '500' }}>Ball on {live.possessionText}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {live.lastPlayText && (
+                          <div style={{
+                            fontSize: '0.74em',
+                            color: 'rgba(255, 255, 255, 0.75)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            lineHeight: '1.3'
+                          }}>
+                            <span style={{ color: '#4d7cff', fontWeight: '600', marginRight: '4px' }}>Last Play:</span>
+                            {live.lastPlayText}
+                          </div>
+                        )}
+
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
+                            <thead>
+                              <tr style={{ color: 'rgba(255,255,255,0.6)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Team</th>
+                                {periodHeaders.map((header, idx) => (
+                                  <th key={header} style={{
+                                    textAlign: 'center',
+                                    padding: '4px 6px',
+                                    fontWeight: (live.period === idx + 1 && live.status !== 'Halftime') ? 'bold' : 'normal',
+                                    color: (live.period === idx + 1 && live.status !== 'Halftime') ? '#4d7cff' : 'inherit',
+                                    minWidth: '24px'
+                                  }}>
+                                    {header}
+                                  </th>
+                                ))}
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold', minWidth: '30px' }}>T</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* Away Team Row */}
+                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '18px', width: '18px', objectFit: 'contain' }} />}
+                                    <span style={{
+                                      fontWeight: live.score_away > live.score_home ? 'bold' : 'normal',
+                                      color: live.score_away > live.score_home ? '#fff' : '#ccc'
+                                    }}>
+                                      {game.away_team}
+                                    </span>
+                                  </div>
+                                </td>
+                                {periodHeaders.map((_, idx) => {
+                                  const line = live.linescores_away?.find(l => l.period === idx + 1);
+                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
+                                  return (
+                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
+                                      {val}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{
+                                  textAlign: 'right',
+                                  padding: '6px 6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.15em',
+                                  color: live.score_away > live.score_home ? '#4caf50' : '#fff'
+                                }}>
+                                  {live.score_away}
+                                </td>
+                              </tr>
+
+                              {/* Home Team Row */}
+                              <tr>
+                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '18px', width: '18px', objectFit: 'contain' }} />}
+                                    <span style={{
+                                      fontWeight: live.score_home > live.score_away ? 'bold' : 'normal',
+                                      color: live.score_home > live.score_away ? '#fff' : '#ccc'
+                                    }}>
+                                      {game.home_team}
+                                    </span>
+                                  </div>
+                                </td>
+                                {periodHeaders.map((_, idx) => {
+                                  const line = live.linescores_home?.find(l => l.period === idx + 1);
+                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
+                                  return (
+                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
+                                      {val}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{
+                                  textAlign: 'right',
+                                  padding: '6px 6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.15em',
+                                  color: live.score_home > live.score_away ? '#4caf50' : '#fff'
+                                }}>
+                                  {live.score_home}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {scoresLastUpdated && (
+                          <div style={{ fontSize: '0.72em', color: 'rgba(255, 255, 255, 0.45)', textAlign: 'right', marginTop: '2px' }}>
+                            Score last updated: {scoresLastUpdated.toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Final Scoreboard */}
                   {!!game.completed && (
