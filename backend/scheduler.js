@@ -3,6 +3,8 @@ const api = require('./api');
 
 let dailyTask = null;
 let liveScoresTask = null;
+let oddsTask = null;
+let rankingsTask = null;
 
 function start(db) {
   if (process.env.DISABLE_CRON === 'true') {
@@ -15,6 +17,12 @@ function start(db) {
   }
   if (liveScoresTask) {
     liveScoresTask.stop();
+  }
+  if (oddsTask) {
+    oddsTask.stop();
+  }
+  if (rankingsTask) {
+    rankingsTask.stop();
   }
 
   // Daily sync at midnight
@@ -52,8 +60,8 @@ function start(db) {
     }
   });
 
-  // Odds and lines sync every 4 hours
-  const oddsTask = cron.schedule('0 */4 * * *', async () => {
+  // Odds and lines sync every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 in America/New_York)
+  oddsTask = cron.schedule('0 */4 * * *', async () => {
     try {
       console.log('[scheduler] syncing odds and lines');
       const games = await api.fetchSeasonGames();
@@ -62,6 +70,8 @@ function start(db) {
     } catch (error) {
       console.error('[scheduler] odds sync failed', error.message);
     }
+  }, {
+    timezone: 'America/New_York'
   });
 
   // Weekly rankings sync every Sunday at 2:30 PM EST (14:30 America/New_York)
@@ -89,6 +99,12 @@ function stop() {
   }
   if (liveScoresTask) {
     liveScoresTask.stop();
+  }
+  if (oddsTask) {
+    oddsTask.stop();
+  }
+  if (rankingsTask) {
+    rankingsTask.stop();
   }
 }
 
