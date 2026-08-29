@@ -6,7 +6,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('team'); // 'team', 'passing', 'rushing', 'receiving', 'defense'
+  const [activeTab, setActiveTab] = useState('touchdowns'); // 'touchdowns', 'team', 'passing', 'rushing', 'receiving', 'defensive'
 
   const fetchBoxScore = async () => {
     if (!apiGameId) return;
@@ -103,8 +103,8 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
               {[
-                { key: 'team', label: 'Team Stats' },
                 { key: 'touchdowns', label: 'Touchdowns' },
+                { key: 'team', label: 'Team Stats' },
                 { key: 'passing', label: 'Passing' },
                 { key: 'rushing', label: 'Rushing' },
                 { key: 'receiving', label: 'Receiving' },
