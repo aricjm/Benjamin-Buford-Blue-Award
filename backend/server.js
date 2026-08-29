@@ -835,6 +835,53 @@ app.get('/api/cron/sync-odds', requireCronAuth, async (req, res) => {
   }
 });
 
+app.get('/api/cron/sync-rankings', requireCronAuth, async (req, res) => {
+  try {
+    console.log('[cron] syncing Top 25 rankings');
+    const season = req.query.season || getSeason(req);
+    const week = req.query.week !== undefined ? Number(req.query.week) : null;
+    const ranks = await api.fetchRankings(season, week);
+    const savedCount = await db.saveRankings(ranks, season, week);
+    res.json({ success: true, savedCount, count: ranks.length });
+  } catch (error) {
+    console.error('[cron] rankings sync failed', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/rankings', async (req, res) => {
+  try {
+    const season = req.query.season || getSeason(req);
+    const week = req.query.week !== undefined && req.query.week !== '' ? req.query.week : null;
+    const pollId = req.query.pollId || '1';
+
+    let rankings = await db.getRankingsHistory(season, week, pollId);
+
+    // If no rankings are in database yet, fetch live from ESPN and save
+    if (!rankings || rankings.length === 0) {
+      const liveRanks = await api.fetchRankings(season, week, pollId);
+      if (liveRanks.length > 0) {
+        await db.saveRankings(liveRanks, season, week);
+        rankings = await db.getRankingsHistory(season, week, pollId);
+      }
+    }
+
+    res.json(rankings || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/rankings/weeks', async (req, res) => {
+  try {
+    const season = req.query.season || getSeason(req);
+    const weeks = await db.getRankingsWeeks(season);
+    res.json(weeks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 (async () => {
   if (process.env.VERCEL !== '1') {
     try {

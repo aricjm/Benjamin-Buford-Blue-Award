@@ -141,10 +141,46 @@ async function fetchWeekScores(week, season = DEFAULT_SEASON) {
   return data.events.map(mapScore);
 }
 
+async function fetchRankings(season = DEFAULT_SEASON, week = null, pollType = '1') {
+  let url = `${BASE_URL}/rankings`;
+  const params = [];
+  if (season) params.push(`seasons=${season}`);
+  if (week !== null && week !== undefined) params.push(`weeks=${week}`);
+  if (params.length > 0) {
+    url += `?${params.join('&')}`;
+  }
+
+  const data = await fetchJson(url);
+  const targetPoll = (data.rankings || []).find(r => String(r.id) === String(pollType)) || (data.rankings || [])[0];
+  if (!targetPoll) return [];
+
+  return (targetPoll.ranks || []).map(r => ({
+    poll_id: targetPoll.id,
+    poll_name: targetPoll.name,
+    poll_headline: targetPoll.headline,
+    season: String(season),
+    week: week !== null && week !== undefined ? Number(week) : null,
+    rank: r.current,
+    previous_rank: r.previous || null,
+    points: r.points || null,
+    first_place_votes: r.firstPlaceVotes || 0,
+    trend: r.trend || null,
+    record_summary: r.recordSummary || '',
+    team_id: r.team?.id,
+    team_name: r.team?.displayName || r.team?.name || 'Unknown',
+    team_location: r.team?.location || '',
+    team_nickname: r.team?.nickname || r.team?.name || '',
+    team_abbreviation: r.team?.abbreviation || '',
+    team_logo: r.team?.logo || r.team?.logos?.[0]?.href || '',
+    conference: r.team?.groups?.shortName || r.team?.groups?.name || ''
+  }));
+}
+
 module.exports = {
   fetchSeasonGames,
   fetchWeekGames,
   fetchSeasonScores,
   fetchWeekScores,
-  fetchInjuries
+  fetchInjuries,
+  fetchRankings
 };

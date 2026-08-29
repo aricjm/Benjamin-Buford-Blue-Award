@@ -15,6 +15,8 @@ const LeaderboardPage = lazy(() => import('./components/LeaderboardPage'));
 const AwardsPage = lazy(() => import('./components/AwardsPage'));
 const BBBMLPPage = lazy(() => import('./components/BBBMLPPage'));
 const OddsHistoryPage = lazy(() => import('./components/OddsHistoryPage'));
+const LiveScoresPage = lazy(() => import('./components/LiveScoresPage'));
+const RankingsHistoryPage = lazy(() => import('./components/RankingsHistoryPage'));
 
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
@@ -42,6 +44,7 @@ function App() {
   const [savedPicksList, setSavedPicksList] = useState([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [hasLiveGames, setHasLiveGames] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved === 'true';
@@ -96,6 +99,24 @@ function App() {
     }
   }, [weeks, selectedWeek]);
 
+  // Check periodically if any college football games are currently live
+  useEffect(() => {
+    const checkLiveGames = async () => {
+      try {
+        const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
+        const data = await res.json();
+        const liveCount = (data.events || []).filter(e => e.status?.type?.state === 'in').length;
+        setHasLiveGames(liveCount > 0);
+      } catch (err) {
+        console.error('Failed to check live game status', err);
+      }
+    };
+
+    checkLiveGames();
+    const interval = setInterval(checkLiveGames, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const conferenceList = Array.from(new Set(teams.map(t => t.conference))).sort();
 
   const isGameLocked = (game) => {
@@ -129,6 +150,8 @@ function App() {
   const isAwardsPage = activePage === 'awards';
   const isBBBMLPPage = activePage === 'bbbmlp';
   const isOddsHistoryPage = activePage === 'odds-history';
+  const isLiveScoresPage = activePage === 'live-scores';
+  const isRankingsHistoryPage = activePage === 'rankings-history';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -573,10 +596,11 @@ function App() {
           activePage={activePage}
           handlePageChange={handlePageChange}
           selectedPlayer={selectedPlayer}
+          hasLiveGames={hasLiveGames}
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && (
+          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && (
             <section className="controls">
               <label>
                 Season:
@@ -707,6 +731,23 @@ function App() {
                 selectedWeek={selectedWeek}
                 setSelectedSeason={setSelectedSeason}
                 setSelectedWeek={setSelectedWeek}
+              />
+            )}
+
+            {isLiveScoresPage && (
+              <LiveScoresPage 
+                pickGames={pickGames}
+                picks={picks}
+                teams={teams}
+              />
+            )}
+
+            {isRankingsHistoryPage && (
+              <RankingsHistoryPage 
+                seasons={seasons}
+                weeks={weeks}
+                selectedSeason={selectedSeason}
+                selectedWeek={selectedWeek}
               />
             )}
           </Suspense>

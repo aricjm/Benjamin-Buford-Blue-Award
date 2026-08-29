@@ -64,7 +64,23 @@ function start(db) {
     }
   });
 
-  console.log('Scheduler started: daily updates, 4-hour odds sync, and 5-minute live score sync are enabled.');
+  // Weekly rankings sync every Sunday at 2:30 PM EST (14:30 America/New_York)
+  const rankingsTask = cron.schedule('30 14 * * 0', async () => {
+    try {
+      console.log('[scheduler] syncing Top 25 rankings');
+      const seasons = await db.getSeasons();
+      const currentSeason = (seasons && seasons.length) ? seasons[0] : new Date().getFullYear().toString();
+      const ranks = await api.fetchRankings(currentSeason);
+      const savedCount = await db.saveRankings(ranks, currentSeason);
+      console.log(`[scheduler] synced ${savedCount} Top 25 rankings for season ${currentSeason}`);
+    } catch (error) {
+      console.error('[scheduler] rankings sync failed', error.message);
+    }
+  }, {
+    timezone: 'America/New_York'
+  });
+
+  console.log('Scheduler started: daily updates, 4-hour odds sync, 5-minute live score sync, and Sunday 2:30pm EST rankings sync are enabled.');
 }
 
 function stop() {

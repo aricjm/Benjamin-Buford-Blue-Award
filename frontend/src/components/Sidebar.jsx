@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, Award, Lock, TrendingUp } from 'lucide-react';
+import { Library, Award, Lock, TrendingUp, Radio, ListOrdered } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -15,7 +15,8 @@ const Sidebar = ({
   setIsSidebarCollapsed, 
   activePage, 
   handlePageChange,
-  selectedPlayer
+  selectedPlayer,
+  hasLiveGames = false
 }) => {
   const toggleSidebar = () => {
     const next = !isSidebarCollapsed;
@@ -80,6 +81,31 @@ const Sidebar = ({
           <FootballIcon />
           {!isSidebarCollapsed && <span>Picks</span>}
         </button>
+        {hasLiveGames && (
+          <button
+            className={activePage === 'live-scores' ? 'active' : ''}
+            onClick={() => handlePageChange('live-scores')}
+            style={{ 
+              padding: '8px 16px', 
+              fontSize: '0.9rem', 
+              textAlign: isSidebarCollapsed ? 'center' : 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+              gap: '10px',
+              color: activePage === 'live-scores' ? '#fff' : undefined
+            }}
+            title={isSidebarCollapsed ? "Live Scores" : ""}
+          >
+            <Radio size={20} style={{ color: '#e74c3c' }} />
+            {!isSidebarCollapsed && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Live Scores
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#e74c3c', display: 'inline-block' }} />
+              </span>
+            )}
+          </button>
+        )}
         <button
           className={activePage === 'bbbmlp' ? 'active' : ''}
           onClick={() => handlePageChange('bbbmlp')}
@@ -147,6 +173,23 @@ const Sidebar = ({
         >
           <TrendingUp size={20} />
           {!isSidebarCollapsed && <span>Odds History</span>}
+        </button>
+        <button
+          className={activePage === 'rankings-history' ? 'active' : ''}
+          onClick={() => handlePageChange('rankings-history')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Rankings History" : ""}
+        >
+          <ListOrdered size={20} />
+          {!isSidebarCollapsed && <span>Rankings History</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}

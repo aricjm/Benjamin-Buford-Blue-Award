@@ -1101,6 +1101,9 @@ const PicksPage = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConference, setSelectedConference] = useState('');
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
+  const [showOnlyLiveGames, setShowOnlyLiveGames] = useState(false);
+  const [showOnlyTop25, setShowOnlyTop25] = useState(false);
+  const [teamRankMap, setTeamRankMap] = useState({});
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
   const [liveScores, setLiveScores] = useState({});
   const [scoresLastUpdated, setScoresLastUpdated] = useState(null);
@@ -1109,10 +1112,22 @@ const PicksPage = ({
 
   const parseScoreboardEvents = (data) => {
     const newLiveScores = {};
+    const rankMap = {};
     (data.events || []).forEach(event => {
       const comp = event.competitions?.[0] || {};
       const home = comp.competitors?.find(c => c.homeAway === 'home');
       const away = comp.competitors?.find(c => c.homeAway === 'away');
+
+      if (home?.curatedRank?.current <= 25) {
+        const rank = home.curatedRank.current;
+        if (home.team?.displayName) rankMap[home.team.displayName.toLowerCase().trim()] = rank;
+        if (home.team?.location) rankMap[home.team.location.toLowerCase().trim()] = rank;
+      }
+      if (away?.curatedRank?.current <= 25) {
+        const rank = away.curatedRank.current;
+        if (away.team?.displayName) rankMap[away.team.displayName.toLowerCase().trim()] = rank;
+        if (away.team?.location) rankMap[away.team.location.toLowerCase().trim()] = rank;
+      }
       
       newLiveScores[event.id] = {
         score_home: home?.score ? parseInt(home.score) : 0,
@@ -1129,6 +1144,9 @@ const PicksPage = ({
         lastPlayText: comp.situation?.lastPlay?.text
       };
     });
+    if (Object.keys(rankMap).length > 0) {
+      setTeamRankMap(prev => ({ ...prev, ...rankMap }));
+    }
     return newLiveScores;
   };
 
@@ -1155,12 +1173,9 @@ const PicksPage = ({
     }
   };
 
-  // Poll ESPN for live scores every 30 seconds if there are live games
+  // Poll ESPN for scoreboard, live scores and rankings every 30 seconds
   useEffect(() => {
-    const liveGames = pickGames.filter(g => isGameLive(g));
-    if (liveGames.length === 0) return;
-
-    const fetchLiveScores = async () => {
+    const fetchScoreboardAndRanks = async () => {
       try {
         const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
         const data = await res.json();
@@ -1172,10 +1187,10 @@ const PicksPage = ({
       }
     };
 
-    fetchLiveScores();
-    const interval = setInterval(fetchLiveScores, 30000);
+    fetchScoreboardAndRanks();
+    const interval = setInterval(fetchScoreboardAndRanks, 30000);
     return () => clearInterval(interval);
-  }, [pickGames, isGameLive]);
+  }, []);
 
   // Build a lookup: school name -> conference
   const teamConferenceMap = teams.reduce((acc, t) => {
@@ -1198,6 +1213,30 @@ const PicksPage = ({
     ].filter(Boolean))
   )].sort();
 
+  // Lookup rank for a given team name
+  const getTeamRank = (teamName) => {
+    if (!teamName || Object.keys(teamRankMap).length === 0) return null;
+    const lower = teamName.toLowerCase().trim();
+
+    // 1. Exact full match (e.g. "texas a&m aggies", "texas a&m", "lsu tigers", "lsu", "ole miss rebels")
+    if (teamRankMap[lower] !== undefined) return teamRankMap[lower];
+
+    // 2. Exact school location match at start of full team name
+    // e.g. "Ohio State Buckeyes" starts with "ohio state " -> match
+    // Avoid false matches by strictly checking if the team name starts with "${schoolLocation} "
+    for (const [key, rank] of Object.entries(teamRankMap)) {
+      if (lower.startsWith(`${key} `)) {
+        return rank;
+      }
+    }
+    return null;
+  };
+
+  const formatTeamDisplayName = (teamName) => {
+    const rank = getTeamRank(teamName);
+    return rank ? `#${rank} ${teamName}` : teamName;
+  };
+
   const filteredGames = pickGames.filter((game) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = !term || (
@@ -1213,7 +1252,9 @@ const PicksPage = ({
     const matchesMyPicks = !showOnlyMyPicks || (
       picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal)
     );
-    return matchesSearch && matchesConference && matchesMyPicks;
+    const matchesTop25 = !showOnlyTop25 || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
+    const matchesLiveGames = !showOnlyLiveGames || isGameLive(game);
+    return matchesSearch && matchesConference && matchesMyPicks && matchesLiveGames && matchesTop25;
   });
 
   // Determine the most recent odds update time among all pickGames
@@ -1363,6 +1404,46 @@ const PicksPage = ({
                 />
                 My Picks
               </label>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                color: showOnlyLiveGames ? '#e74c3c' : '#fff', 
+                fontSize: '0.9em', 
+                cursor: 'pointer',
+                userSelect: 'none',
+                marginLeft: isMobile ? '0' : '6px',
+                marginTop: isMobile ? '4px' : '0',
+                fontWeight: showOnlyLiveGames ? 'bold' : 'normal'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showOnlyLiveGames}
+                  onChange={(e) => setShowOnlyLiveGames(e.target.checked)}
+                  style={{ cursor: 'pointer', accentColor: '#e74c3c' }}
+                />
+                Live Games
+              </label>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                color: showOnlyTop25 ? '#f1c40f' : '#fff', 
+                fontSize: '0.9em', 
+                cursor: 'pointer',
+                userSelect: 'none',
+                marginLeft: isMobile ? '0' : '6px',
+                marginTop: isMobile ? '4px' : '0',
+                fontWeight: showOnlyTop25 ? 'bold' : 'normal'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showOnlyTop25}
+                  onChange={(e) => setShowOnlyTop25(e.target.checked)}
+                  style={{ cursor: 'pointer', accentColor: '#f1c40f' }}
+                />
+                Top 25
+              </label>
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
@@ -1395,10 +1476,10 @@ const PicksPage = ({
                   )}
                   <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px', flexWrap: 'nowrap', width: '100%', maxWidth: '540px', gap: 0 }}>
                     <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
-                      <strong>{game.away_team}</strong>
+                      <strong>{formatTeamDisplayName(game.away_team)}</strong>
                     </div>
                     <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
-                      <strong>{game.home_team}</strong>
+                      <strong>{formatTeamDisplayName(game.home_team)}</strong>
                     </div>
                   </div>
 
@@ -1732,7 +1813,7 @@ const PicksPage = ({
                                       fontWeight: live.score_away > live.score_home ? 'bold' : 'normal',
                                       color: live.score_away > live.score_home ? '#fff' : '#ccc'
                                     }}>
-                                      {game.away_team}
+                                      {formatTeamDisplayName(game.away_team)}
                                     </span>
                                   </div>
                                 </td>
@@ -1765,7 +1846,7 @@ const PicksPage = ({
                                       fontWeight: live.score_home > live.score_away ? 'bold' : 'normal',
                                       color: live.score_home > live.score_away ? '#fff' : '#ccc'
                                     }}>
-                                      {game.home_team}
+                                      {formatTeamDisplayName(game.home_team)}
                                     </span>
                                   </div>
                                 </td>

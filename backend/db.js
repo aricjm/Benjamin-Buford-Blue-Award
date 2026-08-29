@@ -262,6 +262,34 @@ async function init() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_odds_history_game_id ON odds_history(game_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_odds_history_recorded_at ON odds_history(recorded_at)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rankings_history (
+      id ${idColumn},
+      poll_id TEXT NOT NULL,
+      poll_name TEXT NOT NULL,
+      season TEXT NOT NULL,
+      week INTEGER,
+      rank INTEGER NOT NULL,
+      previous_rank INTEGER,
+      points INTEGER,
+      first_place_votes INTEGER DEFAULT 0,
+      trend TEXT,
+      record_summary TEXT,
+      team_id TEXT,
+      team_name TEXT NOT NULL,
+      team_location TEXT,
+      team_nickname TEXT,
+      team_abbreviation TEXT,
+      team_logo TEXT,
+      conference TEXT,
+      recorded_at TEXT NOT NULL,
+      UNIQUE(poll_id, season, week, team_name)
+    )
+  `);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rankings_history_season_week ON rankings_history(season, week)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rankings_history_team ON rankings_history(team_name)`);
 }
 
 function buildBulkInsertQuery(table, columns, rows, conflictTarget, updateColumns = []) {
@@ -786,6 +814,96 @@ async function recordOddsHistory(gameId, apiGameId, spread_home, spread_away, ov
   } catch (err) {
     console.error('Error recording odds history:', err.message);
   }
+}
+
+async function saveRankings(ranks = [], season, week) {
+  if (!ranks.length) return 0;
+  const recordedAt = new Date().toISOString();
+  let savedCount = 0;
+
+  for (const r of ranks) {
+    try {
+      await pool.query(`
+        INSERT INTO rankings_history (
+          poll_id, poll_name, season, week, rank, previous_rank, points,
+          first_place_votes, trend, record_summary, team_id, team_name,
+          team_location, team_nickname, team_abbreviation, team_logo,
+          conference, recorded_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ON CONFLICT (poll_id, season, week, team_name) DO UPDATE SET
+          rank = EXCLUDED.rank,
+          previous_rank = EXCLUDED.previous_rank,
+          points = EXCLUDED.points,
+          first_place_votes = EXCLUDED.first_place_votes,
+          trend = EXCLUDED.trend,
+          record_summary = EXCLUDED.record_summary,
+          team_logo = EXCLUDED.team_logo,
+          conference = EXCLUDED.conference,
+          recorded_at = EXCLUDED.recorded_at
+      `, [
+        r.poll_id || '1',
+        r.poll_name || 'AP Top 25',
+        String(r.season || season),
+        r.week !== undefined && r.week !== null ? Number(r.week) : (week !== null && week !== undefined ? Number(week) : null),
+        r.rank,
+        r.previous_rank || null,
+        r.points || null,
+        r.first_place_votes || 0,
+        r.trend || null,
+        r.record_summary || '',
+        r.team_id || null,
+        r.team_name,
+        r.team_location || '',
+        r.team_nickname || '',
+        r.team_abbreviation || '',
+        r.team_logo || '',
+        r.conference || '',
+        recordedAt
+      ]);
+      savedCount++;
+    } catch (err) {
+      console.error(`Error saving ranking for ${r.team_name}:`, err.message);
+    }
+  }
+  return savedCount;
+}
+
+async function getRankingsHistory(season, week, pollId = '1') {
+  let query = `
+    SELECT 
+      rh.*,
+      t.logo as team_db_logo,
+      t.school_primary_color as team_color,
+      t.conference as team_db_conference
+    FROM rankings_history rh
+    LEFT JOIN teams t ON rh.team_name LIKE t.school || '%' OR t.school LIKE rh.team_name || '%'
+    WHERE rh.poll_id = $1
+  `;
+  const params = [pollId];
+
+  if (season) {
+    params.push(String(season));
+    query += ` AND rh.season = $${params.length}`;
+  }
+
+  if (week !== undefined && week !== null && week !== '') {
+    params.push(Number(week));
+    query += ` AND rh.week = $${params.length}`;
+  }
+
+  query += ` ORDER BY rh.season DESC, rh.week DESC, rh.rank ASC`;
+  const { rows } = await pool.query(query, params);
+  return rows;
+}
+
+async function getRankingsWeeks(season) {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT season, week
+    FROM rankings_history
+    WHERE season = $1 AND week IS NOT NULL
+    ORDER BY week DESC
+  `, [String(season)]);
+  return rows;
 }
 
 async function getOddsHistoryForWeek(week, season) {
@@ -3080,5 +3198,8 @@ module.exports = {
   getHeadToHeadHistory,
   recordOddsHistory,
   getOddsHistoryForWeek,
+  saveRankings,
+  getRankingsHistory,
+  getRankingsWeeks,
   pool
 };
