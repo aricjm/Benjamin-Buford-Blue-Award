@@ -699,6 +699,7 @@ function App() {
                 handleSubmit={handleSubmit}
                 loading={loading}
                 selectedWeek={selectedWeek}
+                selectedPlayer={selectedPlayer}
                 message={message}
                 messageSuccess={message === 'Picks saved!'}
                 teams={teams}

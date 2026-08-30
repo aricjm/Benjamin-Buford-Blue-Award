@@ -282,6 +282,30 @@ app.get('/api/player/:player/awards', async (req, res) => {
   }
 });
 
+app.get('/api/games/:id/insights', async (req, res) => {
+  try {
+    const gameId = Number(req.params.id);
+    const insights = await db.getGameInsights(gameId);
+    res.json(insights);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/games/:id/insights', async (req, res) => {
+  try {
+    const gameId = Number(req.params.id);
+    const { player, comment } = req.body;
+    if (!player || !comment) {
+      return res.status(400).json({ error: 'player and comment are required' });
+    }
+    const updated = await db.addGameInsight(gameId, player, comment);
+    res.json({ success: true, insights: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/week/:week/picks', async (req, res) => {
   try {
     const week = Number(req.params.week);

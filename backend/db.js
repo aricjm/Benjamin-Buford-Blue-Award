@@ -214,6 +214,7 @@ async function init() {
   await addColumnIfMissing('picks', 'result_total', 'TEXT');
   await addColumnIfMissing('picks', 'is_lock', 'INTEGER', 0);
   await addColumnIfMissing('picks', 'favorable_line', 'BOOLEAN');
+  await addColumnIfMissing('picks', 'insights', 'TEXT');
 
   // Drop the old unique index if it exists
   await pool.query(`DROP INDEX IF EXISTS idx_picks_unique`);
@@ -1359,6 +1360,66 @@ async function savePick(week, player, pick) {
   cache.del('summary_alltime');
 
   return savedPicks[0] || null;
+}
+
+async function addGameInsight(gameId, player, comment) {
+  if (!gameId || !player || !comment) {
+    throw new Error('gameId, player, and comment are required');
+  }
+  const formatted = `${comment.trim()} -${player.trim()}`;
+
+  // Find any pick row for this game to append insight to, or create/update across picks
+  const { rows: existingPicks } = await pool.query('SELECT id, insights FROM picks WHERE game_id = $1', [gameId]);
+  
+  if (existingPicks.length > 0) {
+    for (const p of existingPicks) {
+      let currentList = [];
+      try {
+        if (p.insights) {
+          currentList = JSON.parse(p.insights);
+          if (!Array.isArray(currentList)) currentList = [];
+        }
+      } catch (e) {
+        currentList = [];
+      }
+      currentList.push(formatted);
+      await pool.query('UPDATE picks SET insights = $1 WHERE id = $2', [JSON.stringify(currentList), p.id]);
+    }
+  } else {
+    // If no player pick exists yet for this game, insert a placeholder row for week/game
+    const game = await getGameById(gameId);
+    if (game) {
+      await pool.query(`
+        INSERT INTO picks (week, player, game_id, picked_at, updated_at, insights)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [game.week, player, gameId, new Date().toISOString(), new Date().toISOString(), JSON.stringify([formatted])]);
+    }
+  }
+
+  // Clear relevant cache
+  const game = await getGameById(gameId);
+  if (game) {
+    cache.del(`week_picks_${game.season}_${game.week}`);
+    cache.del(`week_picks_all_${game.week}`);
+  }
+
+  return await getGameInsights(gameId);
+}
+
+async function getGameInsights(gameId) {
+  const { rows } = await pool.query('SELECT insights FROM picks WHERE game_id = $1 AND insights IS NOT NULL', [gameId]);
+  const allInsights = new Set();
+  for (const r of rows) {
+    try {
+      const parsed = JSON.parse(r.insights);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(item => allInsights.add(item));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return Array.from(allInsights);
 }
 
 async function getWeekSummary(week, season) {
@@ -3177,6 +3238,8 @@ module.exports = {
   getPlayerFadedTeamStats,
   seedTestData,
   savePick,
+  addGameInsight,
+  getGameInsights,
   updateGameLine,
   updatePick,
   getGameById,

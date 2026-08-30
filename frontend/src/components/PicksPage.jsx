@@ -425,7 +425,7 @@ const formatOUHomeAway = (awayRecord, homeRecord) => {
   };
 };
 
-const GameIntel = ({ game, picks }) => {
+const GameIntel = ({ game, picks, selectedPlayer }) => {
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
   const [injuries, setInjuries] = useState(null);
@@ -434,6 +434,51 @@ const GameIntel = ({ game, picks }) => {
   const [loadingTravel, setLoadingTravel] = useState(false);
   const [matchupStats, setMatchupStats] = useState(null);
   const [loadingMatchupStats, setLoadingMatchupStats] = useState(false);
+  const [insights, setInsights] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [submittingInsight, setSubmittingInsight] = useState(false);
+
+  useEffect(() => {
+    const fetchInsights = async () => {
+      if (!game.id) return;
+      try {
+        const res = await fetch(`/api/games/${game.id}/insights`);
+        if (res.ok) {
+          const data = await res.json();
+          setInsights(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load insights', err);
+      }
+    };
+    fetchInsights();
+  }, [game.id]);
+
+  const handleAddInsight = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim() || !game.id) return;
+    const playerAuthor = selectedPlayer || localStorage.getItem('selectedPlayer') || 'Aric';
+    setSubmittingInsight(true);
+    try {
+      const res = await fetch(`/api/games/${game.id}/insights`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player: playerAuthor,
+          comment: newComment.trim()
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInsights(data.insights || []);
+        setNewComment('');
+      }
+    } catch (err) {
+      console.error('Failed to submit insight', err);
+    } finally {
+      setSubmittingInsight(false);
+    }
+  };
 
   const fetchInjuries = async () => {
     setLoadingInjuries(true);
@@ -1075,6 +1120,74 @@ const GameIntel = ({ game, picks }) => {
               })()}
             </div>
           )}
+
+          {/* Expert Insights Comments Section */}
+          <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '0.85em', fontWeight: 'bold', color: '#f1c40f', letterSpacing: '0.04em' }}>
+                Expert Insights ({insights.length})
+              </span>
+            </div>
+
+            {/* List of Insights */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+              {insights.length === 0 ? (
+                <div style={{ fontSize: '0.78em', color: '#777', fontStyle: 'italic' }}>
+                  No expert insights added for this game yet.
+                </div>
+              ) : (
+                insights.map((insightText, idx) => (
+                  <div key={idx} style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    borderLeft: '3px solid #f1c40f',
+                    padding: '4px 8px',
+                    borderRadius: '0 4px 4px 0',
+                    fontSize: '0.8em',
+                    color: '#ddd',
+                    lineHeight: '1.35'
+                  }}>
+                    {insightText}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Insight Form */}
+            <form onSubmit={handleAddInsight} style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                placeholder="Add an expert comment/insight..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                style={{
+                  flex: 1,
+                  boxSizing: 'border-box',
+                  padding: '5px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#fff',
+                  fontSize: '0.78em'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={submittingInsight || !newComment.trim()}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(241, 196, 15, 0.2)',
+                  border: '1px solid rgba(241, 196, 15, 0.4)',
+                  color: '#f1c40f',
+                  fontSize: '0.75em',
+                  fontWeight: 'bold',
+                  cursor: (submittingInsight || !newComment.trim()) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {submittingInsight ? '...' : 'Post'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
   );
@@ -1095,6 +1208,7 @@ const PicksPage = ({
   handleSubmit,
   loading,
   selectedWeek,
+  selectedPlayer,
   message,
   messageSuccess = false,
   teams = []
@@ -1103,6 +1217,7 @@ const PicksPage = ({
   const [selectedConference, setSelectedConference] = useState('');
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
   const [showOnlyLiveGames, setShowOnlyLiveGames] = useState(false);
+  const [hasInitializedLiveDefault, setHasInitializedLiveDefault] = useState(false);
   const [showOnlyTop25, setShowOnlyTop25] = useState(false);
   const [teamRankMap, setTeamRankMap] = useState({});
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
@@ -1114,10 +1229,16 @@ const PicksPage = ({
   const parseScoreboardEvents = (data) => {
     const newLiveScores = {};
     const rankMap = {};
+    let anyLiveInScoreboard = false;
+
     (data.events || []).forEach(event => {
       const comp = event.competitions?.[0] || {};
       const home = comp.competitors?.find(c => c.homeAway === 'home');
       const away = comp.competitors?.find(c => c.homeAway === 'away');
+
+      if (event.status?.type?.state === 'in') {
+        anyLiveInScoreboard = true;
+      }
 
       if (home?.curatedRank?.current <= 25) {
         const rank = home.curatedRank.current;
@@ -1138,6 +1259,8 @@ const PicksPage = ({
         clock: event.status?.displayClock,
         period: event.status?.period,
         status: event.status?.type?.description,
+        completed: !!event.status?.type?.completed,
+        state: event.status?.type?.state,
         possession: comp.situation?.possession,
         downDistance: comp.situation?.downDistanceText,
         possessionText: comp.situation?.possessionText,
@@ -1148,7 +1271,7 @@ const PicksPage = ({
     if (Object.keys(rankMap).length > 0) {
       setTeamRankMap(prev => ({ ...prev, ...rankMap }));
     }
-    return newLiveScores;
+    return { newLiveScores, anyLiveInScoreboard };
   };
 
   const refreshSingleGame = async (apiGameId) => {
@@ -1157,7 +1280,7 @@ const PicksPage = ({
     try {
       const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
       const data = await res.json();
-      const updated = parseScoreboardEvents(data);
+      const { newLiveScores: updated } = parseScoreboardEvents(data);
       if (updated[apiGameId]) {
         setLiveScores(prev => ({
           ...prev,
@@ -1180,9 +1303,23 @@ const PicksPage = ({
       try {
         const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
         const data = await res.json();
-        const newScores = parseScoreboardEvents(data);
-        setLiveScores(newScores);
+        const { newLiveScores, anyLiveInScoreboard } = parseScoreboardEvents(data);
+        setLiveScores(newLiveScores);
         setScoresLastUpdated(new Date());
+
+        // On initial page load: auto-select Live Games if there are active live games
+        if (!hasInitializedLiveDefault) {
+          const liveWeekGames = pickGames.some(g => {
+            const liveObj = newLiveScores[String(g.api_game_id)] || newLiveScores[g.api_game_id];
+            if (liveObj) return liveObj.state === 'in';
+            return isGameLive(g);
+          });
+
+          if (liveWeekGames || anyLiveInScoreboard) {
+            setShowOnlyLiveGames(true);
+          }
+          setHasInitializedLiveDefault(true);
+        }
       } catch (err) {
         console.error('Failed to fetch live scores from ESPN', err);
       }
@@ -1191,7 +1328,7 @@ const PicksPage = ({
     fetchScoreboardAndRanks();
     const interval = setInterval(fetchScoreboardAndRanks, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [pickGames, isGameLive, hasInitializedLiveDefault]);
 
   // Build a lookup: school name -> conference
   const teamConferenceMap = teams.reduce((acc, t) => {
@@ -1238,6 +1375,34 @@ const PicksPage = ({
     return rank ? `#${rank} ${teamName}` : teamName;
   };
 
+  // Determine if a game is completed (either from DB record or real-time ESPN scoreboard)
+  const isGameFinished = (game) => {
+    if (game.completed) return true;
+    const liveScoreObj = liveScores[String(game.api_game_id)] || liveScores[game.api_game_id];
+    if (liveScoreObj) {
+      return !!liveScoreObj.completed || liveScoreObj.state === 'post' || liveScoreObj.status === 'Final' || liveScoreObj.status === 'STATUS_FINAL';
+    }
+    return false;
+  };
+
+  // Determine if a game is truly live in real time (using backend completed status & live ESPN state)
+  const isGameCurrentlyLive = (game) => {
+    if (isGameFinished(game)) return false;
+    const liveScoreObj = liveScores[String(game.api_game_id)] || liveScores[game.api_game_id];
+    if (liveScoreObj) {
+      return liveScoreObj.state === 'in';
+    }
+    return isGameLive(game);
+  };
+
+  // Get current game scores (merging DB score with real-time ESPN scoreboard if available)
+  const getGameScores = (game) => {
+    const live = liveScores[String(game.api_game_id)] || liveScores[game.api_game_id];
+    const score_home = (live && live.score_home !== undefined) ? live.score_home : game.score_home;
+    const score_away = (live && live.score_away !== undefined) ? live.score_away : game.score_away;
+    return { score_home, score_away };
+  };
+
   const filteredGames = pickGames.filter((game) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = !term || (
@@ -1254,7 +1419,7 @@ const PicksPage = ({
       picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal)
     );
     const matchesTop25 = !showOnlyTop25 || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
-    const matchesLiveGames = !showOnlyLiveGames || isGameLive(game);
+    const matchesLiveGames = !showOnlyLiveGames || isGameCurrentlyLive(game);
     return matchesSearch && matchesConference && matchesMyPicks && matchesLiveGames && matchesTop25;
   });
 
@@ -1458,7 +1623,7 @@ const PicksPage = ({
               
 
               return (
-                <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameLive(game) ? 'live' : ''}`}
+                <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameCurrentlyLive(game) ? 'live' : ''}`}
                    style={{ 
                      display: 'grid', 
                      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
@@ -1690,8 +1855,25 @@ const PicksPage = ({
                   <div style={{ marginTop: '12px', fontSize: '0.85em', color: '#888' }}>
                     <span>{new Date(game.commence_time).toLocaleString()}</span>
                     {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
-                    {isGameLive(game) && <span className="game-status-live" style={{ marginLeft: '10px' }}>LIVE</span>}
-                    {!isGameLive(game) && isGameLocked(game) && !game.completed && (
+                    {isGameCurrentlyLive(game) && <span className="game-status-live" style={{ marginLeft: '10px' }}>LIVE</span>}
+                    {isGameFinished(game) && (
+                      <span style={{
+                        marginLeft: '10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        color: '#aaa',
+                        fontWeight: 'bold',
+                        fontSize: '0.78em',
+                        letterSpacing: '0.05em'
+                      }}>
+                        FINAL
+                      </span>
+                    )}
+                    {!isGameCurrentlyLive(game) && !isGameFinished(game) && isGameLocked(game) && (
                       <span className="game-status-locked" style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Lock size={12} /> LOCKED
                       </span>
@@ -1699,7 +1881,7 @@ const PicksPage = ({
                   </div>
 
                   {/* Live Scoreboard Header / Refresh Control */}
-                  {isGameLive(game) && (
+                  {isGameCurrentlyLive(game) && (
                     <div style={{
                       marginTop: '15px',
                       display: 'flex',
@@ -1736,7 +1918,7 @@ const PicksPage = ({
                   )}
 
                   {/* Live Scoreboard */}
-                  {isGameLive(game) && liveScores[game.api_game_id] && (() => {
+                  {isGameCurrentlyLive(game) && liveScores[game.api_game_id] && (() => {
                     const live = liveScores[game.api_game_id];
                     const maxPeriods = Math.max(
                       4,
@@ -1889,63 +2071,85 @@ const PicksPage = ({
                       </div>
                     );
                   })()}
+                </div>
 
-                  {/* Final Scoreboard */}
-                  {!!game.completed && (
+                {/* Right Column: Final Scoreboard if game is completed, else Game Intel */}
+                {isGameFinished(game) ? (() => {
+                  const { score_home, score_away } = getGameScores(game);
+                  const isAwayWinner = score_away !== null && score_home !== null && score_away > score_home;
+                  const isHomeWinner = score_home !== null && score_away !== null && score_home > score_away;
+
+                  return (
                     <div className="scoreboard-box" style={{
-                      marginTop: '15px',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px'
+                      gap: '12px',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '4px', marginBottom: '2px' }}>
-                        <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>FINAL</span>
-                        {game.score_home !== null && game.score_away !== null && (
-                          <span>Total: {game.score_home + game.score_away}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '2px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                          letterSpacing: '0.05em'
+                        }}>
+                          FINAL
+                        </span>
+                        {score_home !== null && score_away !== null && (
+                          <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontWeight: '500' }}>
+                            Total Points: {score_home + score_away}
+                          </span>
                         )}
                       </div>
                       
                       {/* Away Team Row */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                           <span style={{ 
-                            fontWeight: game.score_away > game.score_home ? 'bold' : 'normal',
-                            color: game.score_away > game.score_home ? '#fff' : '#aaa'
+                            fontSize: '1rem',
+                            fontWeight: isAwayWinner ? 'bold' : 'normal',
+                            color: isAwayWinner ? '#fff' : '#aaa'
                           }}>
-                            {game.away_team}
+                            {formatTeamDisplayName(game.away_team)}
                           </span>
                         </div>
                         <span style={{ 
-                          fontSize: '1.2em', 
+                          fontSize: '1.4em', 
                           fontWeight: 'bold',
-                          color: game.score_away > game.score_home ? '#4caf50' : '#fff'
+                          color: isAwayWinner ? '#4caf50' : '#fff'
                         }}>
-                          {game.score_away}
+                          {score_away ?? '—'}
                         </span>
                       </div>
 
                       {/* Home Team Row */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                           <span style={{ 
-                            fontWeight: game.score_home > game.score_away ? 'bold' : 'normal',
-                            color: game.score_home > game.score_away ? '#fff' : '#aaa'
+                            fontSize: '1rem',
+                            fontWeight: isHomeWinner ? 'bold' : 'normal',
+                            color: isHomeWinner ? '#fff' : '#aaa'
                           }}>
-                            {game.home_team}
+                            {formatTeamDisplayName(game.home_team)}
                           </span>
                         </div>
                         <span style={{ 
-                          fontSize: '1.2em', 
+                          fontSize: '1.4em', 
                           fontWeight: 'bold',
-                          color: game.score_home > game.score_away ? '#4caf50' : '#fff'
+                          color: isHomeWinner ? '#4caf50' : '#fff'
                         }}>
-                          {game.score_home}
+                          {score_home ?? '—'}
                         </span>
                       </div>
 
@@ -1956,11 +2160,10 @@ const PicksPage = ({
                         awayTeamName={game.away_team}
                       />
                     </div>
-                  )}
-                </div>
-
-                {/* Right Column: Statistics */}
-                <GameIntel game={game} picks={picks} />
+                  );
+                })() : (
+                  <GameIntel game={game} picks={picks} selectedPlayer={selectedPlayer} />
+                )}
               </div>
             )})}
           </div>
