@@ -2,217 +2,221 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Award, TrendingUp, Sparkles, RefreshCw, Calendar, Flame, Shield, Activity, Target } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 
-const JACKSON_ARNOLD_DATA = {
+const DEFAULT_CANDIDATE = {
   id: '4870607',
   name: 'Jackson Arnold',
-  position: 'QB',
   jersey: '11',
-  class: 'Senior',
+  position: 'Quarterback',
+  team: 'UNLV Rebels',
+  teamShort: 'UNLV',
+  teamId: '2439',
+  teamLogo: 'https://a.espncdn.com/i/teamlogos/ncaa/500/2439.png',
+  teamColor: '#b10202',
+  headshot: 'https://a.espncdn.com/i/headshots/college-football/players/full/4870607.png',
   height: `6' 1"`,
-  weight: '211 lbs',
-  school: 'UNLV Rebels',
-  conference: 'Mountain West',
-  logo: 'https://a.espncdn.com/i/teamlogos/ncaa/500/2439.png',
-  headshot: 'https://a.espncdn.com/combiner/i?img=/i/headshots/college-football/players/full/4870607.png&w=350&h=254',
-  heismanOdds: '+3500',
-  heismanRank: '#1',
-  seasonTotals: {
-    games: 0,
-    completions: 0,
-    attempts: 0,
-    completionPct: '0.0%',
-    passingYards: 0,
-    passingTDs: 0,
-    interceptions: 0,
-    passerRating: '0.0',
-    carries: 0,
-    rushingYards: 0,
-    rushingAvg: '0.0',
-    rushingTDs: 0,
-    totalTouchdowns: 0,
-    totalYards: 0
-  },
-  careerTotals: {
-    completions: 217,
-    attempts: 345,
-    completionPct: '62.9%',
-    passingYards: 2471,
-    passingTDs: 18,
-    interceptions: 6,
-    rushingYards: 638,
-    rushingTDs: 7,
-    totalTouchdowns: 25
-  },
-  gameLog: [
-    {
-      week: 'Week 1',
-      date: 'Aug 29, 2026',
-      opponent: 'Memphis Tigers',
-      isHome: true,
-      result: 'Upcoming',
-      score: '—',
-      c_att: '—',
-      passYds: '—',
-      passTd: '—',
-      int: '—',
-      rushCar: '—',
-      rushYds: '—',
-      rushTd: '—',
-      totalTd: '—'
-    },
-    {
-      week: 'Week 2',
-      date: 'Sep 05, 2026',
-      opponent: '@ UCLA Bruins',
-      isHome: false,
-      result: 'Upcoming',
-      score: '—',
-      c_att: '—',
-      passYds: '—',
-      passTd: '—',
-      int: '—',
-      rushCar: '—',
-      rushYds: '—',
-      rushTd: '—',
-      totalTd: '—'
-    },
-    {
-      week: 'Week 3',
-      date: 'Sep 12, 2026',
-      opponent: 'UTEP Miners',
-      isHome: true,
-      result: 'Upcoming',
-      score: '—',
-      c_att: '—',
-      passYds: '—',
-      passTd: '—',
-      int: '—',
-      rushCar: '—',
-      rushYds: '—',
-      rushTd: '—',
-      totalTd: '—'
-    },
-    {
-      week: 'Week 4',
-      date: 'Sep 19, 2026',
-      opponent: '@ Fresno State',
-      isHome: false,
-      result: 'Upcoming',
-      score: '—',
-      c_att: '—',
-      passYds: '—',
-      passTd: '—',
-      int: '—',
-      rushCar: '—',
-      rushYds: '—',
-      rushTd: '—',
-      totalTd: '—'
-    },
-    {
-      week: 'Week 5',
-      date: 'Sep 26, 2026',
-      opponent: 'Boise State Broncos',
-      isHome: true,
-      result: 'Upcoming',
-      score: '—',
-      c_att: '—',
-      passYds: '—',
-      passTd: '—',
-      int: '—',
-      rushCar: '—',
-      rushYds: '—',
-      rushTd: '—',
-      totalTd: '—'
-    }
-  ]
+  weight: '220 lbs',
+  classYear: 'Senior',
+  hometown: 'Denton, TX',
+  heismanRank: '#1 Contender'
 };
 
-const HeismanWatchPage = () => {
-  const [playerData, setPlayerData] = useState(JACKSON_ARNOLD_DATA);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('gamelog'); // 'gamelog', 'passing', 'rushing', 'overview'
+const HeismanWatchPage = ({ selectedSeason = '2026' }) => {
+  const [candidates, setCandidates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tracked_heisman_candidates');
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (!parsed.some(p => p.id === DEFAULT_CANDIDATE.id)) {
+        parsed.unshift({
+          id: DEFAULT_CANDIDATE.id,
+          name: DEFAULT_CANDIDATE.name,
+          jersey: DEFAULT_CANDIDATE.jersey,
+          position: DEFAULT_CANDIDATE.position,
+          teamName: DEFAULT_CANDIDATE.team,
+          teamId: DEFAULT_CANDIDATE.teamId,
+          teamLogo: DEFAULT_CANDIDATE.teamLogo
+        });
+      }
+      return parsed;
+    } catch (e) {
+      return [{
+        id: DEFAULT_CANDIDATE.id,
+        name: DEFAULT_CANDIDATE.name,
+        jersey: DEFAULT_CANDIDATE.jersey,
+        position: DEFAULT_CANDIDATE.position,
+        teamName: DEFAULT_CANDIDATE.team,
+        teamId: DEFAULT_CANDIDATE.teamId,
+        teamLogo: DEFAULT_CANDIDATE.teamLogo
+      }];
+    }
+  });
+
+  const [activeCandidateId, setActiveCandidateId] = useState(DEFAULT_CANDIDATE.id);
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'passing', 'rushing'
+  const [gameLogs, setGameLogs] = useState([]);
+  const [seasonTotals, setSeasonTotals] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const isMobile = useIsMobile();
 
-  const fetchLiveStats = async () => {
+  const activeCandidate = candidates.find(c => c.id === activeCandidateId) || candidates[0] || DEFAULT_CANDIDATE;
+
+  useEffect(() => {
+    localStorage.setItem('tracked_heisman_candidates', JSON.stringify(candidates));
+  }, [candidates]);
+
+  const fetchAthleteStats = async () => {
+    if (!activeCandidate) return;
     setLoading(true);
     try {
-      // Attempt to load live UNLV games / boxscore stats from ESPN
-      const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&limit=300');
-      if (res.ok) {
-        const data = await res.json();
-        const unlvEvent = (data.events || []).find(e => 
-          e.competitions?.[0]?.competitors?.some(c => c.team?.id === '2439' || c.team?.displayName?.includes('UNLV'))
-        );
+      const teamId = activeCandidate.teamId || '2439';
+      const athleteId = activeCandidate.id || '4870607';
 
-        if (unlvEvent) {
-          // If UNLV is playing live or finished, fetch game summary for Jackson Arnold's game stats
-          const summaryRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${unlvEvent.id}`);
-          if (summaryRes.ok) {
-            const summary = await summaryRes.json();
-            const unlvPlayerObj = summary.boxscore?.players?.find(p => p.team?.id === '2439');
-            const passCat = unlvPlayerObj?.statistics?.find(s => s.name === 'passing');
-            const rushCat = unlvPlayerObj?.statistics?.find(s => s.name === 'rushing');
+      // 1. Fetch team schedule
+      const schedRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/${teamId}/schedule?season=${selectedSeason}`);
+      const schedData = await schedRes.json();
+      const events = schedData.events || [];
 
-            const arnoldPassing = passCat?.athletes?.find(a => a.athlete?.id === '4870607' || a.athlete?.displayName?.includes('Arnold'));
-            const arnoldRushing = rushCat?.athletes?.find(a => a.athlete?.id === '4870607' || a.athlete?.displayName?.includes('Arnold'));
+      // 2. Fetch box scores for completed / live games to compile live game-by-game logs
+      const logs = [];
+      let totalComp = 0;
+      let totalAtt = 0;
+      let totalPassYds = 0;
+      let totalPassTD = 0;
+      let totalInt = 0;
+      let totalCarries = 0;
+      let totalRushYds = 0;
+      let totalRushTD = 0;
+      let totalRec = 0;
+      let totalRecYds = 0;
+      let totalRecTD = 0;
 
-            if (arnoldPassing || arnoldRushing) {
-              const c_att = arnoldPassing?.stats?.[0] || '0/0';
-              const passYds = parseInt(arnoldPassing?.stats?.[1] || 0, 10);
-              const passTd = parseInt(arnoldPassing?.stats?.[3] || 0, 10);
-              const passInt = parseInt(arnoldPassing?.stats?.[4] || 0, 10);
+      for (const ev of events) {
+        const comp = ev.competitions?.[0];
+        const status = comp?.status?.type;
+        const opponentComp = comp?.competitors?.find(c => c.team?.id !== teamId);
+        const playerTeamComp = comp?.competitors?.find(c => c.team?.id === teamId);
+        const isHome = playerTeamComp?.homeAway === 'home';
 
-              const rushCar = parseInt(arnoldRushing?.stats?.[0] || 0, 10);
-              const rushYds = parseInt(arnoldRushing?.stats?.[1] || 0, 10);
-              const rushTd = parseInt(arnoldRushing?.stats?.[3] || 0, 10);
+        let gameStats = null;
 
-              const totalTd = passTd + rushTd;
+        if (status?.completed || status?.state === 'in') {
+          try {
+            const summaryRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${ev.id}`);
+            if (summaryRes.ok) {
+              const summaryData = await summaryRes.json();
+              const teamPlayers = summaryData.boxscore?.players?.find(p => p.team?.id === teamId);
+              
+              const passCat = teamPlayers?.statistics?.find(s => s.name === 'passing');
+              const rushCat = teamPlayers?.statistics?.find(s => s.name === 'rushing');
+              const recCat = teamPlayers?.statistics?.find(s => s.name === 'receiving');
 
-              setPlayerData(prev => ({
-                ...prev,
-                seasonTotals: {
-                  games: 1,
-                  completions: parseInt(c_att.split('/')[0] || 0, 10),
-                  attempts: parseInt(c_att.split('/')[1] || 0, 10),
-                  completionPct: c_att.includes('/') ? `${((parseInt(c_att.split('/')[0], 10) / Math.max(1, parseInt(c_att.split('/')[1], 10))) * 100).toFixed(1)}%` : '0.0%',
-                  passingYards: passYds,
-                  passingTDs: passTd,
-                  interceptions: passInt,
-                  passerRating: passYds > 0 ? '154.2' : '0.0',
-                  carries: rushCar,
-                  rushingYards: rushYds,
-                  rushingAvg: rushCar > 0 ? (rushYds / rushCar).toFixed(1) : '0.0',
-                  rushingTDs: rushTd,
-                  totalTouchdowns: totalTd,
-                  totalYards: passYds + rushYds
-                },
-                gameLog: prev.gameLog.map((g, idx) => idx === 0 ? {
-                  ...g,
-                  result: unlvEvent.status?.type?.description || 'Live',
-                  c_att,
-                  passYds,
-                  passTd,
-                  int: passInt,
-                  rushCar,
-                  rushYds,
-                  rushTd,
-                  totalTd
-                } : g)
-              }));
+              const passAthlete = passCat?.athletes?.find(a => a.athlete?.id === athleteId || a.athlete?.displayName === activeCandidate.name);
+              const rushAthlete = rushCat?.athletes?.find(a => a.athlete?.id === athleteId || a.athlete?.displayName === activeCandidate.name);
+              const recAthlete = recCat?.athletes?.find(a => a.athlete?.id === athleteId || a.athlete?.displayName === activeCandidate.name);
+
+              if (passAthlete || rushAthlete || recAthlete) {
+                const cAtt = passAthlete?.stats?.[0]?.split('/') || ['0', '0'];
+                const compCount = parseInt(cAtt[0], 10) || 0;
+                const attCount = parseInt(cAtt[1], 10) || 0;
+                const pYards = parseInt(passAthlete?.stats?.[1], 10) || 0;
+                const pTD = parseInt(passAthlete?.stats?.[3], 10) || 0;
+                const pInt = parseInt(passAthlete?.stats?.[4], 10) || 0;
+
+                const rCar = parseInt(rushAthlete?.stats?.[0], 10) || 0;
+                const rYards = parseInt(rushAthlete?.stats?.[1], 10) || 0;
+                const rTD = parseInt(rushAthlete?.stats?.[3], 10) || 0;
+
+                const recCount = parseInt(recAthlete?.stats?.[0], 10) || 0;
+                const recYds = parseInt(recAthlete?.stats?.[1], 10) || 0;
+                const recTD = parseInt(recAthlete?.stats?.[3], 10) || 0;
+
+                totalComp += compCount;
+                totalAtt += attCount;
+                totalPassYds += pYards;
+                totalPassTD += pTD;
+                totalInt += pInt;
+                totalCarries += rCar;
+                totalRushYds += rYards;
+                totalRushTD += rTD;
+                totalRec += recCount;
+                totalRecYds += recYds;
+                totalRecTD += recTD;
+
+                gameStats = {
+                  played: true,
+                  comp: compCount,
+                  att: attCount,
+                  passYds: pYards,
+                  passTD: pTD,
+                  int: pInt,
+                  carries: rCar,
+                  rushYds: rYards,
+                  rushTD: rTD,
+                  rec: recCount,
+                  recYds,
+                  recTD
+                };
+              }
             }
+          } catch (err) {
+            console.error(`Failed to load boxscore for game ${ev.id}`, err);
           }
         }
+
+        logs.push({
+          gameId: ev.id,
+          date: ev.date,
+          name: ev.name,
+          opponent: opponentComp?.team?.displayName || 'Opponent',
+          opponentLogo: opponentComp?.team?.logo || opponentComp?.team?.logos?.[0]?.href,
+          opponentRank: opponentComp?.curatedRank?.current <= 25 ? opponentComp.curatedRank.current : null,
+          isHome,
+          isCompleted: !!status?.completed,
+          isLive: status?.state === 'in',
+          statusText: status?.shortDetail || status?.description,
+          stats: gameStats
+        });
       }
-    } catch (e) {
-      console.error('Failed to fetch Jackson Arnold live stats', e);
+
+      setGameLogs(logs);
+
+      const gamesPlayed = logs.filter(l => l.stats?.played).length;
+      setSeasonTotals({
+        gamesPlayed,
+        comp: totalComp,
+        att: totalAtt,
+        compPct: totalAtt > 0 ? ((totalComp / totalAtt) * 100).toFixed(1) : '0.0',
+        passYds: totalPassYds,
+        passTD: totalPassTD,
+        int: totalInt,
+        carries: totalCarries,
+        rushYds: totalRushYds,
+        rushTD: totalRushTD,
+        totalYds: totalPassYds + totalRushYds + totalRecYds,
+        totalTD: totalPassTD + totalRushTD + totalRecTD
+      });
+
+    } catch (err) {
+      console.error('Failed to load candidate stats', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchLiveStats();
-  }, []);
+    fetchAthleteStats();
+  }, [activeCandidateId, selectedSeason]);
+
+  const handleRemoveCandidate = (id, e) => {
+    e.stopPropagation();
+    if (id === DEFAULT_CANDIDATE.id) return; // Keep Jackson Arnold as primary
+    const next = candidates.filter(c => c.id !== id);
+    setCandidates(next);
+    if (activeCandidateId === id) {
+      setActiveCandidateId(DEFAULT_CANDIDATE.id);
+    }
+  };
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: isMobile ? '12px' : '20px' }}>
@@ -254,7 +258,7 @@ const HeismanWatchPage = () => {
         </div>
 
         <button
-          onClick={fetchLiveStats}
+          onClick={fetchAthleteStats}
           disabled={loading}
           style={{
             display: 'inline-flex',
@@ -275,6 +279,62 @@ const HeismanWatchPage = () => {
         </button>
       </div>
 
+      {/* Tracked Candidates Switcher */}
+      {candidates.length > 1 && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px',
+          marginBottom: '20px',
+          backgroundColor: '#1f1f1f',
+          padding: '12px 16px',
+          borderRadius: '10px',
+          border: '1px solid #333'
+        }}>
+          {candidates.map(c => (
+            <div
+              key={c.id}
+              onClick={() => setActiveCandidateId(c.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                backgroundColor: activeCandidateId === c.id ? 'rgba(241, 196, 15, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                border: activeCandidateId === c.id ? '1px solid #f1c40f' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: activeCandidateId === c.id ? '#fff' : '#aaa',
+                fontSize: '0.85em',
+                fontWeight: activeCandidateId === c.id ? 'bold' : 'normal'
+              }}
+            >
+              {c.teamLogo && <img src={c.teamLogo} alt="" style={{ height: '16px', width: '16px', objectFit: 'contain' }} />}
+              <span>{c.name}</span>
+              {c.jersey && <span style={{ opacity: 0.6 }}>#{c.jersey}</span>}
+              {c.id !== DEFAULT_CANDIDATE.id && (
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveCandidate(c.id, e)}
+                  title="Remove candidate"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#888',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    fontSize: '1em',
+                    lineHeight: 1
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Featured Candidate Hero Banner */}
       <div style={{
         backgroundColor: '#1a1f2c',
@@ -282,22 +342,25 @@ const HeismanWatchPage = () => {
         border: '1px solid rgba(241, 196, 15, 0.3)',
         padding: isMobile ? '16px' : '24px',
         marginBottom: '24px',
-        background: 'linear-gradient(135deg, rgba(207, 10, 44, 0.25) 0%, #1a1f2c 60%, rgba(241, 196, 15, 0.1) 100%)',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35)'
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+        position: 'relative',
+        overflow: 'hidden'
       }}>
         <div style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          alignItems: 'center',
-          gap: isMobile ? '16px' : '32px'
+          alignItems: isMobile ? 'center' : 'flex-start',
+          gap: '24px',
+          position: 'relative',
+          zIndex: 1
         }}>
-          {/* Athlete Avatar / Headshot */}
-          <div style={{ position: 'relative', textAlign: 'center' }}>
+          {/* Headshot / Jersey Container */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
             <div style={{
-              width: isMobile ? '110px' : '140px',
-              height: isMobile ? '110px' : '140px',
+              width: '100px',
+              height: '100px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              backgroundColor: activeCandidate.teamColor || '#1f1f1f',
               border: '3px solid #f1c40f',
               overflow: 'hidden',
               display: 'flex',
@@ -306,145 +369,111 @@ const HeismanWatchPage = () => {
               boxShadow: '0 0 20px rgba(241, 196, 15, 0.3)'
             }}>
               <img
-                src={playerData.headshot}
-                alt={playerData.name}
-                onError={(e) => { e.target.onerror = null; e.target.src = playerData.logo; }}
+                src={activeCandidate.headshot || activeCandidate.teamLogo || DEFAULT_CANDIDATE.headshot}
+                alt={activeCandidate.name}
+                onError={(e) => { e.target.onerror = null; e.target.src = activeCandidate.teamLogo || DEFAULT_CANDIDATE.teamLogo; }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
-            <span style={{
-              position: 'absolute',
-              bottom: '-4px',
-              right: '8px',
-              backgroundColor: '#cf0a2c',
-              color: '#fff',
-              fontWeight: 'bold',
-              fontSize: '0.8em',
-              padding: '2px 8px',
-              borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.2)'
-            }}>
-              #{playerData.jersey}
-            </span>
+            {activeCandidate.jersey && (
+              <span style={{
+                position: 'absolute',
+                bottom: '-4px',
+                right: '4px',
+                backgroundColor: '#f1c40f',
+                color: '#1a1a2e',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                fontSize: '0.75em',
+                fontWeight: 'bold'
+              }}>
+                #{activeCandidate.jersey}
+              </span>
+            )}
           </div>
 
-          {/* Player Info & Bio */}
+          {/* Player Info */}
           <div style={{ flex: 1, textAlign: isMobile ? 'center' : 'left' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: isMobile ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: isMobile ? '1.6rem' : '2.1rem', fontWeight: 'bold', color: '#fff' }}>
-                {playerData.name}
+              <h2 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: 'bold', color: '#fff' }}>
+                {activeCandidate.name}
               </h2>
               <span style={{
                 backgroundColor: 'rgba(241, 196, 15, 0.2)',
                 color: '#f1c40f',
-                padding: '3px 10px',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                fontSize: '0.82em',
-                border: '1px solid rgba(241, 196, 15, 0.4)'
+                border: '1px solid rgba(241, 196, 15, 0.4)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '0.78em',
+                fontWeight: 'bold'
               }}>
-                Heisman Leader
+                {activeCandidate.heismanRank || 'Candidate'}
               </span>
             </div>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginTop: '8px',
-              justifyContent: isMobile ? 'center' : 'flex-start',
-              color: '#ccc',
-              fontSize: '0.92em',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <img src={playerData.logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />
-                <span style={{ fontWeight: '600', color: '#fff' }}>{playerData.school}</span>
-              </div>
-              <span>•</span>
-              <span>{playerData.position}</span>
-              <span>•</span>
-              <span>{playerData.class}</span>
-              <span>•</span>
-              <span>{playerData.height}, {playerData.weight}</span>
-              <span>•</span>
-              <span>{playerData.conference}</span>
-            </div>
-
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              marginTop: '16px',
-              justifyContent: isMobile ? 'center' : 'flex-start',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                padding: '6px 14px',
-                borderRadius: '8px'
-              }}>
-                <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>Heisman Odds</span>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#f1c40f' }}>{playerData.heismanOdds}</span>
-              </div>
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                padding: '6px 14px',
-                borderRadius: '8px'
-              }}>
-                <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>Career Total TDs</span>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#4caf50' }}>{playerData.careerTotals.totalTouchdowns}</span>
-              </div>
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                padding: '6px 14px',
-                borderRadius: '8px'
-              }}>
-                <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>Career Pass Yards</span>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#4d7cff' }}>{playerData.careerTotals.passingYards.toLocaleString()}</span>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: isMobile ? 'center' : 'flex-start', marginTop: '6px', color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.9em' }}>
+              {activeCandidate.teamLogo && <img src={activeCandidate.teamLogo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+              <span style={{ fontWeight: '600', color: '#fff' }}>{activeCandidate.teamName || activeCandidate.team}</span>
+              {activeCandidate.position && (
+                <>
+                  <span>•</span>
+                  <span>{activeCandidate.position}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Season Totals Grid Cards */}
-      <h3 style={{ margin: '0 0 14px 0', fontSize: '1.1rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Activity size={18} style={{ color: '#4d7cff' }} /> 2026 Season Performance Totals
-      </h3>
+        {/* Season Stat Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)',
+          gap: '12px',
+          marginTop: '20px',
+          paddingTop: '16px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+        }}>
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Passing YDS</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#fff', marginTop: '2px' }}>
+              {seasonTotals?.passYds ?? 0}
+            </div>
+          </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)',
-        gap: '12px',
-        marginBottom: '28px'
-      }}>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>PASS YARDS</span>
-          <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#fff' }}>{playerData.seasonTotals.passingYards}</span>
-        </div>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>PASS TDS</span>
-          <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#4caf50' }}>{playerData.seasonTotals.passingTDs}</span>
-        </div>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>COMP / ATT</span>
-          <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>{playerData.seasonTotals.completions}/{playerData.seasonTotals.attempts}</span>
-          <span style={{ fontSize: '0.72em', color: '#aaa', display: 'block' }}>{playerData.seasonTotals.completionPct}</span>
-        </div>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>RUSH YARDS</span>
-          <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#fff' }}>{playerData.seasonTotals.rushingYards}</span>
-        </div>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75em', color: '#888', display: 'block' }}>RUSH TDS</span>
-          <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#4caf50' }}>{playerData.seasonTotals.rushingTDs}</span>
-        </div>
-        <div style={{ backgroundColor: '#1a1f2c', border: '1px solid rgba(241, 196, 15, 0.3)', borderRadius: '10px', padding: '12px', textAlign: 'center', backgroundColor: 'rgba(241, 196, 15, 0.06)' }}>
-          <span style={{ fontSize: '0.75em', color: '#f1c40f', display: 'block', fontWeight: 'bold' }}>TOTAL TDS</span>
-          <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#f1c40f' }}>{playerData.seasonTotals.totalTouchdowns}</span>
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Pass TD / INT</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#4caf50', marginTop: '2px' }}>
+              {seasonTotals?.passTD ?? 0} <span style={{ color: '#888', fontSize: '0.8em' }}>/</span> <span style={{ color: '#e74c3c' }}>{seasonTotals?.int ?? 0}</span>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Comp / Att</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#fff', marginTop: '2px' }}>
+              {seasonTotals?.comp ?? 0}/{seasonTotals?.att ?? 0} <span style={{ fontSize: '0.75em', color: '#4d7cff' }}>({seasonTotals?.compPct ?? '0.0'}%)</span>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Rushing YDS</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#fff', marginTop: '2px' }}>
+              {seasonTotals?.rushYds ?? 0}
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Rush TDs</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#f1c40f', marginTop: '2px' }}>
+              {seasonTotals?.rushTD ?? 0}
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.75em', color: '#888', textTransform: 'uppercase' }}>Total Touchdowns</span>
+            <div style={{ fontSize: '1.3em', fontWeight: 'bold', color: '#f1c40f', marginTop: '2px' }}>
+              {seasonTotals?.totalTD ?? 0}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -465,10 +494,10 @@ const HeismanWatchPage = () => {
           marginBottom: '16px'
         }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={18} style={{ color: '#f1c40f' }} /> 2026 Game-by-Game Log
+            <Calendar size={18} style={{ color: '#f1c40f' }} /> {selectedSeason} Game-by-Game Log
           </h3>
           <span style={{ fontSize: '0.8em', color: '#888' }}>
-            Updated Weekly with ESPN Box Scores
+            Updated with ESPN Box Scores
           </span>
         </div>
 
@@ -481,7 +510,7 @@ const HeismanWatchPage = () => {
                 textAlign: 'center',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Week / Date</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left' }}>Date</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left' }}>Opponent</th>
                 <th style={{ padding: '10px 12px' }}>Status</th>
                 <th style={{ padding: '10px 12px' }}>C/ATT</th>
@@ -495,44 +524,77 @@ const HeismanWatchPage = () => {
               </tr>
             </thead>
             <tbody>
-              {playerData.gameLog.map((game, idx) => (
-                <tr
-                  key={game.week}
-                  style={{
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                    backgroundColor: idx % 2 === 0 ? 'rgba(255, 255, 255, 0.01)' : 'transparent',
-                    textAlign: 'center'
-                  }}
-                >
-                  <td style={{ padding: '12px', textAlign: 'left', fontWeight: '500', color: '#fff' }}>
-                    <div>{game.week}</div>
-                    <div style={{ fontSize: '0.8em', color: '#888' }}>{game.date}</div>
+              {gameLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={11} style={{ padding: '24px', textAlign: 'center', color: '#888' }}>
+                    {loading ? 'Loading game logs...' : 'No game logs available for this season.'}
                   </td>
-                  <td style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#fff' }}>
-                    {game.opponent}
-                  </td>
-                  <td style={{ padding: '12px' }}>
-                    <span style={{
-                      backgroundColor: game.result === 'Upcoming' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(76, 175, 80, 0.2)',
-                      color: game.result === 'Upcoming' ? '#888' : '#4caf50',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '0.8em',
-                      fontWeight: 'bold'
-                    }}>
-                      {game.result}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px', color: '#ddd' }}>{game.c_att}</td>
-                  <td style={{ padding: '12px', fontWeight: 'bold', color: game.passYds !== '—' ? '#fff' : '#888' }}>{game.passYds}</td>
-                  <td style={{ padding: '12px', color: game.passTd !== '—' && game.passTd > 0 ? '#4caf50' : '#888', fontWeight: 'bold' }}>{game.passTd}</td>
-                  <td style={{ padding: '12px', color: game.int !== '—' && game.int > 0 ? '#e74c3c' : '#888' }}>{game.int}</td>
-                  <td style={{ padding: '12px', color: '#ddd' }}>{game.rushCar}</td>
-                  <td style={{ padding: '12px', fontWeight: 'bold', color: game.rushYds !== '—' ? '#fff' : '#888' }}>{game.rushYds}</td>
-                  <td style={{ padding: '12px', color: game.rushTd !== '—' && game.rushTd > 0 ? '#4caf50' : '#888', fontWeight: 'bold' }}>{game.rushTd}</td>
-                  <td style={{ padding: '12px', color: '#f1c40f', fontWeight: 'bold', fontSize: '1.05em' }}>{game.totalTd}</td>
                 </tr>
-              ))}
+              ) : (
+                gameLogs.map((log, idx) => {
+                  const hasStats = log.stats && log.stats.played;
+                  const dateFormatted = log.date ? new Date(log.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+                  const totalTD = hasStats ? (log.stats.passTD + log.stats.rushTD) : 0;
+
+                  return (
+                    <tr
+                      key={log.gameId || idx}
+                      style={{
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                        backgroundColor: idx % 2 === 0 ? 'rgba(255, 255, 255, 0.01)' : 'transparent',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <td style={{ padding: '12px', textAlign: 'left', fontWeight: '500', color: '#fff' }}>
+                        <div>{dateFormatted}</div>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#fff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#888', fontSize: '0.85em' }}>{log.isHome ? 'vs' : '@'}</span>
+                          {log.opponentLogo && <img src={log.opponentLogo} alt="" style={{ height: '18px', width: '18px', objectFit: 'contain' }} />}
+                          <span>{log.opponent}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{
+                          backgroundColor: log.isLive ? 'rgba(207, 10, 44, 0.25)' : log.isCompleted ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          color: log.isLive ? '#ff4d4d' : log.isCompleted ? '#4caf50' : '#888',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.8em',
+                          fontWeight: 'bold'
+                        }}>
+                          {log.isLive ? 'LIVE' : log.isCompleted ? 'FINAL' : 'Upcoming'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', color: '#ddd' }}>
+                        {hasStats ? `${log.stats.comp}/${log.stats.att}` : '—'}
+                      </td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: hasStats ? '#fff' : '#888' }}>
+                        {hasStats ? log.stats.passYds : '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: hasStats && log.stats.passTD > 0 ? '#4caf50' : '#888', fontWeight: 'bold' }}>
+                        {hasStats ? log.stats.passTD : '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: hasStats && log.stats.int > 0 ? '#e74c3c' : '#888' }}>
+                        {hasStats ? log.stats.int : '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: '#ddd' }}>
+                        {hasStats ? log.stats.carries : '—'}
+                      </td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: hasStats ? '#fff' : '#888' }}>
+                        {hasStats ? log.stats.rushYds : '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: hasStats && log.stats.rushTD > 0 ? '#4caf50' : '#888', fontWeight: 'bold' }}>
+                        {hasStats ? log.stats.rushTD : '—'}
+                      </td>
+                      <td style={{ padding: '12px', color: '#f1c40f', fontWeight: 'bold', fontSize: '1.05em' }}>
+                        {hasStats ? totalTD : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, RefreshCw, BarChart2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, RefreshCw, BarChart2, Trophy, ShieldAlert, Check } from 'lucide-react';
 
 const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -7,6 +7,59 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('touchdowns'); // 'touchdowns', 'team', 'passing', 'rushing', 'receiving', 'defensive'
+  const [addedNotice, setAddedNotice] = useState(null);
+
+  const addCandidate = (athlete, teamObj, type) => {
+    if (!athlete) return;
+    const athleteId = athlete.id || athlete.displayName;
+    const athleteName = athlete.displayName || athlete.shortName || 'Unknown';
+    const jersey = athlete.jersey || '';
+    const position = athlete.position?.abbreviation || athlete.position?.name || '';
+    const teamName = teamObj?.displayName || (homeTeamName || 'Unknown');
+    const teamId = teamObj?.id || null;
+    const teamLogo = teamObj?.logo || '';
+
+    const payload = {
+      id: String(athleteId),
+      name: athleteName,
+      jersey,
+      position,
+      teamName,
+      teamId,
+      teamLogo,
+      addedAt: new Date().toISOString()
+    };
+
+    if (type === 'heisman') {
+      try {
+        const key = 'tracked_heisman_candidates';
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!existing.some(p => p.id === String(athleteId))) {
+          existing.push(payload);
+          localStorage.setItem(key, JSON.stringify(existing));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setAddedNotice({ text: `Added ${athleteName} to Heisman Watch!`, id: athleteId, type: 'heisman' });
+    } else if (type === 'liability') {
+      try {
+        const key = 'tracked_liabilities';
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!existing.some(p => p.id === String(athleteId))) {
+          existing.push(payload);
+          localStorage.setItem(key, JSON.stringify(existing));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setAddedNotice({ text: `Added ${athleteName} to Liability Watch!`, id: athleteId, type: 'liability' });
+    }
+
+    setTimeout(() => {
+      setAddedNotice(null);
+    }, 2500);
+  };
 
   const fetchBoxScore = async () => {
     if (!apiGameId) return;
@@ -158,9 +211,22 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
             </div>
           )}
 
-          {error && (
-            <div style={{ textAlign: 'center', padding: '12px', color: '#e74c3c', fontSize: '0.85em' }}>
-              {error}
+          {/* Notice Feedback Banner */}
+          {addedNotice && (
+            <div style={{
+              backgroundColor: addedNotice.type === 'heisman' ? 'rgba(241, 196, 15, 0.2)' : 'rgba(231, 76, 60, 0.2)',
+              border: `1px solid ${addedNotice.type === 'heisman' ? '#f1c40f' : '#e74c3c'}`,
+              color: addedNotice.type === 'heisman' ? '#f1c40f' : '#fff',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              marginBottom: '10px',
+              fontSize: '0.8em',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <Check size={14} /> {addedNotice.text}
             </div>
           )}
 
@@ -287,6 +353,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                               <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rush TD</th>
                               <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rec TD</th>
                               <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold' }}>Total TD</th>
+                              <th style={{ textAlign: 'center', padding: '4px 6px', width: '150px' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -309,6 +376,46 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                 </td>
                                 <td style={{ textAlign: 'right', padding: '5px 6px', color: '#f1c40f', fontWeight: 'bold', fontSize: '1.05em' }}>
                                   {s.totalTDs}
+                                </td>
+                                <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                                  <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => addCandidate(s.athlete, tObj.team, 'heisman')}
+                                      style={{
+                                        padding: '2px 6px',
+                                        fontSize: '0.72em',
+                                        borderRadius: '4px',
+                                        backgroundColor: 'rgba(241, 196, 15, 0.15)',
+                                        border: '1px solid rgba(241, 196, 15, 0.35)',
+                                        color: '#f1c40f',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                      title="Add to Heisman Watch"
+                                    >
+                                      +Heisman
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => addCandidate(s.athlete, tObj.team, 'liability')}
+                                      style={{
+                                        padding: '2px 6px',
+                                        fontSize: '0.72em',
+                                        borderRadius: '4px',
+                                        backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                                        border: '1px solid rgba(231, 76, 60, 0.35)',
+                                        color: '#e74c3c',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                      title="Add to Liability Watch"
+                                    >
+                                      +Liability
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -361,6 +468,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                 {labels.map((l, i) => (
                                   <th key={i} style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 'normal' }}>{l}</th>
                                 ))}
+                                <th style={{ textAlign: 'center', padding: '3px 6px', width: '150px' }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -377,6 +485,46 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                       {st}
                                     </td>
                                   ))}
+                                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                                    <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => addCandidate(a.athlete, teamPlayerObj.team, 'heisman')}
+                                        style={{
+                                          padding: '2px 6px',
+                                          fontSize: '0.72em',
+                                          borderRadius: '4px',
+                                          backgroundColor: 'rgba(241, 196, 15, 0.15)',
+                                          border: '1px solid rgba(241, 196, 15, 0.35)',
+                                          color: '#f1c40f',
+                                          cursor: 'pointer',
+                                          fontWeight: 'bold',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                        title="Add to Heisman Watch"
+                                      >
+                                        +Heisman
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => addCandidate(a.athlete, teamPlayerObj.team, 'liability')}
+                                        style={{
+                                          padding: '2px 6px',
+                                          fontSize: '0.72em',
+                                          borderRadius: '4px',
+                                          backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                                          border: '1px solid rgba(231, 76, 60, 0.35)',
+                                          color: '#e74c3c',
+                                          cursor: 'pointer',
+                                          fontWeight: 'bold',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                        title="Add to Liability Watch"
+                                      >
+                                        +Liability
+                                      </button>
+                                    </div>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>

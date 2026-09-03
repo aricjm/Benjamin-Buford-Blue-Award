@@ -18,12 +18,60 @@ const OddsHistoryPage = lazy(() => import('./components/OddsHistoryPage'));
 const LiveScoresPage = lazy(() => import('./components/LiveScoresPage'));
 const RankingsHistoryPage = lazy(() => import('./components/RankingsHistoryPage'));
 const ExpertsPage = lazy(() => import('./components/ExpertsPage'));
+const HeismanWatchPage = lazy(() => import('./components/HeismanWatchPage'));
+const LiabilityPage = lazy(() => import('./components/LiabilityPage'));
 
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
 import useIsMobile from './hooks/useIsMobile';
 
 const DEFAULT_SEASON = new Date().getUTCFullYear().toString();
+
+// Computes the rollover Tuesday boundary for a given week
+const getTuesdayRollover = (weekObj) => {
+  if (!weekObj || !weekObj.ends_on) return null;
+  const end = new Date(weekObj.ends_on);
+  const day = end.getUTCDay(); // 0: Sun, 1: Mon, 2: Tue, 6: Sat
+  const rollover = new Date(end);
+  if (day === 0) { // Sunday -> Tuesday
+    rollover.setUTCDate(rollover.getUTCDate() + 2);
+    rollover.setUTCHours(0, 0, 0, 0);
+  } else if (day === 1) { // Monday -> Tuesday
+    rollover.setUTCDate(rollover.getUTCDate() + 1);
+    rollover.setUTCHours(0, 0, 0, 0);
+  } else if (day === 6) { // Saturday -> Tuesday
+    rollover.setUTCDate(rollover.getUTCDate() + 3);
+    rollover.setUTCHours(0, 0, 0, 0);
+  }
+  return rollover;
+};
+
+// Determines the default active week for a season (new week starts each Tuesday)
+const getDefaultWeekForSeason = (weeksList, targetSeason, now = new Date()) => {
+  if (!weeksList || !weeksList.length) return null;
+  const sorted = [...weeksList].sort((a, b) => a.week - b.week);
+  const isCurrentYear = String(targetSeason) === String(now.getUTCFullYear());
+
+  if (isCurrentYear) {
+    for (let i = 0; i < sorted.length; i++) {
+      const w = sorted[i];
+      const prevW = sorted[i - 1];
+      const start = prevW ? getTuesdayRollover(prevW) : (w.starts_on ? new Date(w.starts_on) : null);
+      const end = getTuesdayRollover(w);
+      if (start && end && now >= start && now <= end) {
+        return w.week;
+      }
+    }
+
+    const firstStart = sorted[0].starts_on ? new Date(sorted[0].starts_on) : null;
+    if (firstStart && now < firstStart) {
+      return sorted.find(w => w.week === 1)?.week ?? sorted[0].week;
+    }
+  }
+
+  // Fallback for past season or when outside dates: default to Week 1 (or first available week)
+  return sorted.find(w => w.week === 1)?.week ?? sorted[0].week;
+};
 
 function App() {
   // UI Specific State
@@ -66,39 +114,19 @@ function App() {
     setMenuOpen(false);
   };
 
-  // Utility to auto-select first season/week on metadata load
+  // Utility to auto-select first season/week on metadata load or season change
   useEffect(() => {
     if (seasons.length && !selectedSeason) setSelectedSeason(seasons[0]);
     if (players.length && !selectedPlayer) setSelectedPlayer('Aric');
     
-    if (weeks.length && selectedWeek === null) {
-      const now = new Date();
-      // Find the week where the current date falls between starts_on and ends_on
-      const currentActiveWeek = weeks.find(w => {
-        if (!w.starts_on || !w.ends_on) return false;
-        const start = new Date(w.starts_on);
-        const end = new Date(w.ends_on);
-        return now >= start && now <= end;
-      });
-      
-      if (currentActiveWeek) {
-        setSelectedWeek(currentActiveWeek.week);
-      } else {
-        // Fallback to the first week if no active week is found
-        setSelectedWeek(weeks[0].week);
+    if (weeks.length > 0) {
+      const hasCurrentWeek = selectedWeek !== null && weeks.some((w) => w.week === selectedWeek);
+      if (!hasCurrentWeek) {
+        const defaultWeek = getDefaultWeekForSeason(weeks, selectedSeason);
+        setSelectedWeek(defaultWeek);
       }
     }
   }, [seasons, weeks, players, selectedSeason, selectedWeek, selectedPlayer]);
-
-  // Auto-adjust selectedWeek when the weeks list changes (e.g., when switching seasons)
-  useEffect(() => {
-    if (weeks.length > 0) {
-      const hasCurrentWeek = weeks.some((w) => w.week === selectedWeek);
-      if (!hasCurrentWeek) {
-        setSelectedWeek(weeks[0].week);
-      }
-    }
-  }, [weeks, selectedWeek]);
 
   // Check periodically if any college football games are currently live
   useEffect(() => {
@@ -154,6 +182,8 @@ function App() {
   const isLiveScoresPage = activePage === 'live-scores';
   const isRankingsHistoryPage = activePage === 'rankings-history';
   const isExpertsPage = activePage === 'experts';
+  const isHeismanPage = activePage === 'heisman';
+  const isLiabilityPage = activePage === 'liability';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -602,7 +632,7 @@ function App() {
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && !isExpertsPage && (
+          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && !isExpertsPage && !isHeismanPage && !isLiabilityPage && (
             <section className="controls">
               <label>
                 Season:
@@ -756,6 +786,14 @@ function App() {
 
             {isExpertsPage && (
               <ExpertsPage />
+            )}
+
+            {isHeismanPage && (
+              <HeismanWatchPage selectedSeason={selectedSeason} />
+            )}
+
+            {isLiabilityPage && (
+              <LiabilityPage selectedSeason={selectedSeason} />
             )}
           </Suspense>
 

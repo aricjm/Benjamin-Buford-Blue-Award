@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw, ChevronDown, ChevronUp, Tv, Check, X } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 import BoxScore from './BoxScore';
 
@@ -426,6 +426,13 @@ const formatOUHomeAway = (awayRecord, homeRecord) => {
 };
 
 const GameIntel = ({ game, picks, selectedPlayer }) => {
+  const isMobile = useIsMobile();
+  const [isCollapsed, setIsCollapsed] = useState(isMobile);
+
+  useEffect(() => {
+    setIsCollapsed(isMobile);
+  }, [isMobile]);
+
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
   const [injuries, setInjuries] = useState(null);
@@ -697,9 +704,55 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
   }
 
   return (
-    <div className="game-intel" style={{ padding: '3px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ fontSize: '0.75em', color: '#fff', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Game Intel</div>
+    <div className="game-intel" style={{ padding: '4px 6px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: (isMobile && isCollapsed) ? 'auto' : '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div 
+        onClick={() => {
+          if (isMobile) setIsCollapsed(prev => !prev);
+        }}
+        style={{ 
+          fontSize: '0.75em', 
+          color: '#fff', 
+          fontWeight: 'bold', 
+          textTransform: 'uppercase', 
+          letterSpacing: '0.05em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: isMobile ? 'pointer' : 'default',
+          userSelect: 'none',
+          padding: isMobile ? '4px 2px' : '0'
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          Game Intel
+        </span>
+        {isMobile && (
+          <button
+            type="button"
+            aria-label={isCollapsed ? "Expand Game Intel" : "Collapse Game Intel"}
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              color: '#ccc',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.85em',
+              fontWeight: 'normal',
+              textTransform: 'none'
+            }}
+          >
+            <span>{isCollapsed ? 'Show' : 'Hide'}</span>
+            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </button>
+        )}
+      </div>
       
+      {(!isMobile || !isCollapsed) && (
+        <React.Fragment>
       {/* Odds Movement Section */}
       {(openSpreadHome !== null || openOverUnder !== null || currentSpreadHome !== null || currentOverUnder !== null) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '2px' }}>
@@ -1189,7 +1242,9 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
             </form>
           </div>
         </div>
-      </div>
+        </React.Fragment>
+      )}
+    </div>
   );
 };
 
@@ -1215,11 +1270,14 @@ const PicksPage = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConference, setSelectedConference] = useState('');
+  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [channelDropdownOpen, setChannelDropdownOpen] = useState(false);
+  const channelDropdownRef = useRef(null);
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
   const [showOnlyLiveGames, setShowOnlyLiveGames] = useState(false);
   const [hasInitializedLiveDefault, setHasInitializedLiveDefault] = useState(false);
   const [showOnlyTop25, setShowOnlyTop25] = useState(false);
-  const [teamRankMap, setTeamRankMap] = useState({});
+  const [rankedTeams, setRankedTeams] = useState([]);
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
   const [liveScores, setLiveScores] = useState({});
   const [scoresLastUpdated, setScoresLastUpdated] = useState(null);
@@ -1228,7 +1286,7 @@ const PicksPage = ({
 
   const parseScoreboardEvents = (data) => {
     const newLiveScores = {};
-    const rankMap = {};
+    const rankedList = [];
     let anyLiveInScoreboard = false;
 
     (data.events || []).forEach(event => {
@@ -1241,14 +1299,22 @@ const PicksPage = ({
       }
 
       if (home?.curatedRank?.current <= 25) {
-        const rank = home.curatedRank.current;
-        if (home.team?.displayName) rankMap[home.team.displayName.toLowerCase().trim()] = rank;
-        if (home.team?.location) rankMap[home.team.location.toLowerCase().trim()] = rank;
+        rankedList.push({
+          rank: home.curatedRank.current,
+          displayName: (home.team?.displayName || '').toLowerCase().trim(),
+          location: (home.team?.location || '').toLowerCase().trim(),
+          nickname: (home.team?.name || home.team?.nickname || '').toLowerCase().trim(),
+          abbrev: (home.team?.abbreviation || '').toLowerCase().trim()
+        });
       }
       if (away?.curatedRank?.current <= 25) {
-        const rank = away.curatedRank.current;
-        if (away.team?.displayName) rankMap[away.team.displayName.toLowerCase().trim()] = rank;
-        if (away.team?.location) rankMap[away.team.location.toLowerCase().trim()] = rank;
+        rankedList.push({
+          rank: away.curatedRank.current,
+          displayName: (away.team?.displayName || '').toLowerCase().trim(),
+          location: (away.team?.location || '').toLowerCase().trim(),
+          nickname: (away.team?.name || away.team?.nickname || '').toLowerCase().trim(),
+          abbrev: (away.team?.abbreviation || '').toLowerCase().trim()
+        });
       }
       
       newLiveScores[event.id] = {
@@ -1268,8 +1334,16 @@ const PicksPage = ({
         lastPlayText: comp.situation?.lastPlay?.text
       };
     });
-    if (Object.keys(rankMap).length > 0) {
-      setTeamRankMap(prev => ({ ...prev, ...rankMap }));
+    if (rankedList.length > 0) {
+      setRankedTeams(prev => {
+        const merged = [...prev];
+        rankedList.forEach(item => {
+          if (!merged.some(m => m.displayName === item.displayName && m.rank === item.rank)) {
+            merged.push(item);
+          }
+        });
+        return merged;
+      });
     }
     return { newLiveScores, anyLiveInScoreboard };
   };
@@ -1351,22 +1425,69 @@ const PicksPage = ({
     ].filter(Boolean))
   )].sort();
 
-  // Lookup rank for a given team name
+  // Channels available for games playing this week
+  const weekChannels = [...new Set(
+    pickGames.map((game) => game.tv_network).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+
+  // Close channel multiselect when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (channelDropdownRef.current && !channelDropdownRef.current.contains(e.target)) {
+        setChannelDropdownOpen(false);
+      }
+    };
+    if (channelDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [channelDropdownOpen]);
+
+  const toggleChannelSelection = (ch) => {
+    setSelectedChannels((prev) => 
+      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
+    );
+  };
+
+  // Lookup rank for a given team name with collision-safe matching
   const getTeamRank = (teamName) => {
-    if (!teamName || Object.keys(teamRankMap).length === 0) return null;
-    const lower = teamName.toLowerCase().trim();
+    if (!teamName || rankedTeams.length === 0) return null;
+    const clean = teamName.toLowerCase().replace(/\s*\((neutral|home|away)\)\s*/gi, '').trim();
 
-    // 1. Exact full match (e.g. "texas a&m aggies", "texas a&m", "lsu tigers", "lsu", "ole miss rebels")
-    if (teamRankMap[lower] !== undefined) return teamRankMap[lower];
-
-    // 2. Exact school location match at start of full team name
-    // e.g. "Ohio State Buckeyes" starts with "ohio state " -> match
-    // Avoid false matches by strictly checking if the team name starts with "${schoolLocation} "
-    for (const [key, rank] of Object.entries(teamRankMap)) {
-      if (lower.startsWith(`${key} `)) {
-        return rank;
+    // 1. Direct exact match on full display name or school location
+    for (const t of rankedTeams) {
+      if (clean === t.displayName || clean === t.location) {
+        return t.rank;
       }
     }
+
+    // 2. Exact match on location + mascot (e.g. "indiana hoosiers", "ohio state buckeyes")
+    for (const t of rankedTeams) {
+      if (t.location && t.nickname) {
+        const full = `${t.location} ${t.nickname}`;
+        if (clean === full) {
+          return t.rank;
+        }
+      }
+    }
+
+    // 3. Team name starts with school location and ends with mascot with NO intermediate words
+    // Prevents "Indiana State Sycamores" from matching "Indiana Hoosiers"
+    for (const t of rankedTeams) {
+      if (t.location && t.nickname) {
+        if (clean.startsWith(`${t.location} `) && clean.endsWith(` ${t.nickname}`)) {
+          const middle = clean.slice(t.location.length, clean.length - t.nickname.length).trim();
+          if (!middle) {
+            return t.rank;
+          }
+        }
+      }
+    }
+
     return null;
   };
 
@@ -1420,7 +1541,8 @@ const PicksPage = ({
     );
     const matchesTop25 = !showOnlyTop25 || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
     const matchesLiveGames = !showOnlyLiveGames || isGameCurrentlyLive(game);
-    return matchesSearch && matchesConference && matchesMyPicks && matchesLiveGames && matchesTop25;
+    const matchesChannel = selectedChannels.length === 0 || (game.tv_network && selectedChannels.includes(game.tv_network));
+    return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesTop25;
   });
 
   // Determine the most recent odds update time among all pickGames
@@ -1551,6 +1673,130 @@ const PicksPage = ({
                   <option key={conf} value={conf} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>{conf}</option>
                 ))}
               </select>
+
+              {/* Channels Multiselect Dropdown */}
+              {weekChannels.length > 0 && (
+                <div ref={channelDropdownRef} style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
+                  <button
+                    type="button"
+                    onClick={() => setChannelDropdownOpen((prev) => !prev)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: selectedChannels.length > 0 ? '1px solid rgba(77, 124, 255, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: selectedChannels.length > 0 ? 'rgba(77, 124, 255, 0.15)' : '#1a1a2e',
+                      color: selectedChannels.length > 0 ? '#4d7cff' : '#fff',
+                      fontSize: '0.9em',
+                      width: isMobile ? '100%' : 'auto',
+                      minWidth: isMobile ? '100%' : '150px',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Tv size={15} />
+                      {selectedChannels.length === 0
+                        ? 'All Channels'
+                        : selectedChannels.length === 1
+                          ? selectedChannels[0]
+                          : `${selectedChannels.length} Channels`}
+                    </span>
+                    <ChevronDown size={14} style={{ transform: channelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                  </button>
+
+                  {channelDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 4px)',
+                        left: 0,
+                        zIndex: 1000,
+                        backgroundColor: '#161922',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '8px',
+                        padding: '6px',
+                        minWidth: '190px',
+                        maxWidth: isMobile ? '100%' : '260px',
+                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+                        maxHeight: '260px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px 6px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Select Channels
+                        </span>
+                        {selectedChannels.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedChannels([])}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#ff5252',
+                              cursor: 'pointer',
+                              fontSize: '0.75em',
+                              padding: 0
+                            }}
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      {weekChannels.map((ch) => {
+                        const isSelected = selectedChannels.includes(ch);
+                        return (
+                          <div
+                            key={ch}
+                            onClick={() => toggleChannelSelection(ch)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                              padding: '6px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              backgroundColor: isSelected ? 'rgba(77, 124, 255, 0.18)' : 'transparent',
+                              color: isSelected ? '#fff' : '#ccc',
+                              fontSize: '0.85em',
+                              userSelect: 'none',
+                              transition: 'background-color 0.1s'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <span style={{ fontWeight: isSelected ? '600' : 'normal' }}>{ch}</span>
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '3px',
+                                border: isSelected ? '1px solid #4d7cff' : '1px solid rgba(255,255,255,0.25)',
+                                backgroundColor: isSelected ? '#4d7cff' : 'transparent',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              {isSelected && <Check size={12} color="#fff" strokeWidth={3} />}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               <label style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -1613,7 +1859,7 @@ const PicksPage = ({
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
-          {(searchTerm || selectedConference) && filteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
+          {(searchTerm || selectedConference || selectedChannels.length > 0) && filteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {filteredGames.map((game) => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;

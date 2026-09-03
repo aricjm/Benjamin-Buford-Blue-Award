@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, Award, Lock, TrendingUp, Radio, ListOrdered } from 'lucide-react';
+import { Library, Award, Lock, TrendingUp, Radio, ListOrdered, Trophy, ShieldAlert } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -206,8 +206,42 @@ const Sidebar = ({
           }}
           title={isSidebarCollapsed ? "Experts" : ""}
         >
-          <TwitterIcon size={20} color="rgb(255, 255, 255), 255, 255)" />
+          <TwitterIcon size={20} color="#ffffff" />
           {!isSidebarCollapsed && <span>Experts</span>}
+        </button>
+        <button
+          className={activePage === 'heisman' ? 'active' : ''}
+          onClick={() => handlePageChange('heisman')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Heisman Watch" : ""}
+        >
+          <Trophy size={20} style={{ color: '#ffffff' }} />
+          {!isSidebarCollapsed && <span>Heisman Watch</span>}
+        </button>
+        <button
+          className={activePage === 'liability' ? 'active' : ''}
+          onClick={() => handlePageChange('liability')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Liability Watch" : ""}
+        >
+          <ShieldAlert size={20} style={{ color: '#ffffff' }} />
+          {!isSidebarCollapsed && <span>Liability Watch</span>}
         </button>
         <button
           className={activePage === 'summary' ? 'active' : ''}
