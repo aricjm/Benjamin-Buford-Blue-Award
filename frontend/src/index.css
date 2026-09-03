@@ -399,6 +399,42 @@ select {
   .research-grid-3 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .layout-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .game-card {
+    padding: 12px !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .game-header {
+    flex-wrap: wrap !important;
+    max-width: 100% !important;
+  }
+
+  .game-switch {
+    max-width: 100% !important;
+  }
+
+  .game-switch-option {
+    padding: 8px 4px !important;
+    font-size: 0.9rem !important;
+  }
+
+  .switch-option-label {
+    font-size: 0.75rem !important;
+  }
 }
 
 .modal-backdrop {

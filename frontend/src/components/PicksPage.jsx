@@ -704,7 +704,7 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
   }
 
   return (
-    <div className="game-intel" style={{ padding: '4px 6px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: (isMobile && isCollapsed) ? 'auto' : '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <div className="game-intel" style={{ padding: '4px 6px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', height: (isMobile && isCollapsed) ? 'auto' : '100%', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
       <div 
         onClick={() => {
           if (isMobile) setIsCollapsed(prev => !prev);
@@ -720,7 +720,9 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
           justifyContent: 'space-between',
           cursor: isMobile ? 'pointer' : 'default',
           userSelect: 'none',
-          padding: isMobile ? '4px 2px' : '0'
+          padding: isMobile ? '4px 2px' : '0',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -729,6 +731,10 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
         {isMobile && (
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCollapsed(prev => !prev);
+            }}
             aria-label={isCollapsed ? "Expand Game Intel" : "Collapse Game Intel"}
             style={{
               background: 'rgba(255, 255, 255, 0.06)',
@@ -752,7 +758,7 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
       </div>
       
       {(!isMobile || !isCollapsed) && (
-        <React.Fragment>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
       {/* Odds Movement Section */}
       {(openSpreadHome !== null || openOverUnder !== null || currentSpreadHome !== null || currentOverUnder !== null) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '2px' }}>
@@ -1242,7 +1248,7 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
             </form>
           </div>
         </div>
-        </React.Fragment>
+        </div>
       )}
     </div>
   );
@@ -1873,24 +1879,27 @@ const PicksPage = ({
                    style={{ 
                      display: 'grid', 
                      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-                     gap: '20px', 
-                     padding: '20px', 
+                     gap: isMobile ? '12px' : '20px', 
+                     padding: isMobile ? '12px' : '20px', 
                      alignItems: 'start',
+                     maxWidth: '100%',
+                     boxSizing: 'border-box',
+                     overflow: 'hidden',
                      ...(isRivalry ? { backgroundColor: '#0b0b2b', borderColor: '#1F1F75' } : {})
                    }}>
                 
                 {/* Left Column: Toggle and Game Info */}
-                <div className="pick-interface">
+                <div className="pick-interface" style={{ maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
                   {isRivalry && (
                     <div style={{ textAlign: 'center', marginBottom: '10px', color: '#FFD700', fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>
                       {game.rivalry_trophy}
                     </div>
                   )}
-                  <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px', flexWrap: 'nowrap', width: '100%', maxWidth: '540px', gap: 0 }}>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
+                  <div className="game-header" style={{ alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', width: '100%', maxWidth: '540px', gap: '4px', boxSizing: 'border-box' }}>
+                    <div style={{ flex: 1, minWidth: '120px', textAlign: 'center', padding: '0 4px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <strong>{formatTeamDisplayName(game.away_team)}</strong>
                     </div>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '0 10px' }}>
+                    <div style={{ flex: 1, minWidth: '120px', textAlign: 'center', padding: '0 4px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <strong>{formatTeamDisplayName(game.home_team)}</strong>
                     </div>
                   </div>
