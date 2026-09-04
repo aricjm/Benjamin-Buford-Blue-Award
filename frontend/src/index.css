@@ -432,21 +432,34 @@ select {
   }
 
   .layout-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 12px;
   }
 
   .panel {
-    padding: 12px;
+    padding: 10px;
     border-radius: 12px;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .game-card {
-    padding: 12px !important;
-    grid-template-columns: 1fr !important;
+    padding: 10px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 12px !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .scoreboard-box {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    padding: 10px !important;
   }
 
   .game-header {

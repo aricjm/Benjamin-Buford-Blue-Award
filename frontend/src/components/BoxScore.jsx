@@ -149,15 +149,27 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
           backgroundColor: 'rgba(0, 0, 0, 0.35)',
           border: '1px solid rgba(255, 255, 255, 0.06)',
           borderRadius: '6px',
-          padding: '10px',
+          padding: '8px',
           fontSize: '0.8em',
           maxWidth: '100%',
+          width: '100%',
+          minWidth: 0,
           boxSizing: 'border-box',
           overflow: 'hidden'
         }}>
           {/* Header controls inside boxscore */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '4px', 
+              overflowX: 'auto', 
+              WebkitOverflowScrolling: 'touch', 
+              maxWidth: 'calc(100% - 65px)', 
+              minWidth: 0, 
+              paddingBottom: '2px',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}>
               {[
                 { key: 'touchdowns', label: 'Touchdowns' },
                 { key: 'team', label: 'Team Stats' },
@@ -178,7 +190,9 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                     backgroundColor: activeTab === tab.key ? 'rgba(77, 124, 255, 0.2)' : 'rgba(255, 255, 255, 0.03)',
                     color: activeTab === tab.key ? '#fff' : '#888',
                     cursor: 'pointer',
-                    fontWeight: activeTab === tab.key ? 'bold' : 'normal'
+                    fontWeight: activeTab === tab.key ? 'bold' : 'normal',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
                   {tab.label}
@@ -199,11 +213,12 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
-                fontSize: '0.75em'
+                fontSize: '0.75em',
+                flexShrink: 0
               }}
             >
               <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
-              {loading ? 'Updating...' : 'Refresh'}
+              {loading ? '...' : 'Refresh'}
             </button>
           </div>
 
@@ -235,11 +250,11 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
 
           {/* 1. Team Stats Tab */}
           {!loading && activeTab === 'team' && (
-            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', minWidth: 0 }}>
               {teamStatRows.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#666', padding: '12px' }}>Team stats not available yet.</div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82em' }}>
                   <thead>
                     <tr style={{ color: 'rgba(255, 255, 255, 0.5)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
                       <th style={{ textAlign: 'left', padding: '4px 6px', width: '40%' }}>Stat</th>
@@ -349,21 +364,21 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                           No touchdowns
                         </div>
                       ) : (
-                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82em', minWidth: '380px' }}>
+                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', minWidth: 0 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82em' }}>
                             <thead>
                               <tr style={{ color: 'rgba(255, 255, 255, 0.4)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Player</th>
-                                <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rush TD</th>
-                                <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rec TD</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold' }}>Total TD</th>
-                                <th style={{ textAlign: 'center', padding: '4px 6px', width: '140px' }}>Actions</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rush</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px', fontWeight: 'normal' }}>Rec</th>
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold' }}>Total</th>
+                                <th style={{ textAlign: 'center', padding: '4px 6px' }}>Track</th>
                               </tr>
                             </thead>
                             <tbody>
                               {tObj.scorers.map(s => (
                                 <tr key={s.athlete?.id || s.athlete?.displayName} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.03)' }}>
-                                  <td style={{ padding: '5px 6px', color: '#fff' }}>
+                                  <td style={{ padding: '5px 6px', color: '#fff', whiteSpace: 'nowrap' }}>
                                     <span style={{ fontWeight: '600' }}>{s.athlete?.shortName || s.athlete?.displayName || 'Unknown'}</span>
                                     {s.athlete?.jersey && <span style={{ color: '#888', marginLeft: '4px' }}>#{s.athlete.jersey}</span>}
                                     {s.athlete?.position?.abbreviation && (
@@ -373,22 +388,22 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                     )}
                                   </td>
                                   <td style={{ textAlign: 'center', padding: '5px 6px', color: s.rushingTDs > 0 ? '#4caf50' : '#666', fontWeight: s.rushingTDs > 0 ? 'bold' : 'normal' }}>
-                                    {s.rushingTDs || '—'}\r
+                                    {s.rushingTDs || '—'}
                                   </td>
                                   <td style={{ textAlign: 'center', padding: '5px 6px', color: s.receivingTDs > 0 ? '#4caf50' : '#666', fontWeight: s.receivingTDs > 0 ? 'bold' : 'normal' }}>
-                                    {s.receivingTDs || '—'}\r
+                                    {s.receivingTDs || '—'}
                                   </td>
                                   <td style={{ textAlign: 'right', padding: '5px 6px', color: '#f1c40f', fontWeight: 'bold', fontSize: '1.05em' }}>
                                     {s.totalTDs}
                                   </td>
-                                  <td style={{ padding: '5px 6px', textAlign: 'center' }}>
-                                    <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                  <td style={{ padding: '5px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', gap: '3px' }}>
                                       <button
                                         type="button"
                                         onClick={() => addCandidate(s.athlete, tObj.team, 'heisman')}
                                         style={{
-                                          padding: '2px 6px',
-                                          fontSize: '0.72em',
+                                          padding: '2px 5px',
+                                          fontSize: '0.7em',
                                           borderRadius: '4px',
                                           backgroundColor: 'rgba(241, 196, 15, 0.15)',
                                           border: '1px solid rgba(241, 196, 15, 0.35)',
@@ -399,14 +414,14 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                         }}
                                         title="Add to Heisman Watch"
                                       >
-                                        +Heisman
+                                        +H
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => addCandidate(s.athlete, tObj.team, 'liability')}
                                         style={{
-                                          padding: '2px 6px',
-                                          fontSize: '0.72em',
+                                          padding: '2px 5px',
+                                          fontSize: '0.7em',
                                           borderRadius: '4px',
                                           backgroundColor: 'rgba(231, 76, 60, 0.15)',
                                           border: '1px solid rgba(231, 76, 60, 0.35)',
@@ -417,7 +432,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                         }}
                                         title="Add to Liability Watch"
                                       >
-                                        +Liability
+                                        +L
                                       </button>
                                     </div>
                                   </td>
@@ -465,15 +480,15 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                       {athletes.length === 0 ? (
                         <div style={{ color: '#666', fontSize: '0.8em', fontStyle: 'italic' }}>No stats recorded</div>
                       ) : (
-                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8em', minWidth: '420px' }}>
+                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', minWidth: 0 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8em' }}>
                             <thead>
                               <tr style={{ color: 'rgba(255, 255, 255, 0.4)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
                                 <th style={{ textAlign: 'left', padding: '3px 6px', fontWeight: 'normal' }}>Athlete</th>
                                 {labels.map((l, i) => (
                                   <th key={i} style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 'normal' }}>{l}</th>
                                 ))}
-                                <th style={{ textAlign: 'center', padding: '3px 6px', width: '140px' }}>Actions</th>
+                                <th style={{ textAlign: 'center', padding: '3px 6px' }}>Track</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -482,7 +497,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                   borderBottom: '1px solid rgba(255, 255, 255, 0.03)'
                                 }}>
                                   <td style={{ padding: '4px 6px', color: '#fff', whiteSpace: 'nowrap' }}>
-                                    {a.athlete?.shortName || a.athlete?.displayName || 'Unknown'}
+                                    <span style={{ fontWeight: '600' }}>{a.athlete?.shortName || a.athlete?.displayName || 'Unknown'}</span>
                                     {a.athlete?.jersey && <span style={{ color: '#888', marginLeft: '4px' }}>#{a.athlete.jersey}</span>}
                                   </td>
                                   {(a.stats || []).map((st, stIdx) => (
@@ -490,14 +505,14 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                       {st}
                                     </td>
                                   ))}
-                                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                    <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                  <td style={{ padding: '4px 6px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'inline-flex', gap: '3px' }}>
                                       <button
                                         type="button"
                                         onClick={() => addCandidate(a.athlete, teamPlayerObj.team, 'heisman')}
                                         style={{
-                                          padding: '2px 6px',
-                                          fontSize: '0.72em',
+                                          padding: '2px 5px',
+                                          fontSize: '0.7em',
                                           borderRadius: '4px',
                                           backgroundColor: 'rgba(241, 196, 15, 0.15)',
                                           border: '1px solid rgba(241, 196, 15, 0.35)',
@@ -508,14 +523,14 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                         }}
                                         title="Add to Heisman Watch"
                                       >
-                                        +Heisman
+                                        +H
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => addCandidate(a.athlete, teamPlayerObj.team, 'liability')}
                                         style={{
-                                          padding: '2px 6px',
-                                          fontSize: '0.72em',
+                                          padding: '2px 5px',
+                                          fontSize: '0.7em',
                                           borderRadius: '4px',
                                           backgroundColor: 'rgba(231, 76, 60, 0.15)',
                                           border: '1px solid rgba(231, 76, 60, 0.35)',
@@ -526,7 +541,7 @@ const BoxScore = ({ apiGameId, homeTeamName, awayTeamName }) => {
                                         }}
                                         title="Add to Liability Watch"
                                       >
-                                        +Liability
+                                        +L
                                       </button>
                                     </div>
                                   </td>

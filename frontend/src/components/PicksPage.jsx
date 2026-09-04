@@ -1878,18 +1878,19 @@ const PicksPage = ({
                 <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameCurrentlyLive(game) ? 'live' : ''}`}
                    style={{ 
                      display: 'grid', 
-                     gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+                     gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', 
                      gap: isMobile ? '12px' : '20px', 
                      padding: isMobile ? '12px' : '20px', 
                      alignItems: 'start',
                      maxWidth: '100%',
+                     width: '100%',
                      boxSizing: 'border-box',
                      overflow: 'hidden',
                      ...(isRivalry ? { backgroundColor: '#0b0b2b', borderColor: '#1F1F75' } : {})
                    }}>
                 
                 {/* Left Column: Toggle and Game Info */}
-                <div className="pick-interface" style={{ maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
+                <div className="pick-interface" style={{ maxWidth: '100%', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
                   {isRivalry && (
                     <div style={{ textAlign: 'center', marginBottom: '10px', color: '#FFD700', fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>
                       {game.rivalry_trophy}
@@ -2192,7 +2193,12 @@ const PicksPage = ({
                         border: '1px solid rgba(77, 124, 255, 0.3)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px'
+                        gap: '8px',
+                        maxWidth: '100%',
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
+                        overflow: 'hidden'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#4d7cff', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '4px', marginBottom: '2px', flexWrap: 'wrap', gap: '6px' }}>
                           <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>
@@ -2343,7 +2349,12 @@ const PicksPage = ({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '12px',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)'
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                      maxWidth: '100%',
+                      width: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      overflow: 'hidden'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '2px' }}>
                         <span style={{
