@@ -386,6 +386,14 @@ const countStreakWins = (streakStr) => {
   return (streakStr.match(/W/g) || []).length;
 };
 
+const formatSpreadValue = (spread) => {
+  if (spread === null || spread === undefined) return '--';
+  const num = Number(spread);
+  if (isNaN(num)) return '--';
+  if (num === 0) return 'PK';
+  return num > 0 ? `+${num}` : `${num}`;
+};
+
 const formatOUHomeAway = (awayRecord, homeRecord) => {
   const parse = (str) => {
     if (!str) return null;
@@ -1281,6 +1289,7 @@ const PicksPage = ({
   const channelDropdownRef = useRef(null);
   const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
   const [showOnlyLiveGames, setShowOnlyLiveGames] = useState(false);
+  const [showOnlyFinalGames, setShowOnlyFinalGames] = useState(false);
   const [hasInitializedLiveDefault, setHasInitializedLiveDefault] = useState(false);
   const [showOnlyTop25, setShowOnlyTop25] = useState(false);
   const [rankedTeams, setRankedTeams] = useState([]);
@@ -1522,6 +1531,16 @@ const PicksPage = ({
     return isGameLive(game);
   };
 
+  // Check if there are any live games this week
+  const hasAnyLiveGames = pickGames.some((game) => isGameCurrentlyLive(game));
+
+  // If live games finish, automatically turn off the filter if active
+  useEffect(() => {
+    if (!hasAnyLiveGames && showOnlyLiveGames) {
+      setShowOnlyLiveGames(false);
+    }
+  }, [hasAnyLiveGames, showOnlyLiveGames]);
+
   // Get current game scores (merging DB score with real-time ESPN scoreboard if available)
   const getGameScores = (game) => {
     const live = liveScores[String(game.api_game_id)] || liveScores[game.api_game_id];
@@ -1547,9 +1566,91 @@ const PicksPage = ({
     );
     const matchesTop25 = !showOnlyTop25 || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
     const matchesLiveGames = !showOnlyLiveGames || isGameCurrentlyLive(game);
+    const matchesFinalGames = !showOnlyFinalGames || isGameFinished(game);
     const matchesChannel = selectedChannels.length === 0 || (game.tv_network && selectedChannels.includes(game.tv_network));
-    return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesTop25;
+    return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesFinalGames && matchesTop25;
   });
+
+  // Sort games so active and upcoming games appear first, and final/completed games move to the bottom
+  const sortedFilteredGames = [...filteredGames].sort((a, b) => {
+    const aFinished = isGameFinished(a) ? 1 : 0;
+    const bFinished = isGameFinished(b) ? 1 : 0;
+    if (aFinished !== bFinished) {
+      return aFinished - bFinished;
+    }
+    return new Date(a.commence_time) - new Date(b.commence_time);
+  });
+
+  // Calculate user pick outcomes (win / loss / push) for completed games
+  const getPickOutcomes = (game) => {
+    const pick = picks?.[game.id];
+    if (!pick || (!pick.selectionTeam && !pick.selectionTotal)) return [];
+    const { score_home, score_away } = getGameScores(game);
+    const outcomes = [];
+
+    const getSchoolDisplay = (teamFullName) => {
+      if (!teamFullName) return '';
+      const clean = teamFullName.split('(')[0].trim();
+      const matched = teams.find((t) => clean.startsWith(t.school));
+      return matched ? matched.school : clean;
+    };
+
+    // Spread pick evaluation
+    if (pick.selectionTeam) {
+      let res = pick.result;
+      const isHome = pick.selectionTeam === game.home_team;
+      const spread = pick.spread ?? (isHome ? game.spread_home : game.spread_away);
+      const spreadStr = formatSpreadValue(spread);
+
+      if (!res || res === 'pending') {
+        if (score_home !== null && score_away !== null) {
+          if (spread !== null && spread !== undefined) {
+            const userScore = isHome ? (Number(score_home) + Number(spread)) : (Number(score_away) + Number(spread));
+            const oppScore = isHome ? Number(score_away) : Number(score_home);
+            if (userScore > oppScore) res = 'win';
+            else if (userScore < oppScore) res = 'loss';
+            else res = 'push';
+          }
+        }
+      }
+      if (res && res !== 'pending') {
+        const schoolName = getSchoolDisplay(pick.selectionTeam);
+        const lineText = spreadStr ? ` ${spreadStr}` : '';
+        outcomes.push({
+          type: 'Spread',
+          pickLabel: `${schoolName}${lineText}`,
+          result: res,
+          indicatorText: `${schoolName}${lineText} Spread: ${res.toUpperCase()}`
+        });
+      }
+    }
+
+    // Total pick evaluation
+    if (pick.selectionTotal) {
+      let res = pick.result_total;
+      const line = Number(pick.totalLine ?? game.over_under);
+
+      if (!res || res === 'pending') {
+        if (score_home !== null && score_away !== null) {
+          const total = Number(score_home) + Number(score_away);
+          if (total > line) res = pick.selectionTotal === 'over' ? 'win' : 'loss';
+          else if (total < line) res = pick.selectionTotal === 'under' ? 'win' : 'loss';
+          else res = 'push';
+        }
+      }
+      if (res && res !== 'pending') {
+        const totalLabel = `${pick.selectionTotal.toUpperCase()} ${pick.totalLine ?? game.over_under}`;
+        outcomes.push({
+          type: 'O/U',
+          pickLabel: totalLabel,
+          result: res,
+          indicatorText: `${totalLabel} O/U: ${res.toUpperCase()}`
+        });
+      }
+    }
+
+    return outcomes;
+  };
 
   // Determine the most recent odds update time among all pickGames
   const latestOddsUpdateTime = pickGames.reduce((latest, game) => {
@@ -1865,14 +1966,169 @@ const PicksPage = ({
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
-          {(searchTerm || selectedConference || selectedChannels.length > 0) && filteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
+          {(searchTerm || selectedConference || selectedChannels.length > 0 || showOnlyFinalGames || (hasAnyLiveGames && showOnlyLiveGames) || showOnlyTop25 || showOnlyMyPicks) && sortedFilteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {filteredGames.map((game) => {
+            {sortedFilteredGames.map((game) => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
               const isHomeActive = picks[game.id]?.selectionTeam === game.home_team;
               const isRivalry = !!game.rivalry_trophy;
+              const isFinished = isGameFinished(game);
 
-              
+              // When the game is final, show ONLY the scoreboard across the card, plus date/time below
+              if (isFinished) {
+                const { score_home, score_away } = getGameScores(game);
+                const isAwayWinner = score_away !== null && score_home !== null && score_away > score_home;
+                const isHomeWinner = score_home !== null && score_away !== null && score_home > score_away;
+                const pickOutcomes = getPickOutcomes(game);
+
+                return (
+                  <div key={game.id} className="game-card locked"
+                     style={{ 
+                       display: 'grid', 
+                       gridTemplateColumns: 'minmax(0, 1fr)', 
+                       gap: isMobile ? '8px' : '12px', 
+                       padding: isMobile ? '12px' : '16px', 
+                       alignItems: 'start',
+                       maxWidth: '100%',
+                       width: '100%',
+                       boxSizing: 'border-box',
+                       overflow: 'hidden',
+                       ...(isRivalry ? { backgroundColor: '#0b0b2b', borderColor: '#1F1F75' } : {})
+                     }}>
+                    {isRivalry && (
+                      <div style={{ textAlign: 'center', marginBottom: '4px', color: '#FFD700', fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        {game.rivalry_trophy}
+                      </div>
+                    )}
+
+                    <div className="scoreboard-box" style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                      maxWidth: '100%',
+                      width: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '2px', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            letterSpacing: '0.05em'
+                          }}>
+                            FINAL
+                          </span>
+                          {pickOutcomes.map((outcome, oIdx) => (
+                            <span
+                              key={oIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.82em',
+                                fontWeight: 'bold',
+                                backgroundColor: outcome.result === 'win' 
+                                  ? 'rgba(76, 175, 80, 0.25)' 
+                                  : outcome.result === 'loss' 
+                                    ? 'rgba(244, 67, 54, 0.25)' 
+                                    : 'rgba(255, 152, 0, 0.25)',
+                                color: outcome.result === 'win' 
+                                  ? '#4caf50' 
+                                  : outcome.result === 'loss' 
+                                    ? '#f44336' 
+                                    : '#ff9800',
+                                border: `1px solid ${
+                                  outcome.result === 'win' 
+                                    ? 'rgba(76, 175, 80, 0.4)' 
+                                    : outcome.result === 'loss' 
+                                      ? 'rgba(244, 67, 54, 0.4)' 
+                                      : 'rgba(255, 152, 0, 0.4)'
+                                }`
+                              }}
+                            >
+                              {outcome.indicatorText}
+                            </span>
+                          ))}
+                        </div>
+                        {score_home !== null && score_away !== null && (
+                          <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontWeight: '500' }}>
+                            Total Points: {score_home + score_away}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Away Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontSize: '1.05rem',
+                            fontWeight: isAwayWinner ? 'bold' : 'normal',
+                            color: isAwayWinner ? '#fff' : '#aaa'
+                          }}>
+                            {formatTeamDisplayName(game.away_team)}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.4em', 
+                          fontWeight: 'bold',
+                          color: isAwayWinner ? '#4caf50' : '#fff'
+                        }}>
+                          {score_away ?? '—'}
+                        </span>
+                      </div>
+
+                      {/* Home Team Row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
+                          <span style={{ 
+                            fontSize: '1.05rem',
+                            fontWeight: isHomeWinner ? 'bold' : 'normal',
+                            color: isHomeWinner ? '#fff' : '#aaa'
+                          }}>
+                            {formatTeamDisplayName(game.home_team)}
+                          </span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '1.4em', 
+                          fontWeight: 'bold',
+                          color: isHomeWinner ? '#4caf50' : '#fff'
+                        }}>
+                          {score_home ?? '—'}
+                        </span>
+                      </div>
+
+                      {/* Collapsible Box Score for Final Game */}
+                      <BoxScore
+                        apiGameId={game.api_game_id}
+                        homeTeamName={game.home_team}
+                        awayTeamName={game.away_team}
+                      />
+                    </div>
+
+                    {/* Only keep game date and time below the scoreboard */}
+                    <div style={{ fontSize: '0.85em', color: '#888', marginTop: '2px', paddingLeft: '4px' }}>
+                      <span>{new Date(game.commence_time).toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div key={game.id} className={`game-card ${isGameLocked(game) ? 'locked' : ''} ${isGameCurrentlyLive(game) ? 'live' : ''}`}
