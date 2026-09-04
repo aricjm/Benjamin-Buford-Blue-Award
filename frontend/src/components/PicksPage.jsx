@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw, ChevronDown, ChevronUp, Tv, Check, X } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, Wind, Droplets, Thermometer, CloudHail, Lock, Copy, Save, Info, AlertTriangle, TrendingUp, RefreshCw, ChevronDown, ChevronUp, Tv, Check, X, Filter } from 'lucide-react';
 import useIsMobile from '../hooks/useIsMobile';
 import BoxScore from './BoxScore';
 
@@ -1287,11 +1287,10 @@ const PicksPage = ({
   const [selectedChannels, setSelectedChannels] = useState([]);
   const [channelDropdownOpen, setChannelDropdownOpen] = useState(false);
   const channelDropdownRef = useRef(null);
-  const [showOnlyMyPicks, setShowOnlyMyPicks] = useState(false);
-  const [showOnlyLiveGames, setShowOnlyLiveGames] = useState(false);
-  const [showOnlyFinalGames, setShowOnlyFinalGames] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState([]);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef(null);
   const [hasInitializedLiveDefault, setHasInitializedLiveDefault] = useState(false);
-  const [showOnlyTop25, setShowOnlyTop25] = useState(false);
   const [rankedTeams, setRankedTeams] = useState([]);
   const [copyButtonText, setCopyButtonText] = useState('Copy Picks');
   const [liveScores, setLiveScores] = useState({});
@@ -1405,7 +1404,7 @@ const PicksPage = ({
           });
 
           if (liveWeekGames || anyLiveInScoreboard) {
-            setShowOnlyLiveGames(true);
+            setSelectedFilters(prev => prev.includes('live') ? prev : [...prev, 'live']);
           }
           setHasInitializedLiveDefault(true);
         }
@@ -1534,12 +1533,35 @@ const PicksPage = ({
   // Check if there are any live games this week
   const hasAnyLiveGames = pickGames.some((game) => isGameCurrentlyLive(game));
 
-  // If live games finish, automatically turn off the filter if active
+  // If live games finish, automatically remove 'live' from selectedFilters
   useEffect(() => {
-    if (!hasAnyLiveGames && showOnlyLiveGames) {
-      setShowOnlyLiveGames(false);
+    if (!hasAnyLiveGames && selectedFilters.includes('live')) {
+      setSelectedFilters((prev) => prev.filter((f) => f !== 'live'));
     }
-  }, [hasAnyLiveGames, showOnlyLiveGames]);
+  }, [hasAnyLiveGames, selectedFilters]);
+
+  // Close filter multiselect dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setFilterDropdownOpen(false);
+      }
+    };
+    if (filterDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [filterDropdownOpen]);
+
+  const toggleFilterSelection = (filterKey) => {
+    setSelectedFilters((prev) =>
+      prev.includes(filterKey) ? prev.filter((f) => f !== filterKey) : [...prev, filterKey]
+    );
+  };
 
   // Get current game scores (merging DB score with real-time ESPN scoreboard if available)
   const getGameScores = (game) => {
@@ -1561,12 +1583,12 @@ const PicksPage = ({
       getConference(game.home_team) === selectedConference ||
       getConference(game.away_team) === selectedConference
     );
-    const matchesMyPicks = !showOnlyMyPicks || (
+    const matchesMyPicks = !selectedFilters.includes('myPicks') || (
       picks[game.id] && (picks[game.id].selectionTeam || picks[game.id].selectionTotal)
     );
-    const matchesTop25 = !showOnlyTop25 || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
-    const matchesLiveGames = !showOnlyLiveGames || isGameCurrentlyLive(game);
-    const matchesFinalGames = !showOnlyFinalGames || isGameFinished(game);
+    const matchesTop25 = !selectedFilters.includes('top25') || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
+    const matchesLiveGames = !selectedFilters.includes('live') || isGameCurrentlyLive(game);
+    const matchesFinalGames = !selectedFilters.includes('final') || isGameFinished(game);
     const matchesChannel = selectedChannels.length === 0 || (game.tv_network && selectedChannels.includes(game.tv_network));
     return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesFinalGames && matchesTop25;
   });
@@ -1904,69 +1926,141 @@ const PicksPage = ({
                   )}
                 </div>
               )}
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                color: '#fff', 
-                fontSize: '0.9em', 
-                cursor: 'pointer',
-                userSelect: 'none',
-                marginLeft: isMobile ? '0' : '8px',
-                marginTop: isMobile ? '4px' : '0'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showOnlyMyPicks}
-                  onChange={(e) => setShowOnlyMyPicks(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                My Picks
-              </label>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                color: showOnlyLiveGames ? '#e74c3c' : '#fff', 
-                fontSize: '0.9em', 
-                cursor: 'pointer',
-                userSelect: 'none',
-                marginLeft: isMobile ? '0' : '6px',
-                marginTop: isMobile ? '4px' : '0',
-                fontWeight: showOnlyLiveGames ? 'bold' : 'normal'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showOnlyLiveGames}
-                  onChange={(e) => setShowOnlyLiveGames(e.target.checked)}
-                  style={{ cursor: 'pointer', accentColor: '#e74c3c' }}
-                />
-                Live Games
-              </label>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                color: showOnlyTop25 ? '#f1c40f' : '#fff', 
-                fontSize: '0.9em', 
-                cursor: 'pointer',
-                userSelect: 'none',
-                marginLeft: isMobile ? '0' : '6px',
-                marginTop: isMobile ? '4px' : '0',
-                fontWeight: showOnlyTop25 ? 'bold' : 'normal'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showOnlyTop25}
-                  onChange={(e) => setShowOnlyTop25(e.target.checked)}
-                  style={{ cursor: 'pointer', accentColor: '#f1c40f' }}
-                />
-                Top 25
-              </label>
+              {/* Filters Multiselect Dropdown (Top 25, My Picks, Final Games, Live Games) */}
+              <div ref={filterDropdownRef} style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
+                <button
+                  type="button"
+                  onClick={() => setFilterDropdownOpen((prev) => !prev)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: selectedFilters.length > 0 ? '1px solid rgba(241, 196, 15, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: selectedFilters.length > 0 ? 'rgba(241, 196, 15, 0.15)' : '#1a1a2e',
+                    color: selectedFilters.length > 0 ? '#f1c40f' : '#fff',
+                    fontSize: '0.9em',
+                    width: isMobile ? '100%' : 'auto',
+                    minWidth: isMobile ? '100%' : '140px',
+                    cursor: 'pointer',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Filter size={15} />
+                    {selectedFilters.length === 0
+                      ? 'Filter Games'
+                      : selectedFilters.length === 1
+                        ? (selectedFilters[0] === 'top25'
+                            ? 'Top 25'
+                            : selectedFilters[0] === 'myPicks'
+                              ? 'My Picks'
+                              : selectedFilters[0] === 'final'
+                                ? 'Final Games'
+                                : 'Live Games')
+                        : `${selectedFilters.length} Filters`}
+                  </span>
+                  <ChevronDown size={14} style={{ transform: filterDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+                </button>
+
+                {filterDropdownOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      zIndex: 1000,
+                      backgroundColor: '#161922',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '8px',
+                      padding: '6px',
+                      minWidth: '180px',
+                      maxWidth: isMobile ? '100%' : '240px',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px 6px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.75em', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Game Filters
+                      </span>
+                      {selectedFilters.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFilters([])}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#ff5252',
+                            cursor: 'pointer',
+                            fontSize: '0.75em',
+                            padding: 0
+                          }}
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    {[
+                      { key: 'top25', label: 'Top 25', color: '#f1c40f' },
+                      { key: 'myPicks', label: 'My Picks', color: '#4d7cff' },
+                      { key: 'final', label: 'Final Games', color: '#4caf50' },
+                      ...(hasAnyLiveGames ? [{ key: 'live', label: 'Live Games', color: '#e74c3c' }] : [])
+                    ].map((item) => {
+                      const isSelected = selectedFilters.includes(item.key);
+                      return (
+                        <div
+                          key={item.key}
+                          onClick={() => toggleFilterSelection(item.key)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px',
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                            color: isSelected ? (item.color || '#fff') : '#ccc',
+                            fontSize: '0.85em',
+                            userSelect: 'none',
+                            transition: 'background-color 0.1s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <span style={{ fontWeight: isSelected ? '600' : 'normal' }}>{item.label}</span>
+                          <span
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '3px',
+                              border: isSelected ? `1px solid ${item.color || '#4d7cff'}` : '1px solid rgba(255,255,255,0.25)',
+                              backgroundColor: isSelected ? (item.color || '#4d7cff') : 'transparent',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                          >
+                            {isSelected && <Check size={12} color="#000" strokeWidth={3} />}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           {pickGames.length === 0 && <p>No games found for this week.</p>}
-          {(searchTerm || selectedConference || selectedChannels.length > 0 || showOnlyFinalGames || (hasAnyLiveGames && showOnlyLiveGames) || showOnlyTop25 || showOnlyMyPicks) && sortedFilteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
+          {(searchTerm || selectedConference || selectedChannels.length > 0 || selectedFilters.length > 0) && sortedFilteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {sortedFilteredGames.map((game) => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
