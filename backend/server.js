@@ -114,14 +114,23 @@ app.get('/api/week/:week/odds-history', async (req, res) => {
   }
 });
 
+// Track last ESPN sync time per week to avoid writing on every page load
+const lastEspnSync = new Map();
+const ESPN_SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
     // Only fetch live from ESPN for the current season — historical seasons are already in the DB
     if (season === DEFAULT_SEASON) {
-      const gamesFromApi = await api.fetchWeekGames(week, season);
-      await db.saveGamesForWeek(week, gamesFromApi, season);
+      const syncKey = `${season}_${week}`;
+      const lastSync = lastEspnSync.get(syncKey) || 0;
+      if (Date.now() - lastSync > ESPN_SYNC_TTL_MS) {
+        const gamesFromApi = await api.fetchWeekGames(week, season);
+        await db.saveGamesForWeek(week, gamesFromApi, season);
+        lastEspnSync.set(syncKey, Date.now());
+      }
     }
     const games = await db.getWeekGames(week, season);
     const picks = await db.getPicksByWeek(week, season);

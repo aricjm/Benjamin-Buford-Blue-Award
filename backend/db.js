@@ -1124,15 +1124,16 @@ async function saveGamesForSeason(games) {
   }
 
   if (saved > 0) {
-    // Invalidate cache for all weeks in the season
-    // We don't know exactly which weeks were updated, so we clear the whole season
-    const seasons = [...new Set(games.map(g => g.season).filter(Boolean))];
-    for (const s of seasons) {
-      // We can't easily iterate all weeks, so we rely on the TTL or clear specific known keys if needed.
-      // For now, we'll just let the TTL handle it, or we could clear the entire cache if we wanted to be safe.
-      // A better approach would be to track which weeks were updated and clear those specific keys.
-      // Since we don't have a way to clear by prefix in node-cache, we'll just clear the whole cache for simplicity and safety.
-      cache.flushAll();
+    // Invalidate only the affected week/season cache keys
+    const affected = [...inserts, ...updates];
+    const seen = new Set();
+    for (const g of affected) {
+      const key = `${g.season}_${g.week}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        cache.del(`week_games_${g.season}_${g.week}`);
+        cache.del(`week_summary_${g.season}_${g.week}`);
+      }
     }
   }
 
@@ -1170,8 +1171,8 @@ async function saveManualGame(week, season, gameData) {
 async function updateScoresFromSeason(scoreGames) {
   let updated = 0;
   
-  // Fetch existing games to diff scores
-  const { rows: existingGames } = await pool.query('SELECT id, api_game_id, score_home, score_away, completed FROM games');
+  // Fetch existing games to diff scores (include week/season for cache invalidation)
+  const { rows: existingGames } = await pool.query('SELECT id, api_game_id, week, season, score_home, score_away, completed FROM games');
   const existingMap = new Map(existingGames.map(g => [g.api_game_id, g]));
 
   const updates = [];
@@ -1189,7 +1190,7 @@ async function updateScoresFromSeason(scoreGames) {
     if (existing.score_home !== game.score_home || 
         existing.score_away !== game.score_away || 
         existing.completed !== isCompleted) {
-      updates.push({ ...game, isCompleted, id: existing.id });
+      updates.push({ ...game, isCompleted, id: existing.id, week: existing.week, season: existing.season });
     }
   }
 
@@ -1224,13 +1225,19 @@ async function updateScoresFromSeason(scoreGames) {
     await pool.query(query, values);
     updated += updates.length;
 
-    // Update pick results for all updated games
-    for (const game of updates) {
-      await updatePickResults(game.id);
+    // Batch-update pick results for all completed games in one pass
+    const gameIds = updates.map(g => g.id);
+    await updatePickResultsBatch(gameIds);
+
+    // Invalidate only affected week/season cache keys (no extra queries needed)
+    const affectedKeys = new Set(updates.map(g => `${g.season}_${g.week}`));
+    for (const key of affectedKeys) {
+      const [s, w] = key.split('_');
+      cache.del(`week_games_${s}_${w}`);
+      cache.del(`week_picks_${s}_${w}`);
+      cache.del(`week_summary_${s}_${w}`);
     }
-    
-    // Invalidate cache
-    cache.flushAll();
+    cache.del('summary_alltime');
   }
 
   return updated;
@@ -1270,6 +1277,36 @@ async function updatePickResults(gameId) {
       [result, favorable_line, new Date().toISOString(), pick.id]
     );
   }
+}
+
+// Batched version: fetches all games and picks in two queries, then bulk-updates
+async function updatePickResultsBatch(gameIds) {
+  if (!gameIds.length) return;
+  const { rows: games } = await pool.query('SELECT * FROM games WHERE id = ANY($1)', [gameIds]);
+  const gameMap = new Map(games.map(g => [g.id, g]));
+
+  const { rows: picks } = await pool.query('SELECT * FROM picks WHERE game_id = ANY($1)', [gameIds]);
+  if (!picks.length) return;
+
+  const now = new Date().toISOString();
+  const values = [];
+  const placeholders = picks.map((pick, i) => {
+    const game = gameMap.get(pick.game_id);
+    const result = game
+      ? (pick.selection_team ? determinePickResult(game, pick) : determineTotalResult(game, pick))
+      : pick.result;
+    const favorable_line = game ? determineFavorableLine(game, pick) : pick.favorable_line;
+    const base = i * 4;
+    values.push(result, favorable_line, now, pick.id);
+    return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+  });
+
+  await pool.query(
+    `UPDATE picks SET result = v.result, favorable_line = v.favorable_line::boolean, updated_at = v.updated_at
+     FROM (VALUES ${placeholders.join(', ')}) AS v(result, favorable_line, updated_at, id)
+     WHERE picks.id = v.id::int`,
+    values
+  );
 }
 
 async function savePick(week, player, pick) {
