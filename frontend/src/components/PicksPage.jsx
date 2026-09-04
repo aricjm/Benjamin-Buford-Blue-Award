@@ -433,6 +433,43 @@ const formatOUHomeAway = (awayRecord, homeRecord) => {
   };
 };
 
+const runSavedModelOnGame = (model, game) => {
+  const featureValue = (feature) => {
+    const key = feature.label || feature.key;
+    if ((key === 'Current Spread' || key === 'spread_home') && game.spread_home !== null && game.spread_home !== undefined) return -Number(game.spread_home);
+    if (key === 'Home / Away' || key === 'home_away') return 3;
+    if ((key === 'Moneyline' || key === 'moneyline') && game.home_price !== null && game.away_price !== null) return Number(game.home_price) < Number(game.away_price) ? 5 : -5;
+    return null;
+  };
+
+  let margin = 0;
+  if (model.type === 'quick' && model.quick) {
+    const quick = model.quick;
+    const direction = quick.better === 'home' ? 1 : -1;
+    margin = direction * ((Number(quick.strength) - 5) * 1.8 + (Number(quick.form) - 5) * 0.8 + (Number(quick.offense) - 5) * 0.8 + (Number(quick.defense) - 5) * 0.8 + (Number(quick.qb) - 5) * 0.6) + Number(quick.environment || 0) + Number(quick.injuries || 0);
+  } else {
+    (model.features || []).forEach((feature) => {
+      const value = featureValue(feature);
+      if (value !== null) margin += value * Number(feature.weight || 0) / 100;
+    });
+  }
+
+  (model.type === 'lab' ? model.rules || [] : []).forEach((rule) => {
+    const value = featureValue(rule);
+    if (value !== null && (rule.operator === '>' ? value > Number(rule.threshold) : value < Number(rule.threshold))) margin += Number(rule.adjustment || 0);
+  });
+
+  const spreadEdge = game.spread_home == null ? null : margin + Number(game.spread_home);
+  return {
+    winner: margin >= 0 ? game.home_team : game.away_team,
+    confidence: Math.min(95, Math.max(50, Math.round(50 + Math.abs(margin) * 4))),
+    projectedSpread: margin,
+    currentSpread: game.spread_home,
+    spreadEdge,
+    recommendation: spreadEdge === null || Math.abs(spreadEdge) < 1 ? 'Pass' : `${spreadEdge > 0 ? game.home_team : game.away_team} spread`
+  };
+};
+
 const GameIntel = ({ game, picks, selectedPlayer }) => {
   const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = useState(isMobile);
@@ -452,6 +489,23 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
   const [insights, setInsights] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [submittingInsight, setSubmittingInsight] = useState(false);
+  const [savedModels, setSavedModels] = useState([]);
+  const [selectedModelId, setSelectedModelId] = useState('');
+  const [modelPrediction, setModelPrediction] = useState(null);
+
+  useEffect(() => {
+    try {
+      const models = JSON.parse(localStorage.getItem('bbba-models') || '[]');
+      setSavedModels(Array.isArray(models) ? models.slice(0, 3) : []);
+    } catch {
+      setSavedModels([]);
+    }
+  }, []);
+
+  const runSelectedModel = () => {
+    const selectedModel = savedModels.find((model) => model.id === selectedModelId);
+    if (selectedModel) setModelPrediction(runSavedModelOnGame(selectedModel, game));
+  };
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -767,6 +821,30 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
       
       {(!isMobile || !isCollapsed) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
+      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>
+        <div style={{ fontSize: '0.7em', color: '#555', fontWeight: 'bold', marginBottom: '5px' }}>Run Saved Model</div>
+        {savedModels.length === 0 ? (
+          <div style={{ color: '#888', fontSize: '0.78em' }}>No saved models available.</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <select value={selectedModelId} onChange={(event) => { setSelectedModelId(event.target.value); setModelPrediction(null); }} style={{ flex: 1, minWidth: 0, background: '#171717', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '5px', fontSize: '0.78em' }}>
+                <option value="">Choose a saved model</option>
+                {savedModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
+              </select>
+              <button type="button" onClick={runSelectedModel} disabled={!selectedModelId} style={{ background: '#4d7cff', border: 0, borderRadius: '4px', color: '#fff', padding: '6px 9px', cursor: selectedModelId ? 'pointer' : 'not-allowed', fontSize: '0.75em' }}>Run Model</button>
+            </div>
+            {modelPrediction && (
+              <div style={{ marginTop: '6px', padding: '7px', background: 'rgba(77,124,255,0.1)', border: '1px solid rgba(77,124,255,0.3)', borderRadius: '4px', fontSize: '0.78em' }}>
+                <div style={{ color: '#fff', fontWeight: 'bold' }}>{modelPrediction.winner} ({modelPrediction.confidence}% confidence)</div>
+                <div style={{ color: '#aaa', marginTop: '3px' }}>Projected: {modelPrediction.projectedSpread >= 0 ? game.home_team : game.away_team} {modelPrediction.projectedSpread >= 0 ? '-' : '+'}{Math.abs(modelPrediction.projectedSpread).toFixed(1)}</div>
+                <div style={{ color: '#aaa', marginTop: '3px' }}>Current spread: {modelPrediction.currentSpread ?? 'N/A'} · Edge: {modelPrediction.spreadEdge === null ? 'N/A' : modelPrediction.spreadEdge.toFixed(1)}</div>
+                <div style={{ color: '#69d391', fontWeight: 'bold', marginTop: '3px' }}>Recommended bet: {modelPrediction.recommendation}</div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
       {/* Odds Movement Section */}
       {(openSpreadHome !== null || openOverUnder !== null || currentSpreadHome !== null || currentOverUnder !== null) && (
         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px', marginBottom: '2px' }}>

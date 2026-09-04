@@ -676,6 +676,47 @@ async function getWeeks(season) {
   return rows;
 }
 
+async function getModelTestGames(limit = 10) {
+  const cacheKey = `model_test_games_v2_${Math.max(1, Math.min(Number(limit) || 10, 10))}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
+  const { rows } = await pool.query(`
+    SELECT
+      g.id, g.api_game_id, g.season, g.week, g.commence_time,
+      g.home_team, g.away_team,
+      COALESCE((SELECT oh.spread_home FROM odds_history oh WHERE oh.game_id = g.id AND oh.spread_home IS NOT NULL ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1), g.spread_home) AS spread_home,
+      COALESCE((SELECT oh.spread_away FROM odds_history oh WHERE oh.game_id = g.id AND oh.spread_away IS NOT NULL ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1), g.spread_away) AS spread_away,
+      COALESCE((SELECT oh.over_under FROM odds_history oh WHERE oh.game_id = g.id AND oh.over_under IS NOT NULL ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1), g.over_under) AS over_under,
+      COALESCE((SELECT oh.home_price FROM odds_history oh WHERE oh.game_id = g.id AND oh.home_price IS NOT NULL ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1), g.home_price) AS home_price,
+      COALESCE((SELECT oh.away_price FROM odds_history oh WHERE oh.game_id = g.id AND oh.away_price IS NOT NULL ORDER BY oh.recorded_at ASC, oh.id ASC LIMIT 1), g.away_price) AS away_price,
+      COALESCE((SELECT json_agg(json_build_object(
+        'spread_home', oh.spread_home,
+        'spread_away', oh.spread_away,
+        'over_under', oh.over_under,
+        'home_price', oh.home_price,
+        'away_price', oh.away_price,
+        'recorded_at', oh.recorded_at
+      ) ORDER BY oh.recorded_at ASC, oh.id ASC) FROM odds_history oh WHERE oh.game_id = g.id), '[]'::json) AS odds_history,
+      g.score_home, g.score_away, g.completed,
+      ht.stadium_city AS home_stadium_city,
+      ht.stadium_state AS home_stadium_state,
+      ht.conference AS home_conference,
+      at.conference AS away_conference,
+      CASE WHEN g.score_home > g.score_away THEN 'home' ELSE 'away' END AS winner
+    FROM games g
+    LEFT JOIN teams ht ON g.home_team LIKE ht.school || '%'
+    LEFT JOIN teams at ON g.away_team LIKE at.school || '%'
+    WHERE g.completed = 1
+      AND g.score_home IS NOT NULL
+      AND g.score_away IS NOT NULL
+    ORDER BY g.commence_time DESC
+    LIMIT $1
+  `, [Math.max(1, Math.min(Number(limit) || 10, 10))]);
+  cache.set(cacheKey, rows, 86400);
+  return rows;
+}
+
 async function getWeekGames(week, season) {
   if (season) {
     const cacheKey = `week_games_${season}_${week}`;
@@ -3257,6 +3298,7 @@ module.exports = {
   getSeasons,
   getWeeks,
   getWeekGames,
+    getModelTestGames,
   getPicksByWeek,
   saveGamesForWeek,
   saveGamesForSeason,

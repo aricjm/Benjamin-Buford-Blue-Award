@@ -1,5 +1,5 @@
 import React from 'react';
-import { Library, Award, Lock, TrendingUp, Radio, ListOrdered, Trophy, ShieldAlert } from 'lucide-react';
+import { Library, Award, Lock, TrendingUp, Radio, ListOrdered, Trophy, ShieldAlert, Cpu } from 'lucide-react';
 import ChevronLeftIcon from "../resources/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../resources/icons/ChevronRightIcon";
 import FootballIcon from "../resources/icons/FootballIcon";
@@ -157,6 +157,15 @@ const Sidebar = ({
         >
           <Library size={20} />
           {!isSidebarCollapsed && <span>Research</span>}
+        </button>
+        <button
+          className={activePage === 'create-model' ? 'active' : ''}
+          onClick={() => handlePageChange('create-model')}
+          style={{ padding: '8px 16px', fontSize: '0.9rem', textAlign: isSidebarCollapsed ? 'center' : 'left', display: 'flex', alignItems: 'center', justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', gap: '10px' }}
+          title={isSidebarCollapsed ? 'Create Model' : ''}
+        >
+          <Cpu size={20} />
+          {!isSidebarCollapsed && <span>Create Model</span>}
         </button>
         <button
           className={activePage === 'odds-history' ? 'active' : ''}

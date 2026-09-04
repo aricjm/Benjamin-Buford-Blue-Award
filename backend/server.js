@@ -119,6 +119,14 @@ const lastEspnSync = new Map();
 const ESPN_SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 app.get('/api/week/:week/games', async (req, res) => {
+  app.get('/api/model-games', async (req, res) => {
+    try {
+      const games = await db.getModelTestGames(10);
+      res.json({ games });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);

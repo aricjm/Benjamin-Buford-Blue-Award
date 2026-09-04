@@ -20,6 +20,7 @@ const RankingsHistoryPage = lazy(() => import('./components/RankingsHistoryPage'
 const ExpertsPage = lazy(() => import('./components/ExpertsPage'));
 const HeismanWatchPage = lazy(() => import('./components/HeismanWatchPage'));
 const LiabilityPage = lazy(() => import('./components/LiabilityPage'));
+const CreateModelPage = lazy(() => import('./components/CreateModelPage'));
 
 // Import Custom Hooks
 import { useBetData } from './hooks/useBetData';
@@ -184,6 +185,7 @@ function App() {
   const isExpertsPage = activePage === 'experts';
   const isHeismanPage = activePage === 'heisman';
   const isLiabilityPage = activePage === 'liability';
+  const isCreateModelPage = activePage === 'create-model';
 
   // validate and open confirmation modal
   const handleSubmit = () => {
@@ -632,7 +634,7 @@ function App() {
         />
 
         <main className="main-content" style={{ paddingTop: '10px' }}>
-          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && !isExpertsPage && !isHeismanPage && !isLiabilityPage && (
+          {!isAwardsPage && !isResearchPage && !isStatsPage && !isSummaryPage && !isAdminPage && !isBBBMLPPage && !isOddsHistoryPage && !isRankingsHistoryPage && !isExpertsPage && !isHeismanPage && !isLiabilityPage && !isCreateModelPage && (
             <section className="controls">
               <label>
                 Season:
@@ -795,6 +797,8 @@ function App() {
             {isLiabilityPage && (
               <LiabilityPage selectedSeason={selectedSeason} />
             )}
+
+            {isCreateModelPage && <CreateModelPage selectedSeason={selectedSeason} selectedWeek={selectedWeek} />}
           </Suspense>
 
         </main>
