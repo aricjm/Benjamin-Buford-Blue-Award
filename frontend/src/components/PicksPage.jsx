@@ -2195,6 +2195,11 @@ const PicksPage = ({
                 const isAwayWinner = score_away !== null && score_home !== null && score_away > score_home;
                 const isHomeWinner = score_home !== null && score_away !== null && score_home > score_away;
                 const pickOutcomes = getPickOutcomes(game);
+                const userPick = picks?.[game.id];
+                const pickedAway = userPick?.selectionTeam === game.away_team;
+                const pickedHome = userPick?.selectionTeam === game.home_team;
+                const awaySpreadStr = pickedAway ? formatSpreadValue(userPick.spread ?? game.spread_away) : null;
+                const homeSpreadStr = pickedHome ? formatSpreadValue(userPick.spread ?? game.spread_home) : null;
 
                 return (
                   <div key={game.id} className="game-card locked"
@@ -2288,16 +2293,39 @@ const PicksPage = ({
                       </div>
                       
                       {/* Away Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: pickedAway ? '6px 8px' : '2px 0',
+                        borderRadius: pickedAway ? '6px' : '0',
+                        backgroundColor: pickedAway ? 'rgba(241, 196, 15, 0.14)' : 'transparent',
+                        borderLeft: pickedAway ? '3px solid #f1c40f' : '3px solid transparent'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                           <span style={{ 
                             fontSize: '1.05rem',
-                            fontWeight: isAwayWinner ? 'bold' : 'normal',
-                            color: isAwayWinner ? '#fff' : '#aaa'
+                            fontWeight: isAwayWinner || pickedAway ? 'bold' : 'normal',
+                            color: isAwayWinner ? '#fff' : (pickedAway ? '#ffd700' : '#aaa')
                           }}>
                             {formatTeamDisplayName(game.away_team)}
                           </span>
+                          {pickedAway && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.8em',
+                              fontWeight: 'bold',
+                              backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                              color: '#f1c40f',
+                              border: '1px solid rgba(241, 196, 15, 0.5)'
+                            }}>
+                              PICK {awaySpreadStr}
+                            </span>
+                          )}
                         </div>
                         <span style={{ 
                           fontSize: '1.4em', 
@@ -2309,16 +2337,39 @@ const PicksPage = ({
                       </div>
 
                       {/* Home Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: pickedHome ? '6px 8px' : '2px 0',
+                        borderRadius: pickedHome ? '6px' : '0',
+                        backgroundColor: pickedHome ? 'rgba(241, 196, 15, 0.14)' : 'transparent',
+                        borderLeft: pickedHome ? '3px solid #f1c40f' : '3px solid transparent'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                           <span style={{ 
                             fontSize: '1.05rem',
-                            fontWeight: isHomeWinner ? 'bold' : 'normal',
-                            color: isHomeWinner ? '#fff' : '#aaa'
+                            fontWeight: isHomeWinner || pickedHome ? 'bold' : 'normal',
+                            color: isHomeWinner ? '#fff' : (pickedHome ? '#ffd700' : '#aaa')
                           }}>
                             {formatTeamDisplayName(game.home_team)}
                           </span>
+                          {pickedHome && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.8em',
+                              fontWeight: 'bold',
+                              backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                              color: '#f1c40f',
+                              border: '1px solid rgba(241, 196, 15, 0.5)'
+                            }}>
+                              {homeSpreadStr}
+                            </span>
+                          )}
                         </div>
                         <span style={{ 
                           fontSize: '1.4em', 
@@ -2352,6 +2403,11 @@ const PicksPage = ({
                 const { score_home, score_away } = getGameScores(game);
                 const isAwayLeading = score_away !== null && score_home !== null && score_away > score_home;
                 const isHomeLeading = score_home !== null && score_away !== null && score_home > score_away;
+                const userPick = picks?.[game.id];
+                const pickedAway = userPick?.selectionTeam === game.away_team;
+                const pickedHome = userPick?.selectionTeam === game.home_team;
+                const awaySpreadStr = pickedAway ? formatSpreadValue(userPick.spread ?? game.spread_away) : null;
+                const homeSpreadStr = pickedHome ? formatSpreadValue(userPick.spread ?? game.spread_home) : null;
 
                 const maxPeriods = Math.max(
                   4,
@@ -2506,16 +2562,38 @@ const PicksPage = ({
                             </thead>
                             <tbody>
                               {/* Away Team Row */}
-                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <tr style={{ 
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                backgroundColor: pickedAway ? 'rgba(241, 196, 15, 0.14)' : 'transparent'
+                              }}>
+                                <td style={{ 
+                                  padding: '6px 6px', 
+                                  verticalAlign: 'middle',
+                                  borderLeft: pickedAway ? '3px solid #f1c40f' : '3px solid transparent'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                     {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
                                     <span style={{
-                                      fontWeight: isAwayLeading ? 'bold' : 'normal',
-                                      color: isAwayLeading ? '#fff' : '#ccc'
+                                      fontWeight: isAwayLeading || pickedAway ? 'bold' : 'normal',
+                                      color: isAwayLeading ? '#fff' : (pickedAway ? '#ffd700' : '#ccc')
                                     }}>
                                       {formatTeamDisplayName(game.away_team)}
                                     </span>
+                                    {pickedAway && (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                        fontSize: '0.75em',
+                                        fontWeight: 'bold',
+                                        backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                                        color: '#f1c40f',
+                                        border: '1px solid rgba(241, 196, 15, 0.5)'
+                                      }}>
+                                        {awaySpreadStr}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 {periodHeaders.map((_, idx) => {
@@ -2539,16 +2617,37 @@ const PicksPage = ({
                               </tr>
 
                               {/* Home Team Row */}
-                              <tr>
-                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <tr style={{
+                                backgroundColor: pickedHome ? 'rgba(241, 196, 15, 0.14)' : 'transparent'
+                              }}>
+                                <td style={{ 
+                                  padding: '6px 6px', 
+                                  verticalAlign: 'middle',
+                                  borderLeft: pickedHome ? '3px solid #f1c40f' : '3px solid transparent'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                     {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
                                     <span style={{
-                                      fontWeight: isHomeLeading ? 'bold' : 'normal',
-                                      color: isHomeLeading ? '#fff' : '#ccc'
+                                      fontWeight: isHomeLeading || pickedHome ? 'bold' : 'normal',
+                                      color: isHomeLeading ? '#fff' : (pickedHome ? '#ffd700' : '#ccc')
                                     }}>
                                       {formatTeamDisplayName(game.home_team)}
                                     </span>
+                                    {pickedHome && (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                        fontSize: '0.75em',
+                                        fontWeight: 'bold',
+                                        backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                                        color: '#f1c40f',
+                                        border: '1px solid rgba(241, 196, 15, 0.5)'
+                                      }}>
+                                        {homeSpreadStr}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 {periodHeaders.map((_, idx) => {
@@ -2576,16 +2675,39 @@ const PicksPage = ({
                       ) : (
                         /* Fallback simpler team score rows if linescores aren't populated */
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            padding: pickedAway ? '6px 8px' : '2px 0',
+                            borderRadius: pickedAway ? '6px' : '0',
+                            backgroundColor: pickedAway ? 'rgba(241, 196, 15, 0.14)' : 'transparent',
+                            borderLeft: pickedAway ? '3px solid #f1c40f' : '3px solid transparent'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                               {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                               <span style={{ 
                                 fontSize: '1.05rem',
-                                fontWeight: isAwayLeading ? 'bold' : 'normal',
-                                color: isAwayLeading ? '#fff' : '#aaa'
+                                fontWeight: isAwayLeading || pickedAway ? 'bold' : 'normal',
+                                color: isAwayLeading ? '#fff' : (pickedAway ? '#ffd700' : '#aaa')
                               }}>
                                 {formatTeamDisplayName(game.away_team)}
                               </span>
+                              {pickedAway && (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.8em',
+                                  fontWeight: 'bold',
+                                  backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                                  color: '#f1c40f',
+                                  border: '1px solid rgba(241, 196, 15, 0.5)'
+                                }}>
+                                  {awaySpreadStr}
+                                </span>
+                              )}
                             </div>
                             <span style={{ 
                               fontSize: '1.4em', 
@@ -2596,16 +2718,39 @@ const PicksPage = ({
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            padding: pickedHome ? '6px 8px' : '2px 0',
+                            borderRadius: pickedHome ? '6px' : '0',
+                            backgroundColor: pickedHome ? 'rgba(241, 196, 15, 0.14)' : 'transparent',
+                            borderLeft: pickedHome ? '3px solid #f1c40f' : '3px solid transparent'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                               {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
                               <span style={{ 
                                 fontSize: '1.05rem',
-                                fontWeight: isHomeLeading ? 'bold' : 'normal',
-                                color: isHomeLeading ? '#fff' : '#aaa'
+                                fontWeight: isHomeLeading || pickedHome ? 'bold' : 'normal',
+                                color: isHomeLeading ? '#fff' : (pickedHome ? '#ffd700' : '#aaa')
                               }}>
                                 {formatTeamDisplayName(game.home_team)}
                               </span>
+                              {pickedHome && (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.8em',
+                                  fontWeight: 'bold',
+                                  backgroundColor: 'rgba(241, 196, 15, 0.22)',
+                                  color: '#f1c40f',
+                                  border: '1px solid rgba(241, 196, 15, 0.5)'
+                                }}>
+                                  PICK {homeSpreadStr}
+                                </span>
+                              )}
                             </div>
                             <span style={{ 
                               fontSize: '1.4em', 
