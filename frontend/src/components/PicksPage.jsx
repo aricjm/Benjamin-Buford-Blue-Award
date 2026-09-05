@@ -1473,7 +1473,7 @@ const PicksPage = ({
         setLiveScores(newLiveScores);
         setScoresLastUpdated(new Date());
 
-        // On initial page load: auto-select Live Games if there are active live games
+        // On initial page load: auto-select Live Games and My Picks if there are active live games
         if (!hasInitializedLiveDefault) {
           const liveWeekGames = pickGames.some(g => {
             const liveObj = newLiveScores[String(g.api_game_id)] || newLiveScores[g.api_game_id];
@@ -1482,7 +1482,12 @@ const PicksPage = ({
           });
 
           if (liveWeekGames || anyLiveInScoreboard) {
-            setSelectedFilters(prev => prev.includes('live') ? prev : [...prev, 'live']);
+            setSelectedFilters(prev => {
+              const next = [...prev];
+              if (!next.includes('live')) next.push('live');
+              if (!next.includes('myPicks')) next.push('myPicks');
+              return next;
+            });
           }
           setHasInitializedLiveDefault(true);
         }
