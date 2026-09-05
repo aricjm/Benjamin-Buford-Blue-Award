@@ -2467,8 +2467,8 @@ const PicksPage = ({
                           <span style={{ fontWeight: 'bold', color: '#4d7cff', letterSpacing: '0.05em' }}>
                             {live.status === 'Halftime' ? 'HALFTIME' : (live.period ? `Q${live.period} - ${live.clock || ''}` : 'IN PROGRESS')}
                           </span>
-                          {/* Pick Indicators */}
-                          {livePickIndicators.map((ind, iIdx) => (
+                          {/* Pick Indicators: only show Total (over/under) at the top since spread is highlighted on the team below */}
+                          {livePickIndicators.filter(ind => ind.type !== 'Spread').map((ind, iIdx) => (
                             <span
                               key={iIdx}
                               style={{
@@ -2546,7 +2546,7 @@ const PicksPage = ({
                             <thead>
                               <tr style={{ color: 'rgba(255,255,255,0.6)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Team</th>
-                                {periodHeaders.map((header, idx) => (
+                                {!isMobile && periodHeaders.map((header, idx) => (
                                   <th key={header} style={{
                                     textAlign: 'center',
                                     padding: '4px 6px',
@@ -2596,7 +2596,7 @@ const PicksPage = ({
                                     )}
                                   </div>
                                 </td>
-                                {periodHeaders.map((_, idx) => {
+                                {!isMobile && periodHeaders.map((_, idx) => {
                                   const line = live.linescores_away?.find(l => l.period === idx + 1);
                                   const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
                                   return (
@@ -2650,7 +2650,7 @@ const PicksPage = ({
                                     )}
                                   </div>
                                 </td>
-                                {periodHeaders.map((_, idx) => {
+                                {!isMobile && periodHeaders.map((_, idx) => {
                                   const line = live.linescores_home?.find(l => l.period === idx + 1);
                                   const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
                                   return (
