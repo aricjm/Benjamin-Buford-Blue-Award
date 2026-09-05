@@ -1752,6 +1752,43 @@ const PicksPage = ({
     return outcomes;
   };
 
+  // Helper to get active pick indicators for live games (team & spread, over/under & line)
+  const getLivePickIndicators = (game) => {
+    const pick = picks?.[game.id];
+    if (!pick || (!pick.selectionTeam && !pick.selectionTotal)) return [];
+    const indicators = [];
+
+    const getSchoolDisplay = (teamFullName) => {
+      if (!teamFullName) return '';
+      const clean = teamFullName.split('(')[0].trim();
+      const matched = teams.find((t) => clean.startsWith(t.school));
+      return matched ? matched.school : clean;
+    };
+
+    if (pick.selectionTeam) {
+      const isHome = pick.selectionTeam === game.home_team;
+      const spread = pick.spread ?? (isHome ? game.spread_home : game.spread_away);
+      const spreadStr = formatSpreadValue(spread);
+      const schoolName = getSchoolDisplay(pick.selectionTeam);
+      const lineText = spreadStr ? ` ${spreadStr}` : '';
+      indicators.push({
+        type: 'Spread',
+        text: `${schoolName}${lineText}`
+      });
+    }
+
+    if (pick.selectionTotal) {
+      const totalLine = pick.totalLine ?? game.over_under;
+      const totalText = totalLine != null ? ` ${totalLine}` : '';
+      indicators.push({
+        type: 'Total',
+        text: `${pick.selectionTotal.toUpperCase()}${totalText}`
+      });
+    }
+
+    return indicators;
+  };
+
   // Determine the most recent odds update time among all pickGames
   const latestOddsUpdateTime = pickGames.reduce((latest, game) => {
     if (!game.updated_at) return latest;
@@ -2145,6 +2182,7 @@ const PicksPage = ({
               const isHomeActive = picks[game.id]?.selectionTeam === game.home_team;
               const isRivalry = !!game.rivalry_trophy;
               const isFinished = isGameFinished(game);
+              const isLive = isGameCurrentlyLive(game);
 
               // When the game is final, show ONLY the scoreboard across the card, plus date/time below
               if (isFinished) {
@@ -2287,6 +2325,295 @@ const PicksPage = ({
                       </div>
 
                       {/* Collapsible Box Score for Final Game */}
+                      <BoxScore
+                        apiGameId={game.api_game_id}
+                        homeTeamName={game.home_team}
+                        awayTeamName={game.away_team}
+                      />
+                    </div>
+
+                    {/* Only keep game date and time below the scoreboard */}
+                    <div style={{ fontSize: '0.85em', color: '#888', marginTop: '2px', paddingLeft: '4px' }}>
+                      <span>{new Date(game.commence_time).toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // When the game is live, show ONLY the scoreboard across the card, with pick indicator & date/time below
+              if (isLive) {
+                const live = liveScores[String(game.api_game_id)] || liveScores[game.api_game_id] || {};
+                const livePickIndicators = getLivePickIndicators(game);
+                const { score_home, score_away } = getGameScores(game);
+                const isAwayLeading = score_away !== null && score_home !== null && score_away > score_home;
+                const isHomeLeading = score_home !== null && score_away !== null && score_home > score_away;
+
+                const maxPeriods = Math.max(
+                  4,
+                  live.period || 4,
+                  live.linescores_away?.length || 0,
+                  live.linescores_home?.length || 0
+                );
+                const periodHeaders = Array.from({ length: maxPeriods }, (_, i) => (i < 4 ? `Q${i + 1}` : `OT${i - 3}`));
+
+                return (
+                  <div key={game.id} className="game-card live"
+                     style={{ 
+                       display: 'grid', 
+                       gridTemplateColumns: 'minmax(0, 1fr)', 
+                       gap: isMobile ? '8px' : '12px', 
+                       padding: isMobile ? '12px' : '16px', 
+                       alignItems: 'start',
+                       maxWidth: '100%',
+                       width: '100%',
+                       boxSizing: 'border-box',
+                       overflow: 'hidden',
+                       ...(isRivalry ? { backgroundColor: '#0b0b2b', borderColor: '#1F1F75' } : {})
+                     }}>
+                    {isRivalry && (
+                      <div style={{ textAlign: 'center', marginBottom: '4px', color: '#FFD700', fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        {game.rivalry_trophy}
+                      </div>
+                    )}
+
+                    <div className="scoreboard-box" style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(77, 124, 255, 0.08)',
+                      border: '1px solid rgba(77, 124, 255, 0.3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                      maxWidth: '100%',
+                      width: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      overflow: 'hidden'
+                    }}>
+                      {/* Top Header Bar: LIVE status, Pick Indicators, Refresh button */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85em', color: '#888', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '8px', marginBottom: '2px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="game-status-live" style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontWeight: 'bold',
+                            fontSize: '0.82em',
+                            letterSpacing: '0.05em'
+                          }}>
+                            LIVE
+                          </span>
+                          <span style={{ fontWeight: 'bold', color: '#4d7cff', letterSpacing: '0.05em' }}>
+                            {live.status === 'Halftime' ? 'HALFTIME' : (live.period ? `Q${live.period} - ${live.clock || ''}` : 'IN PROGRESS')}
+                          </span>
+                          {/* Pick Indicators */}
+                          {livePickIndicators.map((ind, iIdx) => (
+                            <span
+                              key={iIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.82em',
+                                fontWeight: 'bold',
+                                backgroundColor: 'rgba(77, 124, 255, 0.2)',
+                                color: '#fff',
+                                border: '1px solid rgba(77, 124, 255, 0.5)'
+                              }}
+                              title={`Your Pick (${ind.type})`}
+                            >
+                              <span style={{ color: '#4d7cff', fontWeight: 'bold', fontSize: '0.9em' }}>Pick:</span>
+                              {ind.text}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                          {live.downDistance && (
+                            <span style={{ color: '#fff', fontWeight: '500', fontSize: '0.85em' }}>{live.downDistance}</span>
+                          )}
+                          {!live.downDistance && live.possessionText && (
+                            <span style={{ color: '#fff', fontWeight: '500', fontSize: '0.85em' }}>Ball on {live.possessionText}</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => refreshSingleGame(game.api_game_id)}
+                            disabled={refreshingGameId === game.api_game_id}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.78em',
+                              fontWeight: '600',
+                              backgroundColor: 'rgba(77, 124, 255, 0.15)',
+                              border: '1px solid rgba(77, 124, 255, 0.35)',
+                              color: '#fff',
+                              cursor: refreshingGameId === game.api_game_id ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Refresh live score, time, down & distance"
+                          >
+                            <RefreshCw size={12} className={refreshingGameId === game.api_game_id ? 'animate-spin' : ''} />
+                            {refreshingGameId === game.api_game_id ? '...' : 'Refresh'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Last play indicator if present */}
+                      {live.lastPlayText && (
+                        <div style={{
+                          fontSize: '0.78em',
+                          color: 'rgba(255, 255, 255, 0.85)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          lineHeight: '1.3'
+                        }}>
+                          <span style={{ color: '#4d7cff', fontWeight: '600', marginRight: '5px' }}>Last Play:</span>
+                          {live.lastPlayText}
+                        </div>
+                      )}
+
+                      {/* Period Linescores Table */}
+                      {live.linescores_away && live.linescores_home && (live.linescores_away.length > 0 || live.linescores_home.length > 0) ? (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
+                            <thead>
+                              <tr style={{ color: 'rgba(255,255,255,0.6)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Team</th>
+                                {periodHeaders.map((header, idx) => (
+                                  <th key={header} style={{
+                                    textAlign: 'center',
+                                    padding: '4px 6px',
+                                    fontWeight: (live.period === idx + 1 && live.status !== 'Halftime') ? 'bold' : 'normal',
+                                    color: (live.period === idx + 1 && live.status !== 'Halftime') ? '#4d7cff' : 'inherit',
+                                    minWidth: '24px'
+                                  }}>
+                                    {header}
+                                  </th>
+                                ))}
+                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold', minWidth: '30px' }}>T</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* Away Team Row */}
+                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                                    <span style={{
+                                      fontWeight: isAwayLeading ? 'bold' : 'normal',
+                                      color: isAwayLeading ? '#fff' : '#ccc'
+                                    }}>
+                                      {formatTeamDisplayName(game.away_team)}
+                                    </span>
+                                  </div>
+                                </td>
+                                {periodHeaders.map((_, idx) => {
+                                  const line = live.linescores_away?.find(l => l.period === idx + 1);
+                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
+                                  return (
+                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
+                                      {val}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{
+                                  textAlign: 'right',
+                                  padding: '6px 6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.2em',
+                                  color: isAwayLeading ? '#4caf50' : '#fff'
+                                }}>
+                                  {score_away ?? '—'}
+                                </td>
+                              </tr>
+
+                              {/* Home Team Row */}
+                              <tr>
+                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '20px', width: '20px', objectFit: 'contain' }} />}
+                                    <span style={{
+                                      fontWeight: isHomeLeading ? 'bold' : 'normal',
+                                      color: isHomeLeading ? '#fff' : '#ccc'
+                                    }}>
+                                      {formatTeamDisplayName(game.home_team)}
+                                    </span>
+                                  </div>
+                                </td>
+                                {periodHeaders.map((_, idx) => {
+                                  const line = live.linescores_home?.find(l => l.period === idx + 1);
+                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
+                                  return (
+                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
+                                      {val}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{
+                                  textAlign: 'right',
+                                  padding: '6px 6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.2em',
+                                  color: isHomeLeading ? '#4caf50' : '#fff'
+                                }}>
+                                  {score_home ?? '—'}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        /* Fallback simpler team score rows if linescores aren't populated */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
+                              <span style={{ 
+                                fontSize: '1.05rem',
+                                fontWeight: isAwayLeading ? 'bold' : 'normal',
+                                color: isAwayLeading ? '#fff' : '#aaa'
+                              }}>
+                                {formatTeamDisplayName(game.away_team)}
+                              </span>
+                            </div>
+                            <span style={{ 
+                              fontSize: '1.4em', 
+                              fontWeight: 'bold',
+                              color: isAwayLeading ? '#4caf50' : '#fff'
+                            }}>
+                              {score_away ?? '—'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
+                              <span style={{ 
+                                fontSize: '1.05rem',
+                                fontWeight: isHomeLeading ? 'bold' : 'normal',
+                                color: isHomeLeading ? '#fff' : '#aaa'
+                              }}>
+                                {formatTeamDisplayName(game.home_team)}
+                              </span>
+                            </div>
+                            <span style={{ 
+                              fontSize: '1.4em', 
+                              fontWeight: 'bold',
+                              color: isHomeLeading ? '#4caf50' : '#fff'
+                            }}>
+                              {score_home ?? '—'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Collapsible Box Score for Live Game */}
                       <BoxScore
                         apiGameId={game.api_game_id}
                         homeTeamName={game.home_team}
@@ -2539,325 +2866,16 @@ const PicksPage = ({
                   <div style={{ marginTop: '12px', fontSize: '0.85em', color: '#888' }}>
                     <span>{new Date(game.commence_time).toLocaleString()}</span>
                     {!isGameLocked(game) && <CountdownTimer commenceTime={game.commence_time} />}
-                    {isGameCurrentlyLive(game) && <span className="game-status-live" style={{ marginLeft: '10px' }}>LIVE</span>}
-                    {isGameFinished(game) && (
-                      <span style={{
-                        marginLeft: '10px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        color: '#aaa',
-                        fontWeight: 'bold',
-                        fontSize: '0.78em',
-                        letterSpacing: '0.05em'
-                      }}>
-                        FINAL
-                      </span>
-                    )}
-                    {!isGameCurrentlyLive(game) && !isGameFinished(game) && isGameLocked(game) && (
+                    {isGameLocked(game) && (
                       <span className="game-status-locked" style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Lock size={12} /> LOCKED
                       </span>
                     )}
                   </div>
-
-                  {/* Live Scoreboard Header / Refresh Control */}
-                  {isGameCurrentlyLive(game) && (
-                    <div style={{
-                      marginTop: '15px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <span style={{ fontSize: '0.78em', fontWeight: 'bold', letterSpacing: '0.05em', color: '#4d7cff', textTransform: 'uppercase' }}>
-                        Live Game Center
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => refreshSingleGame(game.api_game_id)}
-                        disabled={refreshingGameId === game.api_game_id}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '0.75em',
-                          fontWeight: '600',
-                          backgroundColor: 'rgba(77, 124, 255, 0.15)',
-                          border: '1px solid rgba(77, 124, 255, 0.35)',
-                          color: '#fff',
-                          cursor: refreshingGameId === game.api_game_id ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title="Refresh live score, time, down & distance, and field placement"
-                      >
-                        <RefreshCw size={12} className={refreshingGameId === game.api_game_id ? 'animate-spin' : ''} />
-                        {refreshingGameId === game.api_game_id ? 'Refreshing...' : 'Refresh Game'}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Live Scoreboard */}
-                  {isGameCurrentlyLive(game) && liveScores[game.api_game_id] && (() => {
-                    const live = liveScores[game.api_game_id];
-                    const maxPeriods = Math.max(
-                      4,
-                      live.period || 4,
-                      live.linescores_away?.length || 0,
-                      live.linescores_home?.length || 0
-                    );
-                    const periodHeaders = Array.from({ length: maxPeriods }, (_, i) => (i < 4 ? `Q${i + 1}` : `OT${i - 3}`));
-
-                    return (
-                      <div className="scoreboard-box" style={{
-                        marginTop: '8px',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        backgroundColor: 'rgba(77, 124, 255, 0.1)',
-                        border: '1px solid rgba(77, 124, 255, 0.3)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        maxWidth: '100%',
-                        width: '100%',
-                        minWidth: 0,
-                        boxSizing: 'border-box',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8em', color: '#4d7cff', borderBottom: '1px solid rgba(77, 124, 255, 0.2)', paddingBottom: '4px', marginBottom: '2px', flexWrap: 'wrap', gap: '6px' }}>
-                          <span style={{ fontWeight: 'bold', letterSpacing: '0.05em' }}>
-                            {live.status === 'Halftime' ? 'HALFTIME' : `Q${live.period} - ${live.clock}`}
-                          </span>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                            {live.downDistance && (
-                              <span style={{ color: '#fff', fontWeight: '500' }}>{live.downDistance}</span>
-                            )}
-                            {!live.downDistance && live.possessionText && (
-                              <span style={{ color: '#fff', fontWeight: '500' }}>Ball on {live.possessionText}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {live.lastPlayText && (
-                          <div style={{
-                            fontSize: '0.74em',
-                            color: 'rgba(255, 255, 255, 0.75)',
-                            backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            lineHeight: '1.3'
-                          }}>
-                            <span style={{ color: '#4d7cff', fontWeight: '600', marginRight: '4px' }}>Last Play:</span>
-                            {live.lastPlayText}
-                          </div>
-                        )}
-
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
-                            <thead>
-                              <tr style={{ color: 'rgba(255,255,255,0.6)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 'normal' }}>Team</th>
-                                {periodHeaders.map((header, idx) => (
-                                  <th key={header} style={{
-                                    textAlign: 'center',
-                                    padding: '4px 6px',
-                                    fontWeight: (live.period === idx + 1 && live.status !== 'Halftime') ? 'bold' : 'normal',
-                                    color: (live.period === idx + 1 && live.status !== 'Halftime') ? '#4d7cff' : 'inherit',
-                                    minWidth: '24px'
-                                  }}>
-                                    {header}
-                                  </th>
-                                ))}
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 'bold', minWidth: '30px' }}>T</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {/* Away Team Row */}
-                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '18px', width: '18px', objectFit: 'contain' }} />}
-                                    <span style={{
-                                      fontWeight: live.score_away > live.score_home ? 'bold' : 'normal',
-                                      color: live.score_away > live.score_home ? '#fff' : '#ccc'
-                                    }}>
-                                      {formatTeamDisplayName(game.away_team)}
-                                    </span>
-                                  </div>
-                                </td>
-                                {periodHeaders.map((_, idx) => {
-                                  const line = live.linescores_away?.find(l => l.period === idx + 1);
-                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
-                                  return (
-                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
-                                      {val}
-                                    </td>
-                                  );
-                                })}
-                                <td style={{
-                                  textAlign: 'right',
-                                  padding: '6px 6px',
-                                  fontWeight: 'bold',
-                                  fontSize: '1.15em',
-                                  color: live.score_away > live.score_home ? '#4caf50' : '#fff'
-                                }}>
-                                  {live.score_away}
-                                </td>
-                              </tr>
-
-                              {/* Home Team Row */}
-                              <tr>
-                                <td style={{ padding: '6px 6px', verticalAlign: 'middle' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '18px', width: '18px', objectFit: 'contain' }} />}
-                                    <span style={{
-                                      fontWeight: live.score_home > live.score_away ? 'bold' : 'normal',
-                                      color: live.score_home > live.score_away ? '#fff' : '#ccc'
-                                    }}>
-                                      {formatTeamDisplayName(game.home_team)}
-                                    </span>
-                                  </div>
-                                </td>
-                                {periodHeaders.map((_, idx) => {
-                                  const line = live.linescores_home?.find(l => l.period === idx + 1);
-                                  const val = line ? line.score : (idx + 1 <= (live.period || 1) ? '0' : '-');
-                                  return (
-                                    <td key={idx} style={{ textAlign: 'center', padding: '6px 6px', color: line ? '#ddd' : '#666' }}>
-                                      {val}
-                                    </td>
-                                  );
-                                })}
-                                <td style={{
-                                  textAlign: 'right',
-                                  padding: '6px 6px',
-                                  fontWeight: 'bold',
-                                  fontSize: '1.15em',
-                                  color: live.score_home > live.score_away ? '#4caf50' : '#fff'
-                                }}>
-                                  {live.score_home}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {scoresLastUpdated && (
-                          <div style={{ fontSize: '0.72em', color: 'rgba(255, 255, 255, 0.45)', textAlign: 'right', marginTop: '2px' }}>
-                            Score last updated: {scoresLastUpdated.toLocaleTimeString()}
-                          </div>
-                        )}
-
-                        {/* Collapsible Box Score for Live Game */}
-                        <BoxScore
-                          apiGameId={game.api_game_id}
-                          homeTeamName={game.home_team}
-                          awayTeamName={game.away_team}
-                        />
-                      </div>
-                    );
-                  })()}
                 </div>
 
-                {/* Right Column: Final Scoreboard if game is completed, else Game Intel */}
-                {isGameFinished(game) ? (() => {
-                  const { score_home, score_away } = getGameScores(game);
-                  const isAwayWinner = score_away !== null && score_home !== null && score_away > score_home;
-                  const isHomeWinner = score_home !== null && score_away !== null && score_home > score_away;
-
-                  return (
-                    <div className="scoreboard-box" style={{
-                      padding: '16px',
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.35)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
-                      maxWidth: '100%',
-                      width: '100%',
-                      minWidth: 0,
-                      boxSizing: 'border-box',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85em', color: '#888', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '2px' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                          color: '#fff',
-                          fontWeight: 'bold',
-                          letterSpacing: '0.05em'
-                        }}>
-                          FINAL
-                        </span>
-                        {score_home !== null && score_away !== null && (
-                          <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontWeight: '500' }}>
-                            Total Points: {score_home + score_away}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Away Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {game.away_logo && <img src={game.away_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
-                          <span style={{ 
-                            fontSize: '1rem',
-                            fontWeight: isAwayWinner ? 'bold' : 'normal',
-                            color: isAwayWinner ? '#fff' : '#aaa'
-                          }}>
-                            {formatTeamDisplayName(game.away_team)}
-                          </span>
-                        </div>
-                        <span style={{ 
-                          fontSize: '1.4em', 
-                          fontWeight: 'bold',
-                          color: isAwayWinner ? '#4caf50' : '#fff'
-                        }}>
-                          {score_away ?? '—'}
-                        </span>
-                      </div>
-
-                      {/* Home Team Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {game.home_logo && <img src={game.home_logo} alt="" style={{ height: '24px', width: '24px', objectFit: 'contain' }} />}
-                          <span style={{ 
-                            fontSize: '1rem',
-                            fontWeight: isHomeWinner ? 'bold' : 'normal',
-                            color: isHomeWinner ? '#fff' : '#aaa'
-                          }}>
-                            {formatTeamDisplayName(game.home_team)}
-                          </span>
-                        </div>
-                        <span style={{ 
-                          fontSize: '1.4em', 
-                          fontWeight: 'bold',
-                          color: isHomeWinner ? '#4caf50' : '#fff'
-                        }}>
-                          {score_home ?? '—'}
-                        </span>
-                      </div>
-
-                      {/* Collapsible Box Score for Final Game */}
-                      <BoxScore
-                        apiGameId={game.api_game_id}
-                        homeTeamName={game.home_team}
-                        awayTeamName={game.away_team}
-                      />
-                    </div>
-                  );
-                })() : (
-                  <GameIntel game={game} picks={picks} selectedPlayer={selectedPlayer} />
-                )}
+                {/* Right Column: Game Intel */}
+                <GameIntel game={game} picks={picks} selectedPlayer={selectedPlayer} />
               </div>
             )})}
           </div>
