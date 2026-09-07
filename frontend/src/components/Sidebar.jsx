@@ -82,6 +82,23 @@ const Sidebar = ({
           <FootballIcon />
           {!isSidebarCollapsed && <span>Picks</span>}
         </button>
+        <button
+          className={activePage === 'summary' ? 'active' : ''}
+          onClick={() => handlePageChange('summary')}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '0.9rem', 
+            textAlign: isSidebarCollapsed ? 'center' : 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+            gap: '10px'
+          }}
+          title={isSidebarCollapsed ? "Leaderboards" : ""}
+        >
+          <LeaderboardIcon />
+          {!isSidebarCollapsed && <span>Leaderboards</span>}
+        </button>
         {hasLiveGames && (
           <button
             className={activePage === 'live-scores' ? 'active' : ''}
@@ -251,23 +268,6 @@ const Sidebar = ({
         >
           <ShieldAlert size={20} style={{ color: '#ffffff' }} />
           {!isSidebarCollapsed && <span>Liability Watch</span>}
-        </button>
-        <button
-          className={activePage === 'summary' ? 'active' : ''}
-          onClick={() => handlePageChange('summary')}
-          style={{ 
-            padding: '8px 16px', 
-            fontSize: '0.9rem', 
-            textAlign: isSidebarCollapsed ? 'center' : 'left',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-            gap: '10px'
-          }}
-          title={isSidebarCollapsed ? "Leaderboards" : ""}
-        >
-          <LeaderboardIcon />
-          {!isSidebarCollapsed && <span>Leaderboards</span>}
         </button>
         <button
           className={activePage === 'awards' ? 'active' : ''}
