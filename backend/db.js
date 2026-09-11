@@ -56,7 +56,10 @@ function nowMinus30Days() {
 const pool = dialect === 'postgres'
   ? new Pool({
       connectionString: process.env.POSTGRES_URL,
-      ssl: { rejectUnauthorized: false }
+      ssl: { rejectUnauthorized: false },
+      max: process.env.VERCEL === '1' ? 1 : 5,
+      idleTimeoutMillis: process.env.VERCEL === '1' ? 3000 : 30000,
+      connectionTimeoutMillis: 10000
     })
   : (() => {
       const sqliteDb = new Database(dbFile);
