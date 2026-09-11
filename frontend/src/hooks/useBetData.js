@@ -125,10 +125,10 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
           fetch('/api/teams'),
           fetch('/api/stats/leaders')
         ]);
-        setPlayers(await playersRes.json());
-        setSeasons(await seasonsRes.json());
-        setTeams(await teamsRes.json());
-        setAllPlayerStats(await leadersRes.json());
+        if (playersRes.ok) setPlayers(await playersRes.json());
+        if (seasonsRes.ok) setSeasons(await seasonsRes.json());
+        if (teamsRes.ok) setTeams(await teamsRes.json());
+        if (leadersRes.ok) setAllPlayerStats(await leadersRes.json());
       } catch (error) {
         setMessage('Unable to load initial metadata.');
       } finally {
@@ -145,13 +145,18 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
       setLoading(true);
       try {
         const weeksRes = await fetch(`/api/weeks?season=${selectedSeason}`);
-        setWeeks(await weeksRes.json());
+        if (weeksRes.ok) {
+          const weeksData = await weeksRes.json();
+          if (Array.isArray(weeksData)) {
+            setWeeks(weeksData);
+          }
+        }
         
         const seasonSummaryRes = await fetch(`/api/season/${selectedSeason}/summary`);
-        setSeasonSummary(await seasonSummaryRes.json());
+        if (seasonSummaryRes.ok) setSeasonSummary(await seasonSummaryRes.json());
         
         const allTimeRes = await fetch('/api/summary/alltime');
-        setAllTimeSummary(await allTimeRes.json());
+        if (allTimeRes.ok) setAllTimeSummary(await allTimeRes.json());
       } catch (error) {
         setMessage('Unable to load season data.');
       } finally {

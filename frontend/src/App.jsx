@@ -157,7 +157,7 @@ function App() {
     return isGameLocked(game) && !game.completed;
   };
 
-  const weekOptions = weeks.reduce((acc, week) => {
+  const weekOptions = (Array.isArray(weeks) ? weeks : []).reduce((acc, week) => {
     if (!acc.some((item) => item.week === week.week)) {
       acc.push({
         ...week,
