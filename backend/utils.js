@@ -74,23 +74,20 @@ function determinePickResult(game, pick) {
 
   const homeScore = Number(game.score_home);
   const awayScore = Number(game.score_away);
-  const spread = Number(game.spread_home ?? 0);
-  const adjustedHome = homeScore + spread;
-
-  let winner = 'push';
-  if (adjustedHome > awayScore) winner = 'home';
-  else if (adjustedHome < awayScore) winner = 'away';
-
-  if (winner === 'push') {
-    return 'push';
+  const isHome = pick.selection_team === game.home_team;
+  
+  // Use the spread saved with the pick first; fall back to game closing spread
+  let spread = pick.spread !== null && pick.spread !== undefined ? Number(pick.spread) : null;
+  if (spread === null) {
+    spread = isHome ? Number(game.spread_home ?? 0) : Number(game.spread_away ?? 0);
   }
 
-  const selectedSide = pick.selection_team === game.home_team ? 'home' : pick.selection_team === game.away_team ? 'away' : null;
-  if (!selectedSide) {
-    return null;
-  }
+  const selectionScore = isHome ? homeScore + spread : awayScore + spread;
+  const opponentScore = isHome ? awayScore : homeScore;
 
-  return selectedSide === winner ? 'win' : 'loss';
+  if (selectionScore > opponentScore) return 'win';
+  if (selectionScore < opponentScore) return 'loss';
+  return 'push';
 }
 
 function determineTotalResult(game, pick) {
