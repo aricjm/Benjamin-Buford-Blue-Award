@@ -864,7 +864,7 @@ const GameIntel = ({ game, picks, selectedPlayer }) => {
                     backgroundColor: spreadDiff > 0 ? 'rgba(77, 124, 255, 0.1)' : 'rgba(0, 230, 118, 0.1)',
                     padding: '1px 4px',
                     borderRadius: '3px'
-                  }}>\n                    {spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
+                  }}>{spreadDiff > 0 ? `+${spreadDiff}` : spreadDiff}
                   </span>
                 )}
               </div>
@@ -1522,6 +1522,8 @@ const PicksPage = ({
     ].filter(Boolean))
   )].sort();
 
+  const CABLE_TV_CHANNELS = ['ABC', 'ACC Network', 'BTN', 'CBS', 'CBSSN', 'ESPN', 'ESPN2', 'ESPNU', 'FOX', 'FS1', 'NBC', 'SEC Network', 'TNT', 'USA Net'];
+
   // Channels available for games playing this week
   const weekChannels = [...new Set(
     pickGames.map((game) => game.tv_network).filter(Boolean)
@@ -1996,6 +1998,60 @@ const PicksPage = ({
                           </button>
                         )}
                       </div>
+                      {/* Cable TV preset */}
+                      {(() => {
+                        const availableCable = CABLE_TV_CHANNELS.filter(ch => weekChannels.includes(ch));
+                        if (availableCable.length === 0) return null;
+                        const allSelected = availableCable.every(ch => selectedChannels.includes(ch));
+                        const toggleCable = () => {
+                          if (allSelected) {
+                            setSelectedChannels(prev => prev.filter(ch => !CABLE_TV_CHANNELS.includes(ch)));
+                          } else {
+                            setSelectedChannels(prev => [...new Set([...prev, ...availableCable])]);
+                          }
+                        };
+                        return (
+                          <div
+                            key="__cable_tv__"
+                            onClick={toggleCable}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                              padding: '6px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              backgroundColor: allSelected ? 'rgba(77, 124, 255, 0.18)' : 'transparent',
+                              color: allSelected ? '#fff' : '#ccc',
+                              fontSize: '0.85em',
+                              userSelect: 'none',
+                              transition: 'background-color 0.1s',
+                              borderBottom: '1px solid rgba(255,255,255,0.08)',
+                              marginBottom: '4px'
+                            }}
+                            onMouseEnter={(e) => { if (!allSelected) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; }}
+                            onMouseLeave={(e) => { if (!allSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <span style={{ fontWeight: allSelected ? '600' : 'normal' }}>Cable TV</span>
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '3px',
+                                border: allSelected ? '1px solid #4d7cff' : '1px solid rgba(255,255,255,0.25)',
+                                backgroundColor: allSelected ? '#4d7cff' : 'transparent',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              {allSelected && <Check size={12} color="#fff" strokeWidth={3} />}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {weekChannels.map((ch) => {
                         const isSelected = selectedChannels.includes(ch);
                         return (

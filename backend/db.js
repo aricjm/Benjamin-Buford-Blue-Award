@@ -3129,7 +3129,7 @@ async function getCurrentWeekLocks() {
 
   const locks = lockPicks.map(row => {
     const spreadText = row.spread === 0 ? 'PK' : (row.spread > 0 ? `+${row.spread}` : `${row.spread}`);
-    const result = row.selection_team ? row.result : row.result_total;
+    const result = row.result;
     const resolvedResult = result || (row.completed ? 'loss' : 'pending');
     
     return { 
@@ -3203,7 +3203,7 @@ async function getBBBMLPData(season) {
     const spread = row.spread;
     const spreadText = spread === 0 ? 'PK' : (spread > 0 ? `+${spread}` : `${spread}`);
 
-    const result = row.selection_team ? row.result : row.result_total;
+    const result = row.result;
     // If game is completed but result wasn't recorded, treat as loss (data gap)
     const resolvedResult = result || (row.completed ? 'loss' : 'pending');
 
