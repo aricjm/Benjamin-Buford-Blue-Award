@@ -1052,6 +1052,13 @@ async function saveGamesForWeek(week, games, season) {
   return result;
 }
 
+async function touchGamesUpdatedAt(week, season) {
+  const now = new Date().toISOString();
+  await pool.query('UPDATE games SET updated_at = $1 WHERE week = $2 AND season = $3', [now, week, season]);
+  cache.del(`week_games_${season}_${week}`);
+  cache.del(`week_games_all_${week}`);
+}
+
 async function saveGamesForSeason(games) {
   let saved = 0;
   
@@ -3304,6 +3311,7 @@ module.exports = {
     getModelTestGames,
   getPicksByWeek,
   saveGamesForWeek,
+  touchGamesUpdatedAt,
   saveGamesForSeason,
   saveManualGame,
   updateScoresFromSeason,

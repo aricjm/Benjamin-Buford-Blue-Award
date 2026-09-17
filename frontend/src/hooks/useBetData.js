@@ -45,10 +45,11 @@ export const useBetData = (selectedSeason, selectedWeek, selectedPlayer, selecte
     }
   }, [statsTimeRange, selectedWeek, selectedSeason]);
 
-  const loadWeek = useCallback(async (week, season, player) => {
+  const loadWeek = useCallback(async (week, season, player, forceRefresh = false) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/week/${week}/games?season=${season}`);
+      const refreshParam = forceRefresh ? '&refresh=true' : '';
+      const res = await fetch(`/api/week/${week}/games?season=${season}${refreshParam}`);
       const data = await res.json();
       setGames(data.games || []);
       setSummary(data.summary || []);

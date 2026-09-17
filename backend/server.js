@@ -117,6 +117,7 @@ app.get('/api/week/:week/odds-history', async (req, res) => {
 // Track last ESPN sync time per week to avoid writing on every page load
 const lastEspnSync = new Map();
 const ESPN_SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const ODDS_REFRESH_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes minimum between manual refreshes
 
 app.get('/api/week/:week/games', async (req, res) => {
   app.get('/api/model-games', async (req, res) => {
@@ -130,15 +131,22 @@ app.get('/api/week/:week/games', async (req, res) => {
   try {
     const week = Number(req.params.week);
     const season = getSeason(req);
-    // Only fetch live from ESPN for the current season — historical seasons are already in the DB
-    if (season === DEFAULT_SEASON) {
-      const syncKey = `${season}_${week}`;
-      const lastSync = lastEspnSync.get(syncKey) || 0;
-      if (Date.now() - lastSync > ESPN_SYNC_TTL_MS) {
+    const forceRefresh = req.query.refresh === 'true';
+    const syncKey = `${season}_${week}`;
+    const lastSync = lastEspnSync.get(syncKey) || 0;
+
+    if (forceRefresh) {
+      // Manual refresh requested: only fetch and update if 15 minutes have elapsed
+      if (Date.now() - lastSync >= ODDS_REFRESH_MIN_INTERVAL_MS) {
         const gamesFromApi = await api.fetchWeekGames(week, season);
         await db.saveGamesForWeek(week, gamesFromApi, season);
+        await db.touchGamesUpdatedAt(week, season);
         lastEspnSync.set(syncKey, Date.now());
       }
+    } else if (season === DEFAULT_SEASON && Date.now() - lastSync > ESPN_SYNC_TTL_MS) {
+      const gamesFromApi = await api.fetchWeekGames(week, season);
+      await db.saveGamesForWeek(week, gamesFromApi, season);
+      lastEspnSync.set(syncKey, Date.now());
     }
     const games = await db.getWeekGames(week, season);
     const picks = await db.getPicksByWeek(week, season);

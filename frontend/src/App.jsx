@@ -87,6 +87,33 @@ function App() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState('picks');
+  const [isRefreshingOdds, setIsRefreshingOdds] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [refreshBannerText, setRefreshBannerText] = useState('Refreshing odds...');
+  const [bannerVisible, setBannerVisible] = useState(false);
+  const [playerModalOpen, setPlayerModalOpen] = useState(true);
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [showSaveResult, setShowSaveResult] = useState(false);
+  const [saveResult, setSaveResult] = useState({ success: false, message: '' });
+  const [savedPicksList, setSavedPicksList] = useState([]);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [hasLiveGames, setHasLiveGames] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved === 'true';
+  });
+
+  // Consume the custom hooks
+  const isMobile = useIsMobile();
+  const {
+    players, seasons, weeks, teams, games, picks, loadedPicks, otherPlayersLocks,
+    summary, seasonSummary, allTimeSummary,
+    loading, message, playerStats, conferenceStats, allPlayerStats,
+    setLoading, setMessage, loadStats, loadWeek, 
+    handlePickChange, handleTotalChange, handleSpreadAdjust, handleTotalAdjust, handleLockToggle, addManualGame, savePicks
+  } = useBetData(selectedSeason, selectedWeek, selectedPlayer, selectedConference, statsTimeRange);
 
   // Swipe right from left edge opens menu on mobile
   useEffect(() => {
@@ -120,28 +147,117 @@ function App() {
       document.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
-  const [playerModalOpen, setPlayerModalOpen] = useState(true);
-  const [showConfirmSave, setShowConfirmSave] = useState(false);
-  const [showSaveResult, setShowSaveResult] = useState(false);
-  const [saveResult, setSaveResult] = useState({ success: false, message: '' });
-  const [savedPicksList, setSavedPicksList] = useState([]);
-  const [showAlertModal, setShowAlertModal] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [hasLiveGames, setHasLiveGames] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebarCollapsed');
-    return saved === 'true';
-  });
 
-  // Consume the custom hooks
-  const isMobile = useIsMobile();
-  const {
-    players, seasons, weeks, teams, games, picks, loadedPicks, otherPlayersLocks,
-    summary, seasonSummary, allTimeSummary,
-    loading, message, playerStats, conferenceStats, allPlayerStats,
-    setLoading, setMessage, loadStats, loadWeek, 
-    handlePickChange, handleTotalChange, handleSpreadAdjust, handleTotalAdjust, handleLockToggle, addManualGame, savePicks
-  } = useBetData(selectedSeason, selectedWeek, selectedPlayer, selectedConference, statsTimeRange);
+  // Pull-down gesture on mobile to refresh odds
+  useEffect(() => {
+    if (!isMobile) return;
+
+    let startY = null;
+    let startX = null;
+    let tracking = false;
+
+    const onTouchStart = (e) => {
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollY <= 0 && e.touches.length === 1) {
+        startY = e.touches[0].clientY;
+        startX = e.touches[0].clientX;
+        tracking = true;
+      } else {
+        tracking = false;
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (!tracking || startY === null || isRefreshingOdds || bannerVisible) return;
+      const dy = e.touches[0].clientY - startY;
+      const dx = Math.abs(e.touches[0].clientX - startX);
+
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollY <= 0 && dy > 10 && dy > dx) {
+        const dist = Math.min((dy - 10) * 0.45, 55);
+        setPullDistance(dist);
+        setIsDragging(true);
+
+        // Check if odds were updated in the last 15 minutes
+        const latestTime = (games || [])
+          .filter(g => Number(g.week) === Number(selectedWeek))
+          .reduce((latest, g) => {
+            if (!g.updated_at) return latest;
+            const t = new Date(g.updated_at).getTime();
+            return !latest || t > latest ? t : latest;
+          }, null);
+        const within15 = !!(latestTime && (Date.now() - latestTime < 15 * 60 * 1000));
+        setRefreshBannerText(within15 ? 'Odds are up-to-date' : 'Refreshing odds...');
+      } else if (dy <= 0) {
+        setPullDistance(0);
+        setIsDragging(false);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      startY = null;
+      startX = null;
+
+      if (pullDistance >= 30 && !isRefreshingOdds && !bannerVisible) {
+        setPullDistance(0);
+        setIsDragging(false);
+
+        // Check if odds were updated within the last 15 minutes
+        const latestTime = (games || [])
+          .filter(g => Number(g.week) === Number(selectedWeek))
+          .reduce((latest, g) => {
+            if (!g.updated_at) return latest;
+            const t = new Date(g.updated_at).getTime();
+            return !latest || t > latest ? t : latest;
+          }, null);
+        const within15 = !!(latestTime && (Date.now() - latestTime < 15 * 60 * 1000));
+
+        if (within15) {
+          setRefreshBannerText('Odds are up-to-date');
+          setBannerVisible(true);
+          setTimeout(() => {
+            setBannerVisible(false);
+          }, 2200);
+        } else {
+          setRefreshBannerText('Refreshing odds...');
+          setIsRefreshingOdds(true);
+          setBannerVisible(true);
+          if (selectedWeek !== null && selectedSeason) {
+            loadWeek(selectedWeek, selectedSeason, selectedPlayer, true)
+              .then(() => {
+                setRefreshBannerText('Odds updated!');
+                setTimeout(() => {
+                  setBannerVisible(false);
+                  setIsRefreshingOdds(false);
+                }, 1200);
+              })
+              .catch(() => {
+                setBannerVisible(false);
+                setIsRefreshingOdds(false);
+              });
+          } else {
+            setBannerVisible(false);
+            setIsRefreshingOdds(false);
+          }
+        }
+      } else {
+        setPullDistance(0);
+        setIsDragging(false);
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile, isRefreshingOdds, bannerVisible, pullDistance, games, selectedWeek, selectedSeason, selectedPlayer, loadWeek]);
 
   const handlePageChange = (page) => {
     setActivePage(page);
@@ -445,6 +561,30 @@ function App() {
   return (
     <div className="app-shell">
       {loading && <LoadingAnimation />}
+
+      {/* Pull-to-refresh banner above BBB Award title and Menu button on phone */}
+      {isMobile && (
+        <div
+          style={{
+            overflow: 'hidden',
+            height: (isRefreshingOdds || bannerVisible) ? '42px' : `${pullDistance}px`,
+            opacity: (pullDistance > 8 || isRefreshingOdds || bannerVisible) ? 1 : 0,
+            transition: isDragging ? 'none' : 'height 0.25s ease, opacity 0.25s ease, margin 0.25s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff',
+            fontSize: '0.95rem',
+            fontWeight: 'bold',
+            letterSpacing: '0.04em',
+            backgroundColor: '#000000',
+            borderRadius: '8px',
+            marginBottom: (pullDistance > 8 || isRefreshingOdds || bannerVisible) ? '10px' : '0'
+          }}
+        >
+          <span>{refreshBannerText}</span>
+        </div>
+      )}
 
       <header className="page-header">
         <div>
