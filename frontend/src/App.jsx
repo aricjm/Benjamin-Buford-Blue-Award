@@ -87,6 +87,39 @@ function App() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState('picks');
+
+  // Swipe right from left edge opens menu on mobile
+  useEffect(() => {
+    let touchStartX = null;
+    let touchStartY = null;
+    const EDGE_THRESHOLD = 40;
+    const MIN_SWIPE_X = 60;
+    const MAX_SWIPE_Y = 80;
+
+    const onTouchStart = (e) => {
+      const t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+    };
+    const onTouchEnd = (e) => {
+      if (touchStartX === null) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = Math.abs(t.clientY - touchStartY);
+      if (touchStartX < EDGE_THRESHOLD && dx > MIN_SWIPE_X && dy < MAX_SWIPE_Y) {
+        setMenuOpen(true);
+      }
+      touchStartX = null;
+      touchStartY = null;
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
   const [playerModalOpen, setPlayerModalOpen] = useState(true);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
   const [showSaveResult, setShowSaveResult] = useState(false);
