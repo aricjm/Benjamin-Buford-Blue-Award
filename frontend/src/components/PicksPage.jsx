@@ -2243,8 +2243,8 @@ const PicksPage = ({
             {sortedFilteredGames.flatMap((game, idx) => {
               const dayBreak = (() => {
                 if (idx === 0) return null;
-                const prevDate = new Date(sortedFilteredGames[idx - 1].commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: 'long', day: 'numeric' });
-                const thisDate = new Date(game.commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: 'long', day: 'numeric' });
+                const prevDate = new Date(sortedFilteredGames[idx - 1].commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric' });
+                const thisDate = new Date(game.commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric' });
                 if (prevDate === thisDate) return null;
                 return (
                   <div key={`day-break-${game.id}`} style={{ display: 'flex', flexDirection: 'column', marginTop: '-6px', marginBottom: '8px' }}>
@@ -2273,7 +2273,7 @@ const PicksPage = ({
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                      <span style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
+                      <span style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
                       <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
                     </div>
                   </div>

@@ -287,6 +287,17 @@ function App() {
   const playerPicks = Object.values(picks).filter((pick) => pick.selectionTeam || pick.selectionTotal);
   const hasLock = playerPicks.some(p => p.isLock);
 
+  // Lock bypass allowed Sunday through Friday (not Saturday)
+  const isSaturday = (() => {
+    try {
+      const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date());
+      return day === 'Sat';
+    } catch {
+      return new Date().getDay() === 6;
+    }
+  })();
+  const canBypassLock = !isSaturday;
+
   const buildPickItems = (pick) => {
     const game = pickGames.find(g => g.id === pick.gameId);
     if (!game) return [];
@@ -614,11 +625,30 @@ function App() {
                     </div>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                  {(!hasLock && selectableBets.length === 0) ? null : (
-                    <button className="continue-button" onClick={() => performSave()} disabled={loading || !hasLock}>Yes, save</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    {(!hasLock && selectableBets.length === 0) ? null : (
+                      <button className="continue-button" onClick={() => performSave()} disabled={loading || !hasLock}>Yes, save</button>
+                    )}
+                    <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
+                  </div>
+                  {!hasLock && canBypassLock && (
+                    <button
+                      className="continue-button"
+                      onClick={() => performSave()}
+                      disabled={loading}
+                      style={{
+                        background: '#d32f2f',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontWeight: 'bold',
+                        fontSize: '0.95rem',
+                        padding: '12px 16px'
+                      }}
+                    >
+                      Yes, save and insert lock later
+                    </button>
                   )}
-                  <button className="continue-button" onClick={() => setShowConfirmSave(false)} disabled={loading}>Cancel</button>
                 </div>
               </div>
             </div>
