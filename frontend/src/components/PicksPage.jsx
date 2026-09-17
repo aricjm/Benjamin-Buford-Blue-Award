@@ -1658,6 +1658,12 @@ const PicksPage = ({
     return { score_home, score_away };
   };
 
+  // Find highest and lowest over/under for the week
+  const gamesWithOU = pickGames.filter(g => g.over_under !== null && g.over_under !== undefined && !isNaN(Number(g.over_under)));
+  const allOUs = gamesWithOU.map(g => Number(g.over_under));
+  const minOU = allOUs.length > 0 ? Math.min(...allOUs) : null;
+  const maxOU = allOUs.length > 0 ? Math.max(...allOUs) : null;
+
   const filteredGames = pickGames.filter((game) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = !term || (
@@ -1676,8 +1682,20 @@ const PicksPage = ({
     const matchesTop25 = !selectedFilters.includes('top25') || !!getTeamRank(game.home_team) || !!getTeamRank(game.away_team);
     const matchesLiveGames = !selectedFilters.includes('live') || isGameCurrentlyLive(game);
     const matchesFinalGames = !selectedFilters.includes('final') || isGameFinished(game);
+    const matchesHighLowOU = !selectedFilters.includes('highLowOU') || (
+      minOU !== null && maxOU !== null && game.over_under !== null && game.over_under !== undefined && (
+        Number(game.over_under) === minOU || Number(game.over_under) === maxOU
+      )
+    );
+    const matchesGoodGames = !selectedFilters.includes('goodGames') || (
+      game.spread_home !== null &&
+      game.spread_home !== undefined &&
+      !isNaN(Number(game.spread_home)) &&
+      Math.abs(Number(game.spread_home)) <= 7
+    );
+    const matchesRivalries = !selectedFilters.includes('rivalries') || !!game.rivalry_trophy;
     const matchesChannel = selectedChannels.length === 0 || (game.tv_network && selectedChannels.includes(game.tv_network));
-    return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesFinalGames && matchesTop25;
+    return matchesSearch && matchesConference && matchesChannel && matchesMyPicks && matchesLiveGames && matchesFinalGames && matchesTop25 && matchesHighLowOU && matchesGoodGames && matchesRivalries;
   });
 
   // Sort games so active and upcoming games appear first, and final/completed games move to the bottom
@@ -2135,9 +2153,15 @@ const PicksPage = ({
                             ? 'Top 25'
                             : selectedFilters[0] === 'myPicks'
                               ? 'My Picks'
-                              : selectedFilters[0] === 'final'
-                                ? 'Final Games'
-                                : 'Live Games')
+                              : selectedFilters[0] === 'highLowOU'
+                                ? 'High/Low O/U'
+                                : selectedFilters[0] === 'goodGames'
+                                  ? 'Good Games (< 7)'
+                                  : selectedFilters[0] === 'rivalries'
+                                    ? 'Rivalries'
+                                    : selectedFilters[0] === 'final'
+                                      ? 'Final Games'
+                                      : 'Live Games')
                         : `${selectedFilters.length} Filters`}
                   </span>
                   <ChevronDown size={14} style={{ transform: filterDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
@@ -2184,6 +2208,9 @@ const PicksPage = ({
                     {[
                       { key: 'top25', label: 'Top 25', color: '#f1c40f' },
                       { key: 'myPicks', label: 'My Picks', color: '#4d7cff' },
+                      { key: 'highLowOU', label: 'High/Low O/U', color: '#e67e22' },
+                      { key: 'goodGames', label: 'Good Games (< 7)', color: '#2ecc71' },
+                      { key: 'rivalries', label: 'Rivalries', color: '#9b59b6' },
                       { key: 'final', label: 'Final Games', color: '#4caf50' },
                       ...(hasAnyLiveGames ? [{ key: 'live', label: 'Live Games', color: '#e74c3c' }] : [])
                     ].map((item) => {
@@ -2242,9 +2269,21 @@ const PicksPage = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {sortedFilteredGames.flatMap((game, idx) => {
               const dayBreak = (() => {
-                if (idx === 0) return null;
-                const prevDate = new Date(sortedFilteredGames[idx - 1].commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric' });
                 const thisDate = new Date(game.commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric' });
+                const dayOfWeek = new Date(game.commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' });
+                if (idx === 0) {
+                  return (
+                    <div key={`day-break-${game.id}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '4px 0 2px' }}>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                        <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{dayOfWeek}</span>
+                        <span style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
+                      </div>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                    </div>
+                  );
+                }
+                const prevDate = new Date(sortedFilteredGames[idx - 1].commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'long', day: 'numeric' });
                 if (prevDate === thisDate) return null;
                 return (
                   <div key={`day-break-${game.id}`} style={{ display: 'flex', flexDirection: 'column', marginTop: '-6px', marginBottom: '8px' }}>
@@ -2273,7 +2312,10 @@ const PicksPage = ({
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                      <span style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                        <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{dayOfWeek}</span>
+                        <span style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
+                      </div>
                       <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
                     </div>
                   </div>
