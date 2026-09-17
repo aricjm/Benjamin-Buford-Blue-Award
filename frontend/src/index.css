@@ -466,13 +466,25 @@ select {
   }
 
   .controls {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   .controls label {
+    flex: 1;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 3px;
+    padding: 8px 8px;
+    font-size: 0.75rem;
+    min-width: 0;
+  }
+
+  .controls select {
+    font-size: 0.75rem;
+    padding: 5px 4px;
+    width: 100%;
   }
 
   .manual-grid {
@@ -848,12 +860,23 @@ select {
 
 @media (max-width: 640px) {
   .controls {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
   .controls label {
+    flex: 1;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 3px;
+    padding: 8px 8px;
+    font-size: 0.75rem;
+    min-width: 0;
+  }
+  .controls select {
+    font-size: 0.75rem;
+    padding: 5px 4px;
+    width: 100%;
   }
   .manual-grid {
     grid-template-columns: 1fr;
