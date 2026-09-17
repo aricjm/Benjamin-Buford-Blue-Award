@@ -2240,7 +2240,46 @@ const PicksPage = ({
           {pickGames.length === 0 && <p>No games found for this week.</p>}
           {(searchTerm || selectedConference || selectedChannels.length > 0 || selectedFilters.length > 0) && sortedFilteredGames.length === 0 && <p style={{ color: '#888' }}>No games matching your filters</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {sortedFilteredGames.map((game) => {
+            {sortedFilteredGames.flatMap((game, idx) => {
+              const dayBreak = (() => {
+                if (idx === 0) return null;
+                const prevDate = new Date(sortedFilteredGames[idx - 1].commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: 'long', day: 'numeric' });
+                const thisDate = new Date(game.commence_time).toLocaleDateString('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: 'long', day: 'numeric' });
+                if (prevDate === thisDate) return null;
+                return (
+                  <div key={`day-break-${game.id}`} style={{ display: 'flex', flexDirection: 'column', marginTop: '-6px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '36px' }}>
+                      <button
+                        type="button"
+                        disabled={loading || selectedWeek === null}
+                        onClick={handleSubmit}
+                        style={{
+                          background: '#fff',
+                          color: '#000',
+                          border: '1px solid #ccc',
+                          borderRadius: '14px',
+                          padding: '14px 24px',
+                          fontWeight: 'bold',
+                          cursor: loading || selectedWeek === null ? 'not-allowed' : 'pointer',
+                          opacity: loading || selectedWeek === null ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <Save size={16} /> Save Picks
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                      <span style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 'bold', whiteSpace: 'nowrap', letterSpacing: '0.04em' }}>{thisDate}</span>
+                      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                    </div>
+                  </div>
+                );
+              })();
+              const card = (() => {
               const isAwayActive = picks[game.id]?.selectionTeam === game.away_team;
               const isHomeActive = picks[game.id]?.selectionTeam === game.home_team;
               const hasSpreadOdds = (game.spread_home !== null && game.spread_home !== undefined) || (picks[game.id]?.spread !== null && picks[game.id]?.spread !== undefined);
@@ -3085,7 +3124,10 @@ const PicksPage = ({
                 {/* Right Column: Game Intel */}
                 <GameIntel game={game} picks={picks} selectedPlayer={selectedPlayer} />
               </div>
-            )})}
+            );
+              })();
+              return dayBreak ? [dayBreak, card] : [card];
+            })}
           </div>
         </article>
       </section>
